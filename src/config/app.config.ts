@@ -85,4 +85,8 @@ export default () => ({
       password: process.env.SYSTEM_PASSWORD,
     },
   },
+
+  dvla: {
+    api_key: process.env.DVLA_API_KEY,
+  },
 });

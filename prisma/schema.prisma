@@ -62,7 +62,6 @@ model User {
   // billing id. e.g. stripe customer id
   billing_id String?
 
-  type              String?   @default("user")
   email_verified_at DateTime?
 
   is_two_factor_enabled Int?    @default(0)
@@ -76,14 +75,28 @@ model User {
   receiver_notifications    Notification[] @relation("receiver")
   sender_notifications      Notification[] @relation("sender")
 
-  user_payment_methods UserPaymentMethod[]
-  user_settings        UserSetting[]
-  ucodes               Ucode[]
-  roles                Role[]
-  role_users           RoleUser[]
-  payment_transactions PaymentTransaction[]
+  user_payment_methods        UserPaymentMethod[]
+  user_settings               UserSetting[]
+  ucodes                      Ucode[]
+  roles                       Role[]
+  role_users                  RoleUser[]
+  payment_transactions        PaymentTransaction[] @relation("UserPaymentTransactions")
+  garage_payment_transactions PaymentTransaction[] @relation("GaragePaymentTransactions")
+  garage_orders               Order[]              @relation("GarageOrders")
 
+  type      UserRole   @default(DRIVER)
+  vehicles  Vehicle[]
+  orders    Order[]    @relation("DriverOrders")
+  services  Service[]  @relation("GarageServices")
+  calendars Calendar[] @relation("GarageCalendars")
+  Order     Order[]
+  Service   Service[]
+  Calendar  Calendar[]
+
+
+  @@index([type])
   @@map("users")
+
 }
 
 model Ucode {
@@ -233,19 +246,25 @@ model PaymentTransaction {
   store_id String?
 
   user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user    User?   @relation("UserPaymentTransactions", fields: [user_id], references: [id])
 
-  order_id         String?
-  type             String?  @default("order")
+  order_id String?
+
   withdraw_via     String?  @default("wallet")
   provider         String?
   reference_number String?
-  status           String?  @default("pending")
+  // status           String?  @default("pending")
   raw_status       String?
   amount           Decimal?
   currency         String?
   paid_amount      Decimal?
   paid_currency    String?
+
+  order     Order?        @relation(fields: [order_id], references: [id])
+  garage_id String?
+  garage    User?         @relation("GaragePaymentTransactions", fields: [garage_id], references: [id])
+  type      PaymentType
+  status    PaymentStatus
 
   @@map("payment_transactions")
 }
@@ -434,3 +453,132 @@ model UserSetting {
 //   tenant    Organization? @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 //   @@map("posts")
 // }
+
+// --- ENUMS ---
+
+enum UserRole {
+  ADMIN
+  DRIVER
+  GARAGE
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  MOT
+  RETEST
+  ADDITIONAL
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  ORDER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CalendarEventType {
+  OPEN
+  CLOSED
+  HOLIDAY
+  SPECIAL
+}
+
+// --- NEW MODELS ---
+
+model Vehicle {
+  id                  String      @id @default(cuid())
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @default(now())
+  user_id             String
+  user                User        @relation(fields: [user_id], references: [id])
+  registration_number String      @unique
+  model               String?
+  color               String?
+  fuel_type           String?
+  mot_reports         MotReport[]
+  orders              Order[]
+}
+
+model Order {
+  id                   String               @id @default(cuid())
+  created_at           DateTime             @default(now())
+  updated_at           DateTime             @default(now())
+  driver_id            String
+  driver               User                 @relation("DriverOrders", fields: [driver_id], references: [id])
+  vehicle_id           String
+  vehicle              Vehicle              @relation(fields: [vehicle_id], references: [id])
+  garage_id            String
+  garage               User                 @relation("GarageOrders", fields: [garage_id], references: [id])
+  order_date           DateTime
+  status               OrderStatus          @default(PENDING)
+  total_amount         Decimal?
+  items                OrderItem[]
+  payment_transactions PaymentTransaction[]
+  User                 User?                @relation(fields: [userId], references: [id])
+  userId               String?
+}
+
+model Service {
+  id         String      @id @default(cuid())
+  created_at DateTime    @default(now())
+  updated_at DateTime    @default(now())
+  garage_id  String
+  garage     User        @relation("GarageServices", fields: [garage_id], references: [id])
+  name       String
+  price      Decimal
+  type       ServiceType
+  items      OrderItem[]
+  User       User?       @relation(fields: [userId], references: [id])
+  userId     String?
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  order_id   String
+  order      Order    @relation(fields: [order_id], references: [id])
+  service_id String
+  service    Service  @relation(fields: [service_id], references: [id])
+  quantity   Int      @default(1)
+  price      Decimal
+}
+
+model MotReport {
+  id            String    @id @default(cuid())
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+  vehicle_id    String
+  vehicle       Vehicle   @relation(fields: [vehicle_id], references: [id])
+  status        String // PASS, FAIL (could be an enum if you want)
+  expiry_date   DateTime
+  mot_pass_date DateTime?
+  notes         String?
+}
+
+model Calendar {
+  id          String            @id @default(cuid())
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @default(now())
+  garage_id   String
+  garage      User              @relation("GarageCalendars", fields: [garage_id], references: [id])
+  event_date  DateTime
+  start_time  String?
+  end_time    String?
+  type        CalendarEventType
+  description String?
+  User        User?             @relation(fields: [userId], references: [id])
+  userId      String?
+}
