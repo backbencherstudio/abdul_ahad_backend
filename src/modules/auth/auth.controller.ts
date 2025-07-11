@@ -59,6 +59,7 @@ export class AuthController {
       const password = data.password;
       const type = data.type;
 
+
       if (!name) {
         throw new HttpException('Name not provided', HttpStatus.UNAUTHORIZED);
       }

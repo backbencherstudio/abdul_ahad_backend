@@ -89,4 +89,9 @@ export default () => ({
   dvla: {
     api_key: process.env.DVLA_API_KEY,
   },
+  mot: {
+    client_id: process.env.MOT_CLIENT_ID,
+    client_secret: process.env.MOT_CLIENT_SECRET,
+    api_key: process.env.MOT_API_KEY,
+  },
 });

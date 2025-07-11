@@ -93,10 +93,8 @@ model User {
   Service   Service[]
   Calendar  Calendar[]
 
-
   @@index([type])
   @@map("users")
-
 }
 
 model Ucode {
@@ -504,9 +502,16 @@ model Vehicle {
   user_id             String
   user                User        @relation(fields: [user_id], references: [id])
   registration_number String      @unique
+  make                String?
   model               String?
   color               String?
   fuel_type           String?
+  year_of_manufacture Int?
+  engine_capacity     Int?
+  co2_emissions       Int?
+  mot_expiry_date     DateTime?
+  dvla_data           String?
+  mot_data            String?
   mot_reports         MotReport[]
   orders              Order[]
 }
@@ -557,15 +562,39 @@ model OrderItem {
 }
 
 model MotReport {
+  id                   String      @id @default(cuid())
+  created_at           DateTime    @default(now())
+  updated_at           DateTime    @default(now())
+  vehicle_id           String
+  vehicle              Vehicle     @relation(fields: [vehicle_id], references: [id])
+  test_number          String?
+  test_date            DateTime?
+  expiry_date          DateTime?
+  status               String? // PASSED, FAILED
+  odometer_value       Int?
+  odometer_unit        String?
+  odometer_result_type String?
+  data_source          String?
+  registration_at_test String?
+  defects              MotDefect[] // Relation to defects
+
+  @@index([vehicle_id])
+  @@index([status])
+  @@index([test_date])
+}
+
+model MotDefect {
   id            String    @id @default(cuid())
   created_at    DateTime  @default(now())
   updated_at    DateTime  @default(now())
-  vehicle_id    String
-  vehicle       Vehicle   @relation(fields: [vehicle_id], references: [id])
-  status        String // PASS, FAIL (could be an enum if you want)
-  expiry_date   DateTime
-  mot_pass_date DateTime?
-  notes         String?
+  mot_report_id String
+  mot_report    MotReport @relation(fields: [mot_report_id], references: [id])
+  type          String // e.g. ADVISORY, MAJOR, FAIL, USER ENTERED
+  text          String
+  dangerous     Boolean
+
+  @@index([mot_report_id])
+  @@index([dangerous])
 }
 
 model Calendar {

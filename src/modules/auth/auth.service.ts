@@ -270,6 +270,7 @@ export class AuthService {
         };
       }
 
+
       const user = await UserRepository.createUser({
         name: name,
         first_name: first_name,
@@ -278,6 +279,7 @@ export class AuthService {
         password: password,
         type: type,
       });
+    
 
       if (user == null && user.success == false) {
         return {
@@ -285,6 +287,7 @@ export class AuthService {
           message: 'Failed to create account',
         };
       }
+
 
       // create stripe customer account
       const stripeCustomer = await StripePayment.createCustomer({
@@ -305,44 +308,44 @@ export class AuthService {
       }
 
       // ----------------------------------------------------
-      // // create otp code
-      // const token = await UcodeRepository.createToken({
-      //   userId: user.data.id,
-      //   isOtp: true,
-      // });
-
-      // // send otp code to email
-      // await this.mailService.sendOtpCodeToEmail({
-      //   email: email,
-      //   name: name,
-      //   otp: token,
-      // });
-
-      // return {
-      //   success: true,
-      //   message: 'We have sent an OTP code to your email',
-      // };
-
-      // ----------------------------------------------------
-
-      // Generate verification token
-      const token = await UcodeRepository.createVerificationToken({
+      // create otp code
+      const token = await UcodeRepository.createToken({
         userId: user.data.id,
-        email: email,
+        isOtp: true,
       });
 
-      // Send verification email with token
-      await this.mailService.sendVerificationLink({
-        email,
-        name: email,
-        token: token.token,
-        type: type,
+      // send otp code to email
+      await this.mailService.sendOtpCodeToEmail({
+        email: email,
+        name: name,
+        otp: token,
       });
 
       return {
         success: true,
-        message: 'We have sent a verification link to your email',
+        message: 'We have sent an OTP code to your email',
       };
+
+      // ----------------------------------------------------
+
+      // Generate verification token
+      // const token = await UcodeRepository.createVerificationToken({
+      //   userId: user.data.id,
+      //   email: email,
+      // });
+
+      // // Send verification email with token
+      // await this.mailService.sendVerificationLink({
+      //   email,
+      //   name: email,
+      //   token: token.token,
+      //   type: type,
+      // });
+
+      // return {
+      //   success: true,
+      //   message: 'We have sent a verification link to your email',
+      // };
     } catch (error) {
       return {
         success: false,
