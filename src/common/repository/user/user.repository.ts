@@ -88,7 +88,7 @@ export class UserRepository {
           username: username,
           email: email,
           password: password,
-          type: 'su_admin',
+          type: 'ADMIN', // Changed from 'su_admin' to 'ADMIN'
         },
       });
       return user;
@@ -196,8 +196,11 @@ export class UserRepository {
     email,
     password,
     phone_number,
+    garage_name,
+    vts_number,
+    primary_contact,
     role_id = null,
-    type = 'user',
+    type = 'DRIVER' as Role, // Changed default from 'user' to 'DRIVER'
   }: {
     name?: string;
     first_name?: string;
@@ -205,8 +208,11 @@ export class UserRepository {
     email: string;
     password: string;
     phone_number?: string;
+    garage_name?: string;
+    vts_number?: string;
+    primary_contact?: string;
     role_id?: string;
-    type?: string;
+    type?: Role; // Updated type definition
   }) {
     try {
       const data = {};
@@ -245,12 +251,20 @@ export class UserRepository {
         );
       }
 
+      // Validate type against UserRole enum
       if (type && ArrayHelper.inArray(type, Object.values(Role))) {
         data['type'] = type;
+      }
 
-        // if (type == Role.VENDOR) {
-        //   data['approved_at'] = DateHelper.now();
-        // }
+      // Add garage-specific fields
+      if (garage_name) {
+        data['garage_name'] = garage_name;
+      }
+      if (vts_number) {
+        data['vts_number'] = vts_number;
+      }
+      if (primary_contact) {
+        data['primary_contact'] = primary_contact;
       }
 
       const user = await prisma.user.create({
@@ -500,7 +514,10 @@ export class UserRepository {
   }
 
   // convert user type to admin/vendor
-  static async convertTo(user_id: string, type: string = 'vendor') {
+  static async convertTo(
+    user_id: string,
+    type: Role,
+  ) {
     try {
       const userDetails = await UserRepository.getUserDetails(user_id);
       if (!userDetails) {
@@ -509,10 +526,11 @@ export class UserRepository {
           message: 'User not found',
         };
       }
-      if (userDetails.type == 'vendor') {
+      if (userDetails.type == 'GARAGE') {
+        // Changed from 'vendor' to 'GARAGE'
         return {
           success: false,
-          message: 'User is already a vendor',
+          message: 'User is already a garage',
         };
       }
       await prisma.user.update({

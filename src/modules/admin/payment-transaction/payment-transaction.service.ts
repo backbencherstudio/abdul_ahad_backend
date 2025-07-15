@@ -11,7 +11,7 @@ export class PaymentTransactionService {
       const userDetails = await UserRepository.getUserDetails(user_id);
 
       const whereClause = {};
-      if (userDetails.type == 'vendor') {
+      if (userDetails.type == 'GARAGE') {
         whereClause['user_id'] = user_id;
       }
 
@@ -52,7 +52,7 @@ export class PaymentTransactionService {
       const userDetails = await UserRepository.getUserDetails(user_id);
 
       const whereClause = {};
-      if (userDetails.type == 'vendor') {
+      if (userDetails.type == 'GARAGE') {
         whereClause['user_id'] = user_id;
       }
 
@@ -100,7 +100,7 @@ export class PaymentTransactionService {
       const userDetails = await UserRepository.getUserDetails(user_id);
 
       const whereClause = {};
-      if (userDetails.type == 'vendor') {
+      if (userDetails.type == 'GARAGE') {
         whereClause['user_id'] = user_id;
       }
 

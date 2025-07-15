@@ -6,6 +6,7 @@ import { UserRepository } from '../../../common/repository/user/user.repository'
 import appConfig from '../../../config/app.config';
 import { SojebStorage } from '../../../common/lib/Disk/SojebStorage';
 import { DateHelper } from '../../../common/helper/date.helper';
+import { Role } from 'src/common/guard/role/role.enum';
 
 @Injectable()
 export class UserService {
@@ -13,7 +14,10 @@ export class UserService {
 
   async create(createUserDto: CreateUserDto) {
     try {
-      const user = await UserRepository.createUser(createUserDto);
+      const user = await UserRepository.createUser({
+        ...createUserDto,
+        type: createUserDto.type as Role,
+      });
 
       if (user.success) {
         return {

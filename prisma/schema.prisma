@@ -84,6 +84,10 @@ model User {
   garage_payment_transactions PaymentTransaction[] @relation("GaragePaymentTransactions")
   garage_orders               Order[]              @relation("GarageOrders")
 
+  garage_name        String?  // Name of Garage
+  vts_number         String?  // VTS Number (Vehicle Testing Station)
+  primary_contact    String?  // Primary Contact Person
+
   type      UserRole   @default(DRIVER)
   vehicles  Vehicle[]
   orders    Order[]    @relation("DriverOrders")
@@ -92,6 +96,10 @@ model User {
   Order     Order[]
   Service   Service[]
   Calendar  Calendar[]
+
+  garage_schedules GarageSchedule[] @relation("GarageSchedules")
+  invoices_issued  Invoice[]        @relation("GarageInvoices")
+  invoices_received Invoice[]       @relation("DriverInvoices")
 
   @@index([type])
   @@map("users")
@@ -533,6 +541,7 @@ model Order {
   payment_transactions PaymentTransaction[]
   User                 User?                @relation(fields: [userId], references: [id])
   userId               String?
+  invoices Invoice[]
 }
 
 model Service {
@@ -610,4 +619,55 @@ model Calendar {
   description String?
   User        User?             @relation(fields: [userId], references: [id])
   userId      String?
+}
+
+
+model Invoice {
+  id                String    @id @default(cuid())
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @default(now())
+  
+  invoice_number    String    @unique // e.g., INV-001
+  garage_id         String
+  garage            User      @relation("GarageInvoices", fields: [garage_id], references: [id])
+  
+  driver_id         String
+  driver            User      @relation("DriverInvoices", fields: [driver_id], references: [id])
+  
+  order_id          String?
+  order             Order?    @relation(fields: [order_id], references: [id])
+  
+  membership_period String?   // e.g., "May 1 - May 31, 2025"
+  issue_date        DateTime  @default(now())
+  due_date          DateTime?
+  amount            Decimal
+  status            InvoiceStatus @default(PENDING)
+  
+  pdf_url           String?   // Generated PDF file URL
+  
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model GarageSchedule {
+  id         String    @id @default(cuid())
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  
+  garage_id  String
+  garage     User      @relation("GarageSchedules", fields: [garage_id], references: [id])
+  
+  day_of_week Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
+  start_time  String   // e.g., "09:00"
+  end_time    String   // e.g., "17:00"
+  is_active   Boolean  @default(true)
+  
+  @@unique([garage_id, day_of_week])
+  @@map("garage_schedules")
 }

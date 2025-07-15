@@ -48,52 +48,60 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Register a user' })
+  @ApiOperation({ summary: 'Register a user (Driver, Garage, or Admin)' })
   @Post('register')
   async create(@Body() data: CreateUserDto) {
     try {
-      const name = data.name;
-      const first_name = data.first_name;
-      const last_name = data.last_name;
-      const email = data.email;
-      const password = data.password;
-      const type = data.type;
-
-
-      if (!name) {
-        throw new HttpException('Name not provided', HttpStatus.UNAUTHORIZED);
-      }
-      if (!first_name) {
+      // Validate required fields based on type
+      if (data.type === 'DRIVER') {
+        if (!data.name) {
+          throw new HttpException(
+            'Name is required for drivers',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      } else if (data.type === 'GARAGE') {
+        if (!data.garage_name) {
+          throw new HttpException(
+            'Garage name is required for garages',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        if (!data.vts_number) {
+          throw new HttpException(
+            'VTS Number is required for garages',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        if (!data.primary_contact) {
+          throw new HttpException(
+            'Primary contact is required for garages',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      } else if (data.type === 'ADMIN') {
+        // For admin, we might want to validate specific fields
+        // You can add admin-specific validation here if needed
+        // For now, admin registration will proceed with basic validation
+      } else {
         throw new HttpException(
-          'First name not provided',
-          HttpStatus.UNAUTHORIZED,
-        );
-      }
-      if (!last_name) {
-        throw new HttpException(
-          'Last name not provided',
-          HttpStatus.UNAUTHORIZED,
-        );
-      }
-      if (!email) {
-        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
-      }
-      if (!password) {
-        throw new HttpException(
-          'Password not provided',
-          HttpStatus.UNAUTHORIZED,
+          'Invalid user type. Must be DRIVER, GARAGE, or ADMIN',
+          HttpStatus.BAD_REQUEST,
         );
       }
 
       const response = await this.authService.register({
-        name: name,
-        first_name: first_name,
-        last_name: last_name,
-        email: email,
-        password: password,
-        type: type,
+        name: data.name,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        email: data.email,
+        password: data.password,
+        type: data.type,
+        garage_name: data.garage_name,
+        primary_contact: data.primary_contact,
+        vts_number: data.vts_number,
+        phone_number: data.phone_number,
       });
-
       return response;
     } catch (error) {
       return {

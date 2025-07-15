@@ -4,7 +4,16 @@
         "colour",
         "cuid",
         "DVLA",
+        "existance",
+        "otpauth",
+        "qrcode",
+        "sadman",
+        "sakib",
+        "Sojeb",
+        "SUPERADMIN",
+        "totp",
         "Ucode",
-        "ucodes"
+        "ucodes",
+        "varification"
     ]
 }

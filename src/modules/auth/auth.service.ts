@@ -12,6 +12,7 @@ import { SojebStorage } from '../../common/lib/Disk/SojebStorage';
 import { DateHelper } from '../../common/helper/date.helper';
 import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
+import { Role } from 'src/common/guard/role/role.enum';
 
 @Injectable()
 export class AuthService {
@@ -248,13 +249,21 @@ export class AuthService {
     email,
     password,
     type,
+    garage_name,
+    vts_number,
+    primary_contact,
+    phone_number,
   }: {
     name: string;
     first_name: string;
     last_name: string;
     email: string;
     password: string;
-    type?: string;
+    garage_name?: string;
+    vts_number?: string;
+    primary_contact?: string;
+    type?: Role
+    phone_number?: string;
   }) {
     try {
       // Check if email already exist
@@ -270,24 +279,25 @@ export class AuthService {
         };
       }
 
-
       const user = await UserRepository.createUser({
-        name: name,
+        name: name || primary_contact,
         first_name: first_name,
         last_name: last_name,
         email: email,
         password: password,
-        type: type,
+        type: type as Role,
+        garage_name: garage_name,
+        vts_number: vts_number,
+        primary_contact: primary_contact,
+        phone_number: phone_number,
       });
     
-
       if (user == null && user.success == false) {
         return {
           success: false,
           message: 'Failed to create account',
         };
       }
-
 
       // create stripe customer account
       const stripeCustomer = await StripePayment.createCustomer({
@@ -464,10 +474,10 @@ export class AuthService {
           });
 
           // delete otp code
-          // await UcodeRepository.deleteToken({
-          //   email: email,
-          //   token: token,
-          // });
+          await UcodeRepository.deleteToken({
+            email: email,
+            token: token,
+          });
 
           return {
             success: true,

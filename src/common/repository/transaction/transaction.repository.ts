@@ -20,7 +20,7 @@ export class TransactionRepository {
     reference_number?: string;
     status?: string;
   }) {
-    const data = {};
+    const data: any = {};
     if (booking_id) {
       data['booking_id'] = booking_id;
     }
@@ -60,8 +60,8 @@ export class TransactionRepository {
     paid_currency?: string;
     raw_status?: string;
   }) {
-    const data = {};
-    const order_data = {};
+    const data: any = {};
+    const order_data: any = {};
     if (status) {
       data['status'] = status;
       order_data['payment_status'] = status;

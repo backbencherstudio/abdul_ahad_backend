@@ -1,11 +1,113 @@
-<p>Hey <%= name %></p>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .otp-box {
+            background: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #00D00A;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .note {
+            font-size: 13px;
+            color: #666;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">SimplyMot.uk</div>
+            <div class="tagline">Keep your vehicle safe & compliant</div>
+        </div>
 
-<p>
-  This is your otp: <%= otp %>
-</p>
+        <div class="content">
+            <p>Hey <strong><%= name %></strong>,</p>
+            
+            <p>Thanks for joining SimplyMot.uk! To verify your email, please enter the following OTP:</p>
 
-<p>
-  Regards,
-  <br />
-  <%= process.env.APP_NAME %>
-</p>
+            <div class="otp-box">
+                <%= otp %>
+            </div>
+
+            <p>This code expires in <strong>5 minutes</strong>. For security reasons, do not share it with anyone.</p>
+
+            <div class="divider"></div>
+
+            <p class="note">⚠️ <em>If you didn't request this, please ignore this email or contact support.</em></p>
+        </div>
+
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> SimplyMot.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:support@simplymot.uk" style="color: #00D00A;">Contact us</a></p>
+        </div>
+    </div>
+</body>
+</html>
