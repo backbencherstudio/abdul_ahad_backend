@@ -26,7 +26,7 @@ export class VehicleController {
 
   @Get()
   async listVehicles(@Req() req) {
-    return this.vehicleService.getVehiclesByUser(req.user.id); // FIXED
+    return this.vehicleService.getVehiclesByUser(req.user.userId); // FIXED
   }
 
   @Get('mot-report/:reportId')
@@ -45,7 +45,7 @@ export class VehicleController {
 
   @Delete(':id')
   async deleteVehicle(@Req() req, @Param('id') id: string) {
-    return this.vehicleService.deleteVehicle(req.user.id, id);
+    return this.vehicleService.deleteVehicle(req.user.userId, id);
   }
 
   @Patch(':id')
@@ -54,6 +54,6 @@ export class VehicleController {
     @Param('id') id: string,
     @Body() dto: UpdateVehicleDto,
   ) {
-    return this.vehicleService.updateVehicle(req.user.id, id, dto);
+    return this.vehicleService.updateVehicle(req.user.userId, id, dto);
   }
 }

@@ -45,6 +45,10 @@ export class VehicleService {
       // Validate user exists and is a driver
       const user = await this.validateUserAndRole(userId, 'DRIVER');
 
+      if(!user){
+        
+      }
+
       // Check if vehicle already exists for this user
       const existingVehicle = await this.prisma.vehicle.findFirst({
         where: {
@@ -280,12 +284,9 @@ export class VehicleService {
         throw new NotFoundException(`Vehicle not found or access denied`);
       }
 
-      // Soft delete vehicle
-      await this.prisma.vehicle.update({
-        where: {
-          id: vehicleId,
-        },
-        data: {},
+      // Hard delete vehicle
+      await this.prisma.vehicle.delete({
+        where: { id: vehicleId },
       });
 
       this.logger.log(`Successfully deleted vehicle ${vehicleId}`);
