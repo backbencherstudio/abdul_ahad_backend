@@ -59,7 +59,7 @@ export class MessageGateway
   async handleConnection(client: Socket, ...args: any[]) {
     try {
       // const token = client.handshake.headers.authorization?.split(' ')[1];
-      const token = client.handshake.auth.token;
+      const token = client.handshake.auth.token || client.handshake.query.token;
       if (!token) {
         client.disconnect();
         console.log('No token provided');

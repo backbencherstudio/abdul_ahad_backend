@@ -38,7 +38,14 @@ export class AuthService {
           type: true,
           gender: true,
           date_of_birth: true,
+          vts_number: true,
           created_at: true,
+          garage_name: true,
+          primary_contact: true,
+          country: true,
+          state: true,
+          city: true,
+          zip_code: true,
         },
       });
 
@@ -99,9 +106,9 @@ export class AuthService {
       if (updateUserDto.state) {
         data.state = updateUserDto.state;
       }
-      if (updateUserDto.local_government) {
-        data.local_government = updateUserDto.local_government;
-      }
+      // if (updateUserDto.local_government) {
+      //   data.local_government = updateUserDto.local_government;
+      // }
       if (updateUserDto.city) {
         data.city = updateUserDto.city;
       }
@@ -116,6 +123,15 @@ export class AuthService {
       }
       if (updateUserDto.date_of_birth) {
         data.date_of_birth = DateHelper.format(updateUserDto.date_of_birth);
+      }
+      if (updateUserDto.garage_name) {
+        data.garage_name = updateUserDto.garage_name;
+      }
+      if (updateUserDto.vts_number) {
+        data.vts_number = updateUserDto.vts_number;
+      }
+      if (updateUserDto.primary_contact) {
+        data.primary_contact = updateUserDto.primary_contact;
       }
       if (image) {
         // delete old image from storage

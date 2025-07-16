@@ -1,22 +1,17 @@
-import { IsNumber, IsString, IsBoolean, Min, Max } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateScheduleDto {
-  @ApiProperty({ description: 'Day of week (0=Sunday, 6=Saturday)' })
-  @IsNumber()
-  @Min(0)
-  @Max(6)
-  day_of_week: number;
+  @IsInt()
+  day_of_week: number; // 0=Sunday, ..., 6=Saturday
 
-  @ApiProperty({ description: 'Start time (HH:MM format)' })
-  @IsString()
-  start_time: string;
-
-  @ApiProperty({ description: 'End time (HH:MM format)' })
-  @IsString()
-  end_time: string;
-
-  @ApiProperty({ description: 'Is schedule active' })
   @IsBoolean()
   is_active: boolean;
+
+  @IsOptional()
+  @IsString()
+  start_time?: string; // "10:00"
+
+  @IsOptional()
+  @IsString()
+  end_time?: string; // "18:00"
 }

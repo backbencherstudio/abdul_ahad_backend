@@ -3,15 +3,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ServiceType } from '@prisma/client';
 
 export class CreateServiceDto {
-  @ApiProperty({ description: 'Service name' })
+  @ApiProperty({ example: 'MOT Test' })
   @IsString()
   name: string;
 
-  @ApiProperty({ description: 'Service price' })
+  @ApiProperty({ example: 54.85 })
   @IsNumber()
   price: number;
 
-  @ApiProperty({ description: 'Service type', enum: ServiceType })
+  @ApiProperty({ enum: ServiceType, example: ServiceType.MOT })
   @IsEnum(ServiceType)
   type: ServiceType;
 }

@@ -551,8 +551,8 @@ model Service {
   garage_id  String
   garage     User        @relation("GarageServices", fields: [garage_id], references: [id])
   name       String
-  price      Decimal
   type       ServiceType
+  price      Decimal
   items      OrderItem[]
   User       User?       @relation(fields: [userId], references: [id])
   userId     String?
@@ -664,8 +664,8 @@ model GarageSchedule {
   garage     User      @relation("GarageSchedules", fields: [garage_id], references: [id])
   
   day_of_week Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
-  start_time  String   // e.g., "09:00"
-  end_time    String   // e.g., "17:00"
+  start_time  String?   // e.g., "09:00"
+  end_time    String?  // e.g., "17:00"
   is_active   Boolean  @default(true)
   
   @@unique([garage_id, day_of_week])

@@ -168,6 +168,9 @@ export class AuthController {
       //     return cb(null, `${randomName}${file.originalname}`);
       //   },
       // }),
+      limits: {
+        fileSize: 1024 * 1024 * 20, // 20MB
+      },
       storage: memoryStorage(),
     }),
   )

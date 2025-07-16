@@ -12,6 +12,7 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -32,6 +33,7 @@ import { GarageBookingService } from './services/garage-booking.service';
 import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
 import { memoryStorage } from 'multer';
+import { CreateCalendarDto } from './dto/create-calendar.dto';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -82,7 +84,11 @@ export class GarageDashboardController {
     @Body() dto: UpdateGarageProfileDto,
     @UploadedFile() avatar?: Express.Multer.File,
   ) {
-    return this.garageProfileService.updateProfile(req.user.userId, dto, avatar);
+    return this.garageProfileService.updateProfile(
+      req.user.userId,
+      dto,
+      avatar,
+    );
   }
 
   // ==================== PRICING MANAGEMENT ====================
@@ -93,44 +99,54 @@ export class GarageDashboardController {
     return this.garagePricingService.getServices(req.user.userId);
   }
 
-  @ApiOperation({ summary: 'Create new service' })
-  @Post('services')
-  async createService(@Req() req, @Body() dto: CreateServiceDto) {
-    return this.garagePricingService.createService(req.user.userId, dto);
+  @ApiOperation({ summary: 'Delete service' })
+  @Delete('services/:id')
+  async deleteService(@Req() req, @Param('id') id: string) {
+    return this.garagePricingService.deleteService(req.user.userId, id);
   }
 
-  @ApiOperation({ summary: 'Update service' })
-  @Patch('services/:id')
-  async updateService(
-    @Req() req,
-    @Param('id') id: string,
-    @Body() dto: UpdateServiceDto,
-  ) {
-    return this.garagePricingService.updateService(req.user.userId, id, dto);
+  @ApiOperation({
+    summary: 'Upsert MOT, Retest, and Additional services in one request',
+  })
+  @Post('service-price')
+  async upsertServicePrice(@Req() req, @Body() body) {
+    return this.garagePricingService.upsertServicePrice(req.user.userId, body);
   }
 
   // ==================== AVAILABILITY MANAGEMENT ====================
 
-  @ApiOperation({ summary: 'Get weekly schedule' })
   @Get('schedules')
   async getSchedules(@Req() req) {
     return this.garageScheduleService.getSchedules(req.user.userId);
   }
 
-  @ApiOperation({ summary: 'Create/Update weekly schedule' })
   @Post('schedules')
-  async createSchedule(@Req() req, @Body() dto: CreateScheduleDto) {
-    return this.garageScheduleService.createSchedule(req.user.userId, dto);
+  async createSchedule(@Req() req, @Body() dtos: CreateScheduleDto[]) {
+    return this.garageScheduleService.createSchedule(req.user.userId, dtos);
   }
 
-  @ApiOperation({ summary: 'Update schedule' })
   @Patch('schedules/:id')
   async updateSchedule(
     @Req() req,
     @Param('id') id: string,
-    @Body() dto: UpdateScheduleDto,
+    @Body() dto: CreateScheduleDto,
   ) {
     return this.garageScheduleService.updateSchedule(req.user.userId, id, dto);
+  }
+
+  @Get('calendar')
+  async getCalendar(@Req() req) {
+    return this.garageScheduleService.getCalendar(req.user.userId);
+  }
+
+  @Post('calendar')
+  async addCalendarEvent(@Req() req, @Body() dto: CreateCalendarDto) {
+    return this.garageScheduleService.addCalendarEvent(req.user.userId, dto);
+  }
+
+  @Delete('calendar/:id')
+  async deleteCalendarEvent(@Req() req, @Param('id') id: string) {
+    return this.garageScheduleService.deleteCalendarEvent(req.user.userId, id);
   }
 
   // ==================== BOOKING MANAGEMENT ====================
