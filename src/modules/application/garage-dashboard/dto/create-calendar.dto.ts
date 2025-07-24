@@ -6,9 +6,17 @@ export class CreateCalendarDto {
   event_date: string; // "2025-07-17"
 
   @IsEnum(CalendarEventType)
-  type: CalendarEventType; // "HOLIDAY"
+  type: CalendarEventType; // "HOLIDAY", "OPEN", "CLOSED"
 
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  start_time?: string; // e.g. "10:00AM"
+
+  @IsOptional()
+  @IsString()
+  end_time?: string; // e.g. "6:00PM"
 }

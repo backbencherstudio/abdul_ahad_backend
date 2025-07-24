@@ -3,6 +3,7 @@
         "areceipt",
         "colour",
         "cuid",
+        "dtos",
         "DVLA",
         "existance",
         "otpauth",
@@ -14,6 +15,7 @@
         "totp",
         "Ucode",
         "ucodes",
+        "upserted",
         "varification"
     ]
 }

@@ -13,6 +13,8 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
   Delete,
+  BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -140,13 +142,58 @@ export class GarageDashboardController {
   }
 
   @Post('calendar')
-  async addCalendarEvent(@Req() req, @Body() dto: CreateCalendarDto) {
-    return this.garageScheduleService.addCalendarEvent(req.user.userId, dto);
+  async upsertCalendarEvent(@Req() req, @Body() dto: CreateCalendarDto) {
+    return this.garageScheduleService.upsertCalendarEvent(req.user.userId, dto);
+  }
+
+  @Delete('calendar/all')
+  async deleteAllCalendarEvents(@Req() req) {
+    console.log(req.user.userId);
+    return this.garageScheduleService.deleteAllCalendarEvents(req.user.userId);
   }
 
   @Delete('calendar/:id')
   async deleteCalendarEvent(@Req() req, @Param('id') id: string) {
     return this.garageScheduleService.deleteCalendarEvent(req.user.userId, id);
+  }
+
+  @Post('calendar/bulk')
+  async bulkSetCalendar(
+    @Req() req,
+    @Body()
+    body: {
+      start_date: string;
+      end_date: string;
+      days: {
+        day_of_week: number;
+        type: string;
+        start_time?: string;
+        end_time?: string;      }[];
+      description?: string;
+    },
+  ) {
+    return this.garageScheduleService.bulkSetCalendar(req.user.userId, body);
+  }
+
+  @Get('availability')
+  async getMonthAvailability(
+    @Req() req,
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    if (!month || !year) {
+      throw new BadRequestException('month and year are required');
+    }
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+    if (isNaN(monthNum) || isNaN(yearNum)) {
+      throw new BadRequestException('month and year must be numbers');
+    }
+    return this.garageScheduleService.getMonthWeeksStatus(
+      req.user.userId,
+      yearNum,
+      monthNum,
+    );
   }
 
   // ==================== BOOKING MANAGEMENT ====================

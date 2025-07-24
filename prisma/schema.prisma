@@ -101,6 +101,15 @@ model User {
   invoices_issued  Invoice[]        @relation("GarageInvoices")
   invoices_received Invoice[]       @relation("DriverInvoices")
 
+
+   // Vehicle-related data for retention (only for DRIVER type)
+  vehicle_registration_number String?  // Last/current vehicle number
+  vehicle_make                String?  // Last/current vehicle make
+  vehicle_model               String?  // Last/current vehicle model
+  last_mot_date               DateTime? // Last MOT test date
+  last_mot_expiry_date        DateTime? // Last MOT expiry date
+  last_booking_date           DateTime? // Last booking date
+
   @@index([type])
   @@map("users")
 }
