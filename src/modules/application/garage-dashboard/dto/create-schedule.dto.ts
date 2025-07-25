@@ -1,7 +1,6 @@
 import { IsInt, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateScheduleDto {
-  @IsInt()
   day_of_week: number; // 0=Sunday, ..., 6=Saturday
 
   @IsBoolean()
@@ -14,4 +13,7 @@ export class CreateScheduleDto {
   @IsOptional()
   @IsString()
   end_time?: string; // "18:00"
+
+  @IsOptional()
+  slot_duration?: number; // <-- Ensure this is present and optional
 }

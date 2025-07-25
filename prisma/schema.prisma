@@ -84,9 +84,9 @@ model User {
   garage_payment_transactions PaymentTransaction[] @relation("GaragePaymentTransactions")
   garage_orders               Order[]              @relation("GarageOrders")
 
-  garage_name        String?  // Name of Garage
-  vts_number         String?  // VTS Number (Vehicle Testing Station)
-  primary_contact    String?  // Primary Contact Person
+  garage_name     String? // Name of Garage
+  vts_number      String? // VTS Number (Vehicle Testing Station)
+  primary_contact String? // Primary Contact Person
 
   type      UserRole   @default(DRIVER)
   vehicles  Vehicle[]
@@ -97,18 +97,21 @@ model User {
   Service   Service[]
   Calendar  Calendar[]
 
-  garage_schedules GarageSchedule[] @relation("GarageSchedules")
-  invoices_issued  Invoice[]        @relation("GarageInvoices")
-  invoices_received Invoice[]       @relation("DriverInvoices")
+  garage_schedules  GarageSchedule[] @relation("GarageSchedules")
+  invoices_issued   Invoice[]        @relation("GarageInvoices")
+  invoices_received Invoice[]        @relation("DriverInvoices")
 
-
-   // Vehicle-related data for retention (only for DRIVER type)
-  vehicle_registration_number String?  // Last/current vehicle number
-  vehicle_make                String?  // Last/current vehicle make
-  vehicle_model               String?  // Last/current vehicle model
+  // Vehicle-related data for retention (only for DRIVER type)
+  vehicle_registration_number String? // Last/current vehicle number
+  vehicle_make                String? // Last/current vehicle make
+  vehicle_model               String? // Last/current vehicle model
   last_mot_date               DateTime? // Last MOT test date
   last_mot_expiry_date        DateTime? // Last MOT expiry date
   last_booking_date           DateTime? // Last booking date
+  TimeSlot                    TimeSlot[]
+
+  // For TimeSlot relation (as garage)
+  garageTimeSlots TimeSlot[] @relation("GarageTimeSlots")
 
   @@index([type])
   @@map("users")
@@ -550,7 +553,9 @@ model Order {
   payment_transactions PaymentTransaction[]
   User                 User?                @relation(fields: [userId], references: [id])
   userId               String?
-  invoices Invoice[]
+  invoices             Invoice[]
+  slot_id              String?              @unique // One-to-one: must be unique
+  slot                 TimeSlot?            @relation(fields: [slot_id], references: [id])
 }
 
 model Service {
@@ -628,32 +633,32 @@ model Calendar {
   description String?
   User        User?             @relation(fields: [userId], references: [id])
   userId      String?
+  slot_duration Int?
 }
 
-
 model Invoice {
-  id                String    @id @default(cuid())
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @default(now())
-  
-  invoice_number    String    @unique // e.g., INV-001
-  garage_id         String
-  garage            User      @relation("GarageInvoices", fields: [garage_id], references: [id])
-  
-  driver_id         String
-  driver            User      @relation("DriverInvoices", fields: [driver_id], references: [id])
-  
-  order_id          String?
-  order             Order?    @relation(fields: [order_id], references: [id])
-  
-  membership_period String?   // e.g., "May 1 - May 31, 2025"
-  issue_date        DateTime  @default(now())
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  invoice_number String @unique // e.g., INV-001
+  garage_id      String
+  garage         User   @relation("GarageInvoices", fields: [garage_id], references: [id])
+
+  driver_id String
+  driver    User   @relation("DriverInvoices", fields: [driver_id], references: [id])
+
+  order_id String?
+  order    Order?  @relation(fields: [order_id], references: [id])
+
+  membership_period String? // e.g., "May 1 - May 31, 2025"
+  issue_date        DateTime      @default(now())
   due_date          DateTime?
   amount            Decimal
   status            InvoiceStatus @default(PENDING)
-  
-  pdf_url           String?   // Generated PDF file URL
-  
+
+  pdf_url String? // Generated PDF file URL
+
   @@map("invoices")
 }
 
@@ -665,18 +670,35 @@ enum InvoiceStatus {
 }
 
 model GarageSchedule {
-  id         String    @id @default(cuid())
-  created_at DateTime  @default(now())
-  updated_at DateTime  @default(now())
-  
-  garage_id  String
-  garage     User      @relation("GarageSchedules", fields: [garage_id], references: [id])
-  
-  day_of_week Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
-  start_time  String?   // e.g., "09:00"
-  end_time    String?  // e.g., "17:00"
-  is_active   Boolean  @default(true)
-  
+  id            String   @id @default(cuid())
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  garage_id     String
+  garage        User     @relation("GarageSchedules", fields: [garage_id], references: [id])
+  day_of_week   Int // 0=Sunday, 1=Monday, ..., 6=Saturday
+  start_time    String? // e.g., "09:00"
+  end_time      String? // e.g., "17:00"
+  is_active     Boolean  @default(true)
+  slot_duration Int? // <--- NEW: Slot duration in minutes (e.g., 30, 45, 60)
+
   @@unique([garage_id, day_of_week])
   @@map("garage_schedules")
+}
+
+model TimeSlot {
+  id           String   @id @default(cuid())
+  garage_id    String
+  garage       User     @relation("GarageTimeSlots", fields: [garage_id], references: [id])
+  date         DateTime // date only (midnight UTC)
+  start_time   String // "HH:mm"
+  end_time     String // "HH:mm"
+  is_available Boolean  @default(true)
+  is_blocked   Boolean  @default(false)
+  order_id     String? // if booked
+  order        Order? // <-- just this, no @relation, no fields/references
+  User         User?    @relation(fields: [userId], references: [id])
+  userId       String?
+
+  @@unique([garage_id, date, start_time]) // <--- Add this line
+  @@index([garage_id, date])
 }

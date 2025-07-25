@@ -1,7 +1,12 @@
-import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateScheduleDto {
+  @ApiProperty({ description: 'Day of the week', required: false })
+  @IsOptional()
+  @IsNumber()
+  day_of_week?: number;
+
   @ApiProperty({ description: 'Start time (HH:MM format)', required: false })
   @IsOptional()
   @IsString()
@@ -16,4 +21,9 @@ export class UpdateScheduleDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiProperty({ description: 'Slot duration', required: false })
+  @IsOptional()
+  @IsNumber()
+  slot_duration?: number;
 }

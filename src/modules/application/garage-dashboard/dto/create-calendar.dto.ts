@@ -1,4 +1,10 @@
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { CalendarEventType } from '@prisma/client';
 
 export class CreateCalendarDto {
@@ -19,4 +25,7 @@ export class CreateCalendarDto {
   @IsOptional()
   @IsString()
   end_time?: string; // e.g. "6:00PM"
+
+  @IsOptional()
+  slot_duration?: number;
 }

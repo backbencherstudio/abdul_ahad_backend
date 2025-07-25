@@ -36,6 +36,7 @@ import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
 import { memoryStorage } from 'multer';
 import { CreateCalendarDto } from './dto/create-calendar.dto';
+import { ManualSlotDto } from './dto/manual-slot.dto';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -168,7 +169,8 @@ export class GarageDashboardController {
         day_of_week: number;
         type: string;
         start_time?: string;
-        end_time?: string;      }[];
+        end_time?: string;
+      }[];
       description?: string;
     },
   ) {
@@ -256,5 +258,85 @@ export class GarageDashboardController {
   @Post('invoices/:id/download')
   async downloadInvoice(@Req() req, @Param('id') id: string) {
     return this.garageInvoiceService.downloadInvoice(req.user.userId, id);
+  }
+
+  // ==================== SLOT MANAGEMENT ====================
+
+  @Get('slots')
+  async getSlotsForDate(@Req() req, @Query('date') date: string) {
+    if (!date) throw new BadRequestException('date is required');
+    return this.garageScheduleService.getSlotsForDate(req.user.userId, date);
+  }
+
+  @Patch('slots/:id/block')
+  async blockSlot(@Req() req, @Param('id') id: string) {
+    return this.garageScheduleService.setSlotBlockedStatus(
+      req.user.userId,
+      id,
+      true,
+    );
+  }
+
+  @Patch('slots/:id/unblock')
+  async unblockSlot(@Req() req, @Param('id') id: string) {
+    return this.garageScheduleService.setSlotBlockedStatus(
+      req.user.userId,
+      id,
+      false,
+    );
+  }
+
+  @Patch('slots/:id')
+  async updateSlot(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() body: { start_time: string; end_time: string },
+  ) {
+    return this.garageScheduleService.updateSlotById(
+      req.user.userId,
+      id,
+      body.start_time,
+      body.end_time,
+    );
+  }
+
+  @Patch('slot-duration/:dayOfWeek')
+  async updateSlotDuration(
+    @Req() req,
+    @Param('dayOfWeek') dayOfWeek: string,
+    @Body() body: { slotDuration: number },
+  ) {
+    const day = parseInt(dayOfWeek, 10);
+    if (isNaN(day) || day < 0 || day > 6)
+      throw new BadRequestException('Invalid dayOfWeek');
+    if (!body.slotDuration || body.slotDuration < 1)
+      throw new BadRequestException('Invalid slotDuration');
+    return this.garageScheduleService.updateSlotDuration(
+      req.user.userId,
+      day,
+      body.slotDuration,
+    );
+  }
+
+  @Post('slots/manual')
+  async setManualSlotsForDate(@Req() req, @Body() dto: ManualSlotDto) {
+    return this.garageScheduleService.setManualSlotsForDate(
+      req.user.userId,
+      dto,
+    );
+  }
+
+  @Delete('slots/manual')
+  async removeAllSlotsForDate(@Req() req, @Query('date') date: string) {
+    if (!date) throw new BadRequestException('date is required');
+    return this.garageScheduleService.removeAllSlotsForDate(
+      req.user.userId,
+      date,
+    );
+  }
+
+  @Delete('slots/:id')
+  async deleteSlot(@Req() req, @Param('id') id: string) {
+    return this.garageScheduleService.deleteSlotById(req.user.userId, id);
   }
 }
