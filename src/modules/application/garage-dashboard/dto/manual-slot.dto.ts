@@ -1,8 +1,16 @@
+import { IsString, IsOptional, IsBoolean, IsArray } from 'class-validator';
+
 export class ManualSlotDto {
-  date: string; // e.g., "2025-07-20"
+  @IsString()
+  date: string; // "2025-07-20"
+
+  @IsArray()
   slots: {
     start_time: string; // "HH:mm"
     end_time: string; // "HH:mm"
   }[];
-  replace?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  replace?: boolean; // Optional: if true, replace all slots for the date
 }

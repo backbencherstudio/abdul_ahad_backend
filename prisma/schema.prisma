@@ -97,9 +97,8 @@ model User {
   Service   Service[]
   Calendar  Calendar[]
 
-  garage_schedules  GarageSchedule[] @relation("GarageSchedules")
-  invoices_issued   Invoice[]        @relation("GarageInvoices")
-  invoices_received Invoice[]        @relation("DriverInvoices")
+  invoices_issued   Invoice[] @relation("GarageInvoices")
+  invoices_received Invoice[] @relation("DriverInvoices")
 
   // Vehicle-related data for retention (only for DRIVER type)
   vehicle_registration_number String? // Last/current vehicle number
@@ -621,19 +620,25 @@ model MotDefect {
 }
 
 model Calendar {
-  id          String            @id @default(cuid())
-  created_at  DateTime          @default(now())
-  updated_at  DateTime          @default(now())
-  garage_id   String
-  garage      User              @relation("GarageCalendars", fields: [garage_id], references: [id])
-  event_date  DateTime
-  start_time  String?
-  end_time    String?
-  type        CalendarEventType
-  description String?
-  User        User?             @relation(fields: [userId], references: [id])
-  userId      String?
+  id            String            @id @default(cuid())
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @default(now())
+  garage_id     String
+  garage        User              @relation("GarageCalendars", fields: [garage_id], references: [id])
+  event_date    DateTime
+  start_time    String?
+  end_time      String?
+  type          CalendarEventType
   slot_duration Int?
+  is_recurring  Boolean           @default(false) // NEW: For weekly patterns
+  day_of_week   Int? // NEW: For recurring patterns (0-6)
+  User          User?             @relation(fields: [userId], references: [id])
+  userId        String?
+
+  @@unique([garage_id, event_date, is_recurring, day_of_week]) // Add day_of_week to make it truly unique
+  @@index([garage_id, event_date])
+  @@index([garage_id, is_recurring, day_of_week])
+  @@map("calendars")
 }
 
 model Invoice {
@@ -667,22 +672,6 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
-}
-
-model GarageSchedule {
-  id            String   @id @default(cuid())
-  created_at    DateTime @default(now())
-  updated_at    DateTime @default(now())
-  garage_id     String
-  garage        User     @relation("GarageSchedules", fields: [garage_id], references: [id])
-  day_of_week   Int // 0=Sunday, 1=Monday, ..., 6=Saturday
-  start_time    String? // e.g., "09:00"
-  end_time      String? // e.g., "17:00"
-  is_active     Boolean  @default(true)
-  slot_duration Int? // <--- NEW: Slot duration in minutes (e.g., 30, 45, 60)
-
-  @@unique([garage_id, day_of_week])
-  @@map("garage_schedules")
 }
 
 model TimeSlot {
