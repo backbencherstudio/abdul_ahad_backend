@@ -1,5 +1,5 @@
-import { IsString, IsNumber, IsEnum } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ServiceType } from '@prisma/client';
 
 export class CreateServiceDto {
@@ -7,9 +7,11 @@ export class CreateServiceDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ example: 54.85 })
+  @ApiPropertyOptional({ example: 54.85 })
+  @IsOptional()
   @IsNumber()
-  price: number;
+  @Min(0, { message: 'Price must be non-negative' })
+  price?: number;
 
   @ApiProperty({ enum: ServiceType, example: ServiceType.MOT })
   @IsEnum(ServiceType)

@@ -20,7 +20,6 @@ export class GaragePricingService {
     return { success: true, data: services };
   }
 
-
   async deleteService(garageId: string, id: string) {
     const service = await this.prisma.service.findFirst({
       where: { id, garage_id: garageId },
@@ -36,8 +35,13 @@ export class GaragePricingService {
     // --- MOT ---
     let motService = null;
     if (mot) {
-      if (!mot.name || mot.price === undefined || mot.price === null) {
-        throw new BadRequestException('MOT name and price are required.');
+      if (
+        !mot.name ||
+        mot.price === undefined ||
+        mot.price === null ||
+        mot.price <= 0
+      ) {
+        throw new BadRequestException('MOT requires name and valid price > 0');
       }
       motService = await this.prisma.service.findFirst({
         where: { garage_id: garageId, type: ServiceType.MOT },
@@ -62,8 +66,15 @@ export class GaragePricingService {
     // --- RETEST ---
     let retestService = null;
     if (retest) {
-      if (!retest.name || retest.price === undefined || retest.price === null) {
-        throw new BadRequestException('Retest name and price are required.');
+      if (
+        !retest.name ||
+        retest.price === undefined ||
+        retest.price === null ||
+        retest.price <= 0
+      ) {
+        throw new BadRequestException(
+          'Retest requires name and valid price > 0',
+        );
       }
       retestService = await this.prisma.service.findFirst({
         where: { garage_id: garageId, type: ServiceType.RETEST },
@@ -91,9 +102,12 @@ export class GaragePricingService {
       // Check for duplicate names in the request
       const names = new Set<string>();
       for (const add of additionals) {
-        if (!add.name || add.price === undefined || add.price === null) {
+        if (!add.name) {
+          throw new BadRequestException('Additional service name is required');
+        }
+        if (add.price !== undefined && add.price !== null) {
           throw new BadRequestException(
-            'Additional service name and price are required.',
+            'Additional services should not have prices',
           );
         }
         const lower = add.name.trim().toLowerCase();
@@ -129,14 +143,14 @@ export class GaragePricingService {
         if (add.id) {
           result = await this.prisma.service.update({
             where: { id: add.id },
-            data: { name: add.name, price: add.price },
+            data: { name: add.name, price: null }, // Always set price to null for additionals
           });
         } else {
           result = await this.prisma.service.create({
             data: {
               garage_id: garageId,
               name: add.name,
-              price: add.price,
+              price: null, // Always null for additional services
               type: ServiceType.ADDITIONAL,
             },
           });

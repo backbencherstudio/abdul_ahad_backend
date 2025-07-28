@@ -34,6 +34,7 @@ import { GarageInvoiceService } from './services/garage-invoice.service';
 import { memoryStorage } from 'multer';
 import { ManualSlotDto } from './dto/manual-slot.dto';
 import { ScheduleDto, SetWeeklyPatternDto } from './dto/schedule.dto';
+import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -107,9 +108,17 @@ export class GarageDashboardController {
 
   @ApiOperation({
     summary: 'Upsert MOT, Retest, and Additional services in one request',
+    description: `
+      MOT and Retest services require both name and price.
+      Additional services only require name (no price allowed).
+      
+      Examples:
+      - Set all prices: { "mot": { "name": "MOT Test", "price": 54.85 }, "retest": { "name": "MOT Retest", "price": 20.00 }, "additionals": [{ "name": "Tyre Change" }] }
+      - Update only additionals: { "additionals": [{ "id": "existing-id", "name": "Updated Service" }] }
+    `,
   })
   @Post('service-price')
-  async upsertServicePrice(@Req() req, @Body() body) {
+  async upsertServicePrice(@Req() req, @Body() body: UpsertServicePriceDto) {
     return this.garagePricingService.upsertServicePrice(req.user.userId, body);
   }
 
@@ -180,6 +189,12 @@ export class GarageDashboardController {
   @Delete('schedule/reset')
   async completeReset(@Req() req) {
     return this.garageScheduleService.completeReset(req.user.userId);
+  }
+
+  @ApiOperation({ summary: 'Get user reset state' })
+  @Get('schedule/reset-state')
+  async getResetState(@Req() req) {
+    return this.garageScheduleService.getResetState(req.user.userId);
   }
 
   // ==================== BOOKING MANAGEMENT ====================

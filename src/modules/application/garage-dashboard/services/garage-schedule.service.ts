@@ -184,10 +184,16 @@ export class GarageScheduleService {
     return { success: true, message: 'Schedule set for date', data: schedule };
   }
 
-  // Set weekly pattern
+  // Set weekly pattern (updated to handle reset state)
   async setWeeklyPattern(garageId: string, dto: SetWeeklyPatternDto) {
     if (!Array.isArray(dto.pattern) || dto.pattern.length !== 7) {
       throw new BadRequestException('Must provide 7 days of pattern');
+    }
+
+    // Validate daysToGenerate
+    const daysToGenerate = dto.daysToGenerate || 90; // Default to 90 days
+    if (daysToGenerate < 1 || daysToGenerate > 365) {
+      throw new BadRequestException('daysToGenerate must be between 1 and 365');
     }
 
     // Validate each day
@@ -214,12 +220,11 @@ export class GarageScheduleService {
       where: { garage_id: garageId, is_recurring: true },
     });
 
-    // Create new recurring patterns with different placeholder dates
+    // Create new recurring patterns
     const schedules = [];
     for (const day of dto.pattern) {
-      // Use different placeholder dates for each day of week to avoid unique constraint violation
       const placeholderDate = new Date('2025-01-01');
-      placeholderDate.setDate(1 + day.day_of_week); // 2025-01-01 (Sun), 2025-01-02 (Mon), etc.
+      placeholderDate.setDate(1 + day.day_of_week);
 
       const schedule = await this.prisma.calendar.create({
         data: {
@@ -236,16 +241,36 @@ export class GarageScheduleService {
       schedules.push(schedule);
     }
 
-    // Generate slots for the next 30 days based on new pattern
+    // Clear reset flag since user has set a pattern
+    await this.prisma.user.update({
+      where: { id: garageId },
+      data: { is_reset: false },
+    });
+
+    // Generate slots for the specified number of days
     const today = new Date();
-    const daysToGenerate = 30;
     for (let i = 0; i < daysToGenerate; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       await this.generateTimeSlotsForRange(garageId, d, d);
     }
 
-    return { success: true, message: 'Weekly pattern set', data: schedules };
+    // Calculate end date for response
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + daysToGenerate - 1);
+
+    return {
+      success: true,
+      message: `Weekly pattern set and slots generated for ${daysToGenerate} days`,
+      data: {
+        schedules,
+        is_reset: false,
+        slots_generated_for_days: daysToGenerate,
+        slots_generated_from: today.toISOString().slice(0, 10),
+        slots_generated_until: endDate.toISOString().slice(0, 10),
+        estimated_slots_count: Math.ceil(daysToGenerate * 0.7 * 8), // Rough estimate
+      },
+    };
   }
 
   // Delete schedule for date
@@ -602,6 +627,12 @@ export class GarageScheduleService {
       where: { garage_id: garageId },
     });
 
+    // Set reset flag for the user
+    await this.prisma.user.update({
+      where: { id: garageId },
+      data: { is_reset: true },
+    });
+
     const totalDeleted =
       weeklyResult.count + calendarResult.count + slotsResult.count;
 
@@ -616,6 +647,22 @@ export class GarageScheduleService {
         calendar_events_deleted: calendarResult.count,
         time_slots_deleted: slotsResult.count,
         total_deleted: totalDeleted,
+        is_reset: true,
+      },
+    };
+  }
+
+  // Get user reset state
+  async getResetState(garageId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: garageId },
+      select: { is_reset: true },
+    });
+
+    return {
+      success: true,
+      data: {
+        is_reset: user?.is_reset || false,
       },
     };
   }
