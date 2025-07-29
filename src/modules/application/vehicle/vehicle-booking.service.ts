@@ -16,6 +16,11 @@ import {
   VehicleInfoDto,
 } from './dto/garage-search-response.dto';
 import { BookableServiceType, BookSlotDto } from './dto/book-slot.dto';
+import {
+  GetMyBookingsDto,
+  MyBookingsResponseDto,
+  BookingDto,
+} from './dto/my-bookings.dto';
 
 @Injectable()
 export class VehicleBookingService {
@@ -366,5 +371,84 @@ export class VehicleBookingService {
     }
 
     return service;
+  }
+
+  async getMyBookings(
+    userId: string,
+    query: GetMyBookingsDto,
+  ): Promise<MyBookingsResponseDto> {
+    const { status = 'all', search = '', page = 1, limit = 10 } = query;
+
+    // Build where clause
+    const where: any = {
+      driver_id: userId,
+    };
+    if (status && status !== 'all') {
+      where.status = status.toUpperCase();
+    }
+    if (search) {
+      where.OR = [
+        { garage: { garage_name: { contains: search, mode: 'insensitive' } } },
+        { garage: { address: { contains: search, mode: 'insensitive' } } },
+        {
+          vehicle: {
+            registration_number: { contains: search, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    // Get total count for pagination
+    const total_count = await this.prisma.order.count({ where });
+
+    // Get paginated bookings
+    const orders = await this.prisma.order.findMany({
+      where,
+      include: {
+        garage: true,
+        vehicle: true,
+        slot: true,
+        items: { include: { service: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Map to BookingDto
+    const bookings: BookingDto[] = orders.map((order) => ({
+      order_id: order.id,
+      garage_name: order.garage?.garage_name || '',
+      location: [order.garage?.address, order.garage?.zip_code]
+        .filter(Boolean)
+        .join(', '),
+      email: order.garage?.email || '',
+      phone_number: order.garage?.phone_number || '',
+      booking_date: order.slot
+        ? `${order.slot.date.toISOString().split('T')[0]}T${order.slot.start_time}:00.000Z`
+        : order.order_date.toISOString(),
+      total_amount: order.total_amount?.toString() || '',
+      status: order.status,
+      vehicle_registration: order.vehicle?.registration_number || '',
+      service_type: order.items[0]?.service?.type || '',
+    }));
+
+    const total_pages = Math.ceil(total_count / limit);
+
+    return {
+      bookings,
+      pagination: {
+        total_count,
+        total_pages,
+        current_page: page,
+        limit,
+        has_next: page < total_pages,
+        has_prev: page > 1,
+      },
+      filters: {
+        status,
+        search: search || undefined,
+      },
+    };
   }
 }

@@ -27,6 +27,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { GetMyBookingsDto, MyBookingsResponseDto } from './dto/my-bookings.dto';
 
 @Controller('vehicles')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -56,6 +57,18 @@ export class VehicleController {
   @Get(':vehicleId/mot-reports')
   async getMotReports(@Param('vehicleId') vehicleId: string) {
     return this.vehicleService.getCompleteMotHistory(vehicleId);
+  }
+
+  @Get('my-bookings')
+  @Roles(Role.DRIVER) // ✅ ADD THIS: Explicitly require DRIVER role
+  @ApiOperation({
+    summary:
+      'Get all bookings for the logged-in driver (with filters, search, and pagination)',
+    description: 'Returns bookings filtered by status, search, and paginated.',
+  })
+  @ApiResponse({ status: 200, type: MyBookingsResponseDto })
+  async getMyBookings(@Req() req, @Query() query: GetMyBookingsDto) {
+    return this.vehicleBookingService.getMyBookings(req.user.userId, query);
   }
 
   @Get(':id')
