@@ -13,6 +13,7 @@ import {
   DvlaService,
   CombinedVehicleData,
 } from 'src/common/lib/DVLA/DvlaService';
+import { GetMotReportsQueryDto } from './dto/mot-reports-query.dto';
 
 /**
  * Vehicle Service for managing driver vehicles
@@ -45,8 +46,7 @@ export class VehicleService {
       // Validate user exists and is a driver
       const user = await this.validateUserAndRole(userId, 'DRIVER');
 
-      if(!user){
-        
+      if (!user) {
       }
 
       // Check if vehicle already exists for this user
@@ -499,36 +499,118 @@ export class VehicleService {
     });
   }
 
-  async getCompleteMotHistory(vehicleId: string) {
-    // Get vehicle details
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: vehicleId },
-    });
+  async getCompleteMotHistory(
+    vehicleId: string,
+    userId?: string,
+    query?: GetMotReportsQueryDto,
+  ) {
+    try {
+      this.logger.log(
+        `Fetching MOT history for vehicle ${vehicleId} with query:`,
+        query,
+      );
 
-    // Get all MOT reports with defects
+      // Validate user access if userId provided
+      if (userId) {
+        await this.validateUserAndRole(userId, 'DRIVER');
+      }
+
+      // Get vehicle details
+      const vehicle = await this.prisma.vehicle.findFirst({
+        where: {
+          id: vehicleId,
+          ...(userId && { user_id: userId }), // Only filter by user if userId provided
+        },
+      });
+
+      if (!vehicle) {
+        throw new NotFoundException('Vehicle not found or access denied');
+      }
+
+      // Parse query parameters
+      const {
+        fields = '',
+        include_defects = true,
+        limit = 10,
+        full_response = false,
+      } = query || {};
+
+      // If full_response is true or no fields specified, return complete response (backward compatibility)
+      if (full_response || !fields) {
+        return this.getFullMotHistory(vehicle, include_defects, limit);
+      }
+
+      // Parse requested fields
+      const requestedFields = this.parseRequestedFields(fields);
+
+      // Get MOT reports based on field requirements
+      const reports = await this.getMotReportsForFields(
+        vehicleId,
+        requestedFields,
+        include_defects,
+        limit,
+      );
+
+      // Build response based on requested fields
+      const response = this.buildPartialResponse(
+        vehicle,
+        reports,
+        requestedFields,
+      );
+
+      // Add query info for transparency
+      response.query_info = {
+        fields_requested: fields,
+        include_defects,
+        limit,
+        full_response,
+        total_reports: reports.length,
+      };
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get MOT history for vehicle ${vehicleId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get full MOT history (backward compatibility)
+   */
+  private async getFullMotHistory(
+    vehicle: any,
+    includeDefects: boolean,
+    limit: number,
+  ) {
+    // ✅ Fix: Use proper Prisma include syntax
+    const includeOptions = includeDefects ? { defects: true } : undefined;
+
     const reports = await this.prisma.motReport.findMany({
-      where: { vehicle_id: vehicleId },
-      include: { defects: true },
+      where: { vehicle_id: vehicle.id },
+      include: includeOptions, // ✅ Fixed: Use undefined instead of false
       orderBy: { test_date: 'desc' },
+      take: limit,
     });
 
-    // Transform to match original API structure
     return {
-      registration: vehicle?.registration_number,
-      make: vehicle?.make,
-      model: vehicle?.model,
-      firstUsedDate: vehicle?.year_of_manufacture
+      registration: vehicle.registration_number,
+      make: vehicle.make,
+      model: vehicle.model,
+      firstUsedDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
-      fuelType: vehicle?.fuel_type,
-      primaryColour: vehicle?.color,
-      registrationDate: vehicle?.year_of_manufacture
+      fuelType: vehicle.fuel_type,
+      primaryColour: vehicle.color,
+      registrationDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
-      manufactureDate: vehicle?.year_of_manufacture
+      manufactureDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
-      engineSize: vehicle?.engine_capacity?.toString(),
+      engineSize: vehicle.engine_capacity?.toString(),
       hasOutstandingRecall: 'Unknown',
       motTests: reports.map((report) => ({
         registrationAtTimeOfTest: report.registration_at_test,
@@ -540,12 +622,269 @@ export class VehicleService {
         odometerResultType: report.odometer_result_type,
         testResult: report.status,
         dataSource: report.data_source,
-        defects: report.defects.map((defect) => ({
-          dangerous: defect.dangerous,
-          text: defect.text,
-          type: defect.type,
-        })),
+        // ✅ Fix: Handle defects safely
+        defects:
+          includeDefects && report.defects
+            ? report.defects.map((defect) => ({
+                dangerous: defect.dangerous,
+                text: defect.text,
+                type: defect.type,
+              }))
+            : [],
       })),
     };
+  }
+
+  /**
+   * Parse requested fields from query string
+   */
+  private parseRequestedFields(fields: string): {
+    vehicleFields: string[];
+    reportFields: string[];
+    includeDefects: boolean;
+  } {
+    const fieldList = fields.split(',').map((f) => f.trim().toLowerCase());
+
+    // Predefined field groups
+    const fieldGroups = {
+      basic: [
+        'registration',
+        'make',
+        'model',
+        'test_number',
+        'test_date',
+        'status',
+        'expiry_date',
+      ],
+      summary: [
+        'registration',
+        'make',
+        'model',
+        'test_number',
+        'test_date',
+        'status',
+        'expiry_date',
+        'odometer_value',
+        'defects_count',
+      ],
+      detailed: [
+        'registration',
+        'make',
+        'model',
+        'fuel_type',
+        'color',
+        'engine_size',
+        'year',
+        'test_number',
+        'test_date',
+        'expiry_date',
+        'status',
+        'odometer_value',
+        'odometer_unit',
+        'data_source',
+        'defects',
+      ],
+      full: [
+        'registration',
+        'make',
+        'model',
+        'fuel_type',
+        'color',
+        'engine_size',
+        'year',
+        'test_number',
+        'test_date',
+        'expiry_date',
+        'status',
+        'odometer_value',
+        'odometer_unit',
+        'data_source',
+        'defects',
+      ],
+    };
+
+    // Check if it's a predefined group
+    if (fieldGroups[fields.toLowerCase()]) {
+      const groupFields = fieldGroups[fields.toLowerCase()];
+      return this.categorizeFields(groupFields);
+    }
+
+    // Individual fields
+    return this.categorizeFields(fieldList);
+  }
+
+  /**
+   * Categorize fields into vehicle and report fields
+   */
+  private categorizeFields(fields: string[]): {
+    vehicleFields: string[];
+    reportFields: string[];
+    includeDefects: boolean;
+  } {
+    const vehicleFieldMap = {
+      registration: 'registration_number',
+      make: 'make',
+      model: 'model',
+      fuel_type: 'fuel_type',
+      color: 'color',
+      engine_size: 'engine_capacity',
+      year: 'year_of_manufacture',
+    };
+
+    const reportFieldMap = {
+      test_number: 'test_number',
+      test_date: 'test_date',
+      expiry_date: 'expiry_date',
+      status: 'status',
+      odometer_value: 'odometer_value',
+      odometer_unit: 'odometer_unit',
+      data_source: 'data_source',
+      defects_count: 'defects_count',
+      dangerous_defects: 'dangerous_defects',
+    };
+
+    const vehicleFields = [];
+    const reportFields = [];
+    let includeDefects = false;
+
+    for (const field of fields) {
+      if (vehicleFieldMap[field]) {
+        vehicleFields.push(vehicleFieldMap[field]);
+      } else if (reportFieldMap[field]) {
+        reportFields.push(reportFieldMap[field]);
+        if (
+          field === 'defects' ||
+          field === 'defects_count' ||
+          field === 'dangerous_defects'
+        ) {
+          includeDefects = true;
+        }
+      }
+    }
+
+    return { vehicleFields, reportFields, includeDefects };
+  }
+
+  /**
+   * Get MOT reports based on field requirements
+   */
+  private async getMotReportsForFields(
+    vehicleId: string,
+    fieldCategories: {
+      vehicleFields: string[];
+      reportFields: string[];
+      includeDefects: boolean;
+    },
+    includeDefects: boolean,
+    limit: number,
+  ) {
+    const { reportFields, includeDefects: fieldsRequireDefects } =
+      fieldCategories;
+
+    const shouldIncludeDefects = includeDefects || fieldsRequireDefects;
+
+    // ✅ Fix: Use proper Prisma include syntax
+    const includeOptions = shouldIncludeDefects ? { defects: true } : undefined;
+
+    return await this.prisma.motReport.findMany({
+      where: { vehicle_id: vehicleId },
+      include: includeOptions, // ✅ Fixed: Use undefined instead of false
+      orderBy: { test_date: 'desc' },
+      take: limit,
+    });
+  }
+
+  /**
+   * Build partial response based on requested fields
+   */
+  private buildPartialResponse(
+    vehicle: any,
+    reports: any[],
+    fieldCategories: {
+      vehicleFields: string[];
+      reportFields: string[];
+      includeDefects: boolean;
+    },
+  ) {
+    const { vehicleFields, reportFields } = fieldCategories;
+    const response: any = {};
+
+    // Add vehicle fields
+    if (vehicleFields.includes('registration_number')) {
+      response.registration = vehicle.registration_number;
+    }
+    if (vehicleFields.includes('make')) {
+      response.make = vehicle.make;
+    }
+    if (vehicleFields.includes('model')) {
+      response.model = vehicle.model;
+    }
+    if (vehicleFields.includes('fuel_type')) {
+      response.fuelType = vehicle.fuel_type;
+    }
+    if (vehicleFields.includes('color')) {
+      response.primaryColour = vehicle.color;
+    }
+    if (vehicleFields.includes('engine_capacity')) {
+      response.engineSize = vehicle.engine_capacity?.toString();
+    }
+    if (vehicleFields.includes('year_of_manufacture')) {
+      const year = vehicle.year_of_manufacture;
+      response.firstUsedDate = year ? `${year}-01-01` : null;
+      response.registrationDate = year ? `${year}-01-01` : null;
+      response.manufactureDate = year ? `${year}-01-01` : null;
+    }
+
+    // Add MOT reports if any report fields are requested
+    if (reportFields.length > 0) {
+      response.motTests = reports.map((report) => {
+        const motTest: any = {};
+
+        if (reportFields.includes('test_number')) {
+          motTest.motTestNumber = report.test_number;
+        }
+        if (reportFields.includes('test_date')) {
+          motTest.completedDate = report.test_date?.toISOString();
+        }
+        if (reportFields.includes('expiry_date')) {
+          motTest.expiryDate = report.expiry_date?.toISOString()?.split('T')[0];
+        }
+        if (reportFields.includes('status')) {
+          motTest.testResult = report.status;
+        }
+        if (reportFields.includes('odometer_value')) {
+          motTest.odometerValue = report.odometer_value?.toString();
+        }
+        if (reportFields.includes('odometer_unit')) {
+          motTest.odometerUnit = report.odometer_unit;
+        }
+        if (reportFields.includes('data_source')) {
+          motTest.dataSource = report.data_source;
+        }
+
+        // ✅ Fix: Handle defects safely with proper type checking
+        if (reportFields.includes('defects_count')) {
+          motTest.defects_count = report.defects ? report.defects.length : 0;
+        }
+        if (reportFields.includes('dangerous_defects')) {
+          motTest.dangerous_defects = report.defects
+            ? report.defects.filter((d) => d.dangerous)
+            : [];
+        }
+        if (reportFields.includes('defects')) {
+          motTest.defects = report.defects
+            ? report.defects.map((defect) => ({
+                dangerous: defect.dangerous,
+                text: defect.text,
+                type: defect.type,
+              }))
+            : [];
+        }
+
+        return motTest;
+      });
+    }
+
+    return response;
   }
 }

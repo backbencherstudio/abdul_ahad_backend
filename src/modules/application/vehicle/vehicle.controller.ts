@@ -28,6 +28,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { GetMyBookingsDto, MyBookingsResponseDto } from './dto/my-bookings.dto';
+import { GetMotReportsQueryDto } from './dto/mot-reports-query.dto';
 
 @Controller('vehicles')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -55,8 +56,47 @@ export class VehicleController {
     return this.vehicleService.getMotReportWithDefects(reportId);
   }
   @Get(':vehicleId/mot-reports')
-  async getMotReports(@Param('vehicleId') vehicleId: string) {
-    return this.vehicleService.getCompleteMotHistory(vehicleId);
+  @Roles(Role.DRIVER)
+  @ApiOperation({
+    summary: 'Get MOT reports for vehicle with field selection',
+    description:
+      'Enhanced endpoint with optional field selection, filtering, and pagination. Use query parameters to specify which fields you need.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'MOT reports with optional field filtering',
+    schema: {
+      example: {
+        registration: 'GF57XWD',
+        make: 'FORD',
+        model: 'FOCUS',
+        motTests: [
+          {
+            motTestNumber: '451691735331',
+            testResult: 'PASSED',
+            completedDate: '2024-11-01T12:29:45.000Z',
+          },
+        ],
+        query_info: {
+          fields_requested: 'registration,make,model,test_number,status',
+          include_defects: true,
+          limit: 10,
+          full_response: false,
+          total_reports: 1,
+        },
+      },
+    },
+  })
+  async getMotReports(
+    @Req() req,
+    @Param('vehicleId') vehicleId: string,
+    @Query() query: GetMotReportsQueryDto,
+  ) {
+    return this.vehicleService.getCompleteMotHistory(
+      vehicleId,
+      req.user.userId,
+      query,
+    );
   }
 
   @Get('my-bookings')
