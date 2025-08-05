@@ -4,479 +4,481 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
+import {
+  ScheduleDto,
+  SetWeeklyPatternDto,
+  RestrictionDto,
+} from '../dto/schedule.dto';
 import { ManualSlotDto } from '../dto/manual-slot.dto';
-import { ScheduleDto, SetWeeklyPatternDto } from '../dto/schedule.dto';
-
-// Helper: Get all dates in a month, grouped by week (weeks start on Sunday)
-function getMonthWeeks(year: number, month: number): Date[][] {
-  const firstDay = new Date(Date.UTC(year, month - 1, 1));
-  const lastDay = new Date(Date.UTC(year, month, 0));
-  const weeks: Date[][] = [];
-  let current = new Date(firstDay);
-  current.setUTCDate(current.getUTCDate() - current.getUTCDay());
-  while (current <= lastDay || weeks.length === 0) {
-    const week: Date[] = [];
-    for (let i = 0; i < 7; i++) {
-      week.push(new Date(current));
-      current.setUTCDate(current.getUTCDate() + 1);
-    }
-    weeks.push(week);
-  }
-  return weeks;
-}
-
-function isValidTimeFormat(time: string): boolean {
-  return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](AM|PM)?$/.test(time);
-}
-
-function isStartBeforeEnd(start: string, end: string): boolean {
-  if (!start || !end) return false;
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return false;
-  return sh < eh || (sh === eh && sm < em);
-}
 
 @Injectable()
 export class GarageScheduleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ==================== SCHEDULE MANAGEMENT ====================
-
-  // Get schedule for any date (unified)
-  async getScheduleForDate(garageId: string, date: string) {
-    const targetDate = new Date(date + 'T00:00:00Z');
-    const dayOfWeek = targetDate.getDay();
-
-    // 1. Check for specific date exception (non-recurring)
-    const specific = await this.prisma.calendar.findFirst({
-      where: {
-        garage_id: garageId,
-        event_date: targetDate,
-        is_recurring: false,
-      },
+  // Get schedule for garage
+  async getSchedule(garageId: string) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
     });
 
-    if (specific) {
+    if (!schedule) {
       return {
         success: true,
-        data: {
-          date,
-          day_of_week: dayOfWeek,
-          schedule: specific,
-          source: 'specific_date',
-        },
+        data: null,
+        message: 'No schedule configured',
       };
     }
 
-    // 2. Fall back to weekly pattern (recurring)
-    const weekly = await this.prisma.calendar.findFirst({
-      where: {
-        garage_id: garageId,
-        day_of_week: dayOfWeek,
-        is_recurring: true,
-      },
-    });
-
     return {
       success: true,
-      data: {
-        date,
-        day_of_week: dayOfWeek,
-        schedule: weekly,
-        source: weekly ? 'weekly_pattern' : 'no_schedule',
-      },
+      data: schedule,
     };
   }
 
-  // Get week view (7 days)
-  async getWeekSchedule(garageId: string, startDate: string) {
-    const start = new Date(startDate + 'T00:00:00Z');
-    const weekSchedules = [];
-
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + i);
-      const dateStr = date.toISOString().slice(0, 10);
-
-      const schedule = await this.getScheduleForDate(garageId, dateStr);
-      weekSchedules.push(schedule.data);
+  // Create or update schedule (FIXED: No auto-generation)
+  async setSchedule(garageId: string, dto: ScheduleDto) {
+    // ✅ FIXED: Enhanced 24-hour format validation
+    if (
+      !this.isValidTimeFormat(dto.start_time) ||
+      !this.isValidTimeFormat(dto.end_time)
+    ) {
+      throw new BadRequestException(
+        'Invalid time format. Use 24-hour HH:mm format (e.g., 08:00, 18:00).',
+      );
     }
 
-    return { success: true, data: weekSchedules };
-  }
+    // Validate start time is before end time
+    if (!this.isStartBeforeEnd(dto.start_time, dto.end_time)) {
+      throw new BadRequestException('Start time must be before end time.');
+    }
 
-  // Get month view
-  async getMonthSchedule(garageId: string, year: number, month: number) {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    // Validate slot duration
+    if (dto.slot_duration < 15 || dto.slot_duration > 480) {
+      throw new BadRequestException(
+        'Slot duration must be between 15 and 480 minutes.',
+      );
+    }
 
-    const schedules = await this.prisma.calendar.findMany({
-      where: {
-        garage_id: garageId,
-        event_date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        is_recurring: false, // Only specific dates, not weekly patterns
-      },
-      orderBy: { event_date: 'asc' },
-    });
-
-    return { success: true, data: schedules };
-  }
-
-  // Set/Update schedule for specific date
-  async setScheduleForDate(garageId: string, dto: ScheduleDto) {
-    if (dto.type === 'OPEN') {
-      if (
-        !isValidTimeFormat(dto.start_time) ||
-        !isValidTimeFormat(dto.end_time)
-      ) {
-        throw new BadRequestException('Invalid time format');
-      }
-      if (!isStartBeforeEnd(dto.start_time, dto.end_time)) {
-        throw new BadRequestException('Start time must be before end time');
+    // ✅ FIXED: Validate restrictions have valid 24-hour times
+    if (dto.restrictions) {
+      for (const restriction of dto.restrictions) {
+        if (restriction.type === 'BREAK') {
+          if (
+            restriction.start_time &&
+            !this.isValidTimeFormat(restriction.start_time)
+          ) {
+            throw new BadRequestException(
+              `Invalid break start time: ${restriction.start_time}. Use 24-hour HH:mm format.`,
+            );
+          }
+          if (
+            restriction.end_time &&
+            !this.isValidTimeFormat(restriction.end_time)
+          ) {
+            throw new BadRequestException(
+              `Invalid break end time: ${restriction.end_time}. Use 24-hour HH:mm format.`,
+            );
+          }
+          if (
+            restriction.start_time &&
+            restriction.end_time &&
+            !this.isStartBeforeEnd(restriction.start_time, restriction.end_time)
+          ) {
+            throw new BadRequestException(
+              `Break start time must be before end time: ${restriction.start_time} - ${restriction.end_time}`,
+            );
+          }
+        }
       }
     }
 
-    const eventDate = new Date(dto.date + 'T00:00:00Z');
-    const dayOfWeek = eventDate.getDay();
+    // Convert restrictions to JSON for Prisma
+    const restrictionsJson = dto.restrictions
+      ? JSON.parse(JSON.stringify(dto.restrictions))
+      : [];
 
-    const schedule = await this.prisma.calendar.upsert({
-      where: {
-        garage_id_event_date_is_recurring_day_of_week: {
-          garage_id: garageId,
-          event_date: eventDate,
-          is_recurring: false,
-          day_of_week: dayOfWeek, // <-- use actual day of week, not null
-        },
-      },
+    const schedule = await this.prisma.schedule.upsert({
+      where: { garage_id: garageId },
       update: {
-        type: dto.type,
         start_time: dto.start_time,
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
-        // description: dto.description, // REMOVE if not needed
+        restrictions: restrictionsJson,
+        is_active: dto.is_active ?? true,
+        updated_at: new Date(),
       },
       create: {
         garage_id: garageId,
-        event_date: eventDate,
-        type: dto.type,
         start_time: dto.start_time,
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
-        is_recurring: false,
-        day_of_week: dayOfWeek, // <-- use actual day of week
-        // description: dto.description, // REMOVE if not needed
+        restrictions: restrictionsJson,
+        is_active: dto.is_active ?? true,
       },
     });
 
-    // Generate slots if it's an OPEN type
-    if (dto.type === 'OPEN') {
-      await this.generateTimeSlotsForRange(garageId, eventDate, eventDate);
-    } else if (dto.type === 'HOLIDAY') {
-      await this.prisma.timeSlot.deleteMany({
-        where: { garage_id: garageId, date: eventDate },
-      });
-    }
-
-    return { success: true, message: 'Schedule set for date', data: schedule };
+    // ✅ FIXED: NO auto-generation! Only create schedule
+    return {
+      success: true,
+      message: 'Schedule updated successfully',
+      data: schedule,
+    };
   }
 
-  // Set weekly pattern (updated to handle reset state)
+  // Set weekly pattern (legacy support)
   async setWeeklyPattern(garageId: string, dto: SetWeeklyPatternDto) {
-    if (!Array.isArray(dto.pattern) || dto.pattern.length !== 7) {
-      throw new BadRequestException('Must provide 7 days of pattern');
+    // Convert weekly pattern to new schedule format
+    const restrictions: RestrictionDto[] = dto.pattern
+      .filter((day) => day.type === 'HOLIDAY' || day.type === 'CLOSED')
+      .map((day) => ({
+        type: 'HOLIDAY' as const,
+        is_recurring: true,
+        day_of_week: day.day_of_week,
+        description: day.description || `${day.type} day`,
+      }));
+
+    // Get the most common open hours
+    const openDays = dto.pattern.filter((day) => day.type === 'OPEN');
+    if (openDays.length === 0) {
+      throw new BadRequestException('At least one open day is required.');
     }
 
-    // Validate daysToGenerate
-    const daysToGenerate = dto.daysToGenerate || 90; // Default to 90 days
-    if (daysToGenerate < 1 || daysToGenerate > 365) {
-      throw new BadRequestException('daysToGenerate must be between 1 and 365');
-    }
+    // Use the first open day's hours as default
+    const defaultHours = openDays[0];
 
-    // Validate each day
-    for (const day of dto.pattern) {
-      if (day.type === 'OPEN') {
-        if (
-          !isValidTimeFormat(day.start_time) ||
-          !isValidTimeFormat(day.end_time)
-        ) {
-          throw new BadRequestException(
-            `Invalid time format for day ${day.day_of_week}`,
-          );
-        }
-        if (!isStartBeforeEnd(day.start_time, day.end_time)) {
-          throw new BadRequestException(
-            `Start time must be before end time for day ${day.day_of_week}`,
-          );
-        }
-      }
-    }
+    const scheduleDto: ScheduleDto = {
+      start_time: defaultHours.start_time!,
+      end_time: defaultHours.end_time!,
+      slot_duration: defaultHours.slot_duration || 60,
+      restrictions,
+    };
 
-    // Delete existing recurring patterns
-    await this.prisma.calendar.deleteMany({
-      where: { garage_id: garageId, is_recurring: true },
+    return this.setSchedule(garageId, scheduleDto);
+  }
+
+  // ✅ FIXED: View available slots with clean response structure
+  async viewAvailableSlots(garageId: string, date: string) {
+    // 1. Get schedule configuration
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
     });
 
-    // Create new recurring patterns
-    const schedules = [];
-    for (const day of dto.pattern) {
-      const placeholderDate = new Date('2025-01-01');
-      placeholderDate.setDate(1 + day.day_of_week);
+    if (!schedule || !schedule.is_active) {
+      throw new BadRequestException('No active schedule found.');
+    }
 
-      const schedule = await this.prisma.calendar.create({
+    // 2. Parse restrictions
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    // ✅ FIXED: Use local timezone instead of UTC
+    const targetDate = new Date(date + 'T00:00:00');
+
+    // 3. Check if day is restricted (holiday)
+    if (this.isDayRestricted(restrictions, targetDate)) {
+      return {
+        success: true,
         data: {
           garage_id: garageId,
-          event_date: placeholderDate,
-          day_of_week: day.day_of_week,
-          is_recurring: true,
-          type: day.type,
-          start_time: day.start_time,
-          end_time: day.end_time,
-          slot_duration: day.slot_duration,
+          date: date,
+          slots: [],
         },
-      });
-      schedules.push(schedule);
+        message: 'Day is closed (holiday)',
+      };
     }
 
-    // Clear reset flag since user has set a pattern
-    await this.prisma.user.update({
-      where: { id: garageId },
-      data: { is_reset: false },
+    // 4. Generate potential slots for this date (NOT saved to database)
+    const potentialSlots = this.generateSlotsForDay(
+      schedule.start_time,
+      schedule.end_time,
+      schedule.slot_duration,
+      targetDate,
+      garageId,
+      restrictions,
+    );
+
+    // 5. Check existing slots (created manually or by bookings)
+    const existingSlots = await this.prisma.timeSlot.findMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: targetDate,
+          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
     });
 
-    // Generate slots for the specified number of days
-    const today = new Date();
-    for (let i = 0; i < daysToGenerate; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      await this.generateTimeSlotsForRange(garageId, d, d);
-    }
+    // 6. Merge potential slots with existing slots
+    const bookableSlotViews = potentialSlots.map((potentialSlot) => {
+      const existingSlot = existingSlots.find(
+        (existing) =>
+          existing.start_datetime.getTime() ===
+          potentialSlot.start_datetime.getTime(),
+      );
 
-    // Calculate end date for response
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() + daysToGenerate - 1);
+      if (existingSlot) {
+        return {
+          type: 'BOOKABLE',
+          start_time: this.formatTime24Hour(existingSlot.start_datetime),
+          end_time: this.formatTime24Hour(existingSlot.end_datetime),
+          start_datetime: existingSlot.start_datetime,
+          end_datetime: existingSlot.end_datetime,
+          is_available:
+            existingSlot.is_available &&
+            !existingSlot.is_blocked &&
+            !existingSlot.order_id,
+          is_blocked: existingSlot.is_blocked,
+          order_id: existingSlot.order_id,
+          is_existing: true,
+        };
+      }
+
+      return {
+        type: 'BOOKABLE',
+        start_time: this.formatTime24Hour(potentialSlot.start_datetime),
+        end_time: this.formatTime24Hour(potentialSlot.end_datetime),
+        start_datetime: potentialSlot.start_datetime,
+        end_datetime: potentialSlot.end_datetime,
+        is_available: true,
+        is_blocked: false,
+        order_id: null,
+        is_existing: false,
+      };
+    });
+
+    // 7. Add break slots for this day
+    const dayOfWeek = targetDate.getDay();
+    const breakSlots = (restrictions || [])
+      .filter(
+        (r) =>
+          r.type === 'BREAK' &&
+          r.day_of_week !== undefined &&
+          r.day_of_week === dayOfWeek,
+      )
+      .map((r) => ({
+        type: 'BREAK',
+        start_time: r.start_time,
+        end_time: r.end_time,
+        description: r.description || 'Break',
+      }));
+
+    // 8. Combine and sort by start_time
+    const allSlots = [...bookableSlotViews, ...breakSlots].sort((a, b) =>
+      a.start_time.localeCompare(b.start_time),
+    );
 
     return {
       success: true,
-      message: `Weekly pattern set and slots generated for ${daysToGenerate} days`,
       data: {
-        schedules,
-        is_reset: false,
-        slots_generated_for_days: daysToGenerate,
-        slots_generated_from: today.toISOString().slice(0, 10),
-        slots_generated_until: endDate.toISOString().slice(0, 10),
-        estimated_slots_count: Math.ceil(daysToGenerate * 0.7 * 8), // Rough estimate
+        garage_id: garageId,
+        date: date,
+        slots: allSlots,
       },
+      message: `Found ${bookableSlotViews.length} bookable slots and ${breakSlots.length} break(s) for ${date}`,
     };
   }
 
-  // Delete schedule for date
-  async deleteScheduleForDate(garageId: string, date: string) {
-    const eventDate = new Date(date + 'T00:00:00Z');
+  // ✅ FIXED: Garage manually creates a specific slot with proper timezone
+  async createSlot(garageId: string, date: string, startTime: string) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
 
-    const result = await this.prisma.calendar.deleteMany({
+    if (!schedule || !schedule.is_active) {
+      throw new BadRequestException('No active schedule found.');
+    }
+
+    // ✅ FIXED: Validate 24-hour format
+    if (!this.isValidTimeFormat(startTime)) {
+      throw new BadRequestException(
+        'Invalid start time format. Use 24-hour HH:mm format.',
+      );
+    }
+
+    // ✅ FIXED: Use local timezone instead of UTC
+    const targetDate = new Date(date + 'T00:00:00');
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const slotStart = new Date(targetDate);
+    slotStart.setHours(startHour, startMinute, 0, 0);
+
+    const slotEnd = new Date(slotStart);
+    slotEnd.setMinutes(slotEnd.getMinutes() + schedule.slot_duration);
+
+    // Check if slot is within operating hours
+    const slotStartTime = this.formatTime24Hour(slotStart);
+    const slotEndTime = this.formatTime24Hour(slotEnd);
+
+    if (
+      slotStartTime < schedule.start_time ||
+      slotEndTime > schedule.end_time
+    ) {
+      throw new BadRequestException('Slot is outside operating hours.');
+    }
+
+    // Check restrictions
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    if (this.isDayRestricted(restrictions, targetDate)) {
+      throw new BadRequestException('Day is closed (holiday).');
+    }
+
+    if (
+      this.isTimeInBreak(restrictions, targetDate, slotStartTime, slotEndTime)
+    ) {
+      throw new BadRequestException('Slot conflicts with break time.');
+    }
+
+    // Check if slot already exists
+    const existingSlot = await this.prisma.timeSlot.findFirst({
       where: {
         garage_id: garageId,
-        event_date: eventDate,
-        is_recurring: false, // Only delete specific dates, not weekly patterns
+        start_datetime: slotStart,
       },
     });
 
-    // Also delete slots for this date
-    await this.prisma.timeSlot.deleteMany({
-      where: { garage_id: garageId, date: eventDate },
+    if (existingSlot) {
+      throw new BadRequestException('Slot already exists.');
+    }
+
+    // Create the slot
+    const newSlot = await this.prisma.timeSlot.create({
+      data: {
+        garage_id: garageId,
+        start_datetime: slotStart,
+        end_datetime: slotEnd,
+        is_available: true,
+        is_blocked: false,
+      },
     });
 
     return {
       success: true,
-      message: 'Schedule deleted for date',
-      count: result.count,
+      message: 'Slot created successfully',
+      data: newSlot,
     };
   }
 
-  // ==================== SLOT MANAGEMENT ====================
+  // Get available slots for a date (existing slots only)
+  async getAvailableSlots(garageId: string, date: string) {
+    // ✅ FIXED: Use local timezone
+    const startOfDay = new Date(date + 'T00:00:00');
+    const endOfDay = new Date(date + 'T23:59:59');
 
-  // Utility: Generate slots for a day
-  private generateSlotsForDay(
-    startTime: string,
-    endTime: string,
-    slotDuration: number,
-  ): { start: string; end: string }[] {
-    const slots = [];
-    let [sh, sm] = startTime.split(':').map(Number);
-    let [eh, em] = endTime.split(':').map(Number);
-
-    let start = sh * 60 + sm;
-    const end = eh * 60 + em;
-
-    while (start + slotDuration <= end) {
-      const slotStartH = Math.floor(start / 60)
-        .toString()
-        .padStart(2, '0');
-      const slotStartM = (start % 60).toString().padStart(2, '0');
-      const slotEnd = start + slotDuration;
-      const slotEndH = Math.floor(slotEnd / 60)
-        .toString()
-        .padStart(2, '0');
-      const slotEndM = (slotEnd % 60).toString().padStart(2, '0');
-      slots.push({
-        start: `${slotStartH}:${slotStartM}`,
-        end: `${slotEndH}:${slotEndM}`,
-      });
-      start += slotDuration;
-    }
-    return slots;
-  }
-
-  // Main: Generate slots for a date range
-  async generateTimeSlotsForRange(
-    garageId: string,
-    startDate: Date,
-    endDate: Date,
-  ) {
-    const calendarEvents = await this.prisma.calendar.findMany({
-      where: {
-        garage_id: garageId,
-        OR: [
-          {
-            event_date: { gte: startDate, lte: endDate },
-            is_recurring: false,
-          },
-          {
-            is_recurring: true,
-          },
-        ],
-      },
-    });
-
-    for (
-      let d = new Date(startDate);
-      d <= endDate;
-      d.setDate(d.getDate() + 1)
-    ) {
-      const dayOfWeek = d.getDay();
-      const specificEvent = calendarEvents.find(
-        (e) =>
-          !e.is_recurring &&
-          e.event_date.toISOString().slice(0, 10) ===
-            d.toISOString().slice(0, 10),
-      );
-
-      const weeklyEvent = calendarEvents.find(
-        (e) => e.is_recurring && e.day_of_week === dayOfWeek,
-      );
-
-      // Use specific event if exists, otherwise use weekly pattern
-      const event = specificEvent || weeklyEvent;
-
-      if (!event || event.type === 'HOLIDAY') {
-        // Delete slots for holidays
-        await this.prisma.timeSlot.deleteMany({
-          where: { garage_id: garageId, date: d },
-        });
-        continue;
-      }
-
-      if (
-        event.type !== 'OPEN' ||
-        !event.start_time ||
-        !event.end_time ||
-        !event.slot_duration
-      ) {
-        continue;
-      }
-
-      const slots = this.generateSlotsForDay(
-        event.start_time,
-        event.end_time,
-        event.slot_duration,
-      );
-
-      for (const slot of slots) {
-        await this.prisma.timeSlot.upsert({
-          where: {
-            garage_id_date_start_time: {
-              garage_id: garageId,
-              date: new Date(d.toISOString().slice(0, 10) + 'T00:00:00Z'),
-              start_time: slot.start,
-            },
-          },
-          update: {},
-          create: {
-            garage_id: garageId,
-            date: new Date(d.toISOString().slice(0, 10) + 'T00:00:00Z'),
-            start_time: slot.start,
-            end_time: slot.end,
-          },
-        });
-      }
-    }
-    return { success: true };
-  }
-
-  // Get all slots for a given date
-  async getSlotsForDate(garageId: string, date: string) {
     const slots = await this.prisma.timeSlot.findMany({
       where: {
         garage_id: garageId,
-        date: new Date(date + 'T00:00:00Z'),
+        start_datetime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        is_available: true,
+        is_blocked: false,
       },
-      orderBy: { start_time: 'asc' },
+      orderBy: { start_datetime: 'asc' },
     });
-    return { success: true, data: slots };
+
+    return {
+      success: true,
+      data: slots,
+    };
   }
 
-  // Block or unblock a specific slot
-  async setSlotBlockedStatus(
-    garageId: string,
-    slotId: string,
-    isBlocked: boolean,
-  ) {
+  // Block a time slot
+  async blockSlot(garageId: string, slotId: string) {
     const slot = await this.prisma.timeSlot.findFirst({
       where: { id: slotId, garage_id: garageId },
     });
-    if (!slot) throw new NotFoundException('Slot not found');
 
-    // If trying to unblock a slot that's already booked, prevent it
-    if (!isBlocked && slot.order_id) {
-      throw new BadRequestException(
-        'Cannot unblock a slot that is already booked',
-      );
+    if (!slot) {
+      throw new NotFoundException('Slot not found.');
+    }
+
+    if (slot.order_id) {
+      throw new BadRequestException('Cannot block a booked slot.');
     }
 
     await this.prisma.timeSlot.update({
       where: { id: slotId },
-      data: {
-        is_blocked: isBlocked,
-        is_available: !isBlocked && !slot.order_id, // Only available if not blocked AND not booked
-      },
+      data: { is_blocked: true, is_available: false },
     });
 
     return {
       success: true,
-      message: isBlocked
-        ? 'Slot blocked and unavailable'
-        : 'Slot unblocked and available',
+      message: 'Slot blocked successfully',
     };
   }
 
+  // Unblock a time slot
+  async unblockSlot(garageId: string, slotId: string) {
+    const slot = await this.prisma.timeSlot.findFirst({
+      where: { id: slotId, garage_id: garageId },
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found.');
+    }
+
+    await this.prisma.timeSlot.update({
+      where: { id: slotId },
+      data: { is_blocked: false, is_available: true },
+    });
+
+    return {
+      success: true,
+      message: 'Slot unblocked successfully',
+    };
+  }
+
+  // ✅ FIXED: Add manual slots for a date with proper timezone
   async setManualSlotsForDate(garageId: string, dto: ManualSlotDto) {
-    const date = new Date(dto.date + 'T00:00:00Z');
+    // ✅ FIXED: Use local timezone
+    const date = new Date(dto.date + 'T00:00:00');
     const slots = dto.slots;
+
+    // Validate all slot times are in 24-hour format
+    for (const slot of slots) {
+      if (!this.isValidTimeFormat(slot.start_time)) {
+        throw new BadRequestException(
+          `Invalid start time: ${slot.start_time}. Use 24-hour HH:mm format.`,
+        );
+      }
+      if (!this.isValidTimeFormat(slot.end_time)) {
+        throw new BadRequestException(
+          `Invalid end time: ${slot.end_time}. Use 24-hour HH:mm format.`,
+        );
+      }
+      if (!this.isStartBeforeEnd(slot.start_time, slot.end_time)) {
+        throw new BadRequestException(
+          `Start time must be before end time: ${slot.start_time} - ${slot.end_time}`,
+        );
+      }
+    }
 
     // 1. Fetch existing slots for the date
     const existingSlots = await this.prisma.timeSlot.findMany({
-      where: { garage_id: garageId, date },
-      orderBy: { start_time: 'asc' },
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: date,
+          lt: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { start_datetime: 'asc' },
     });
 
     // 2. If replace mode, delete all existing slots
     if (dto.replace) {
       await this.prisma.timeSlot.deleteMany({
-        where: { garage_id: garageId, date },
+        where: {
+          garage_id: garageId,
+          start_datetime: {
+            gte: date,
+            lt: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+          },
+        },
       });
     }
 
@@ -496,12 +498,11 @@ export class GarageScheduleService {
     if (!dto.replace) {
       for (const newSlot of slots) {
         for (const exist of existingSlots) {
-          if (
-            newSlot.start_time < exist.end_time &&
-            newSlot.end_time > exist.start_time
-          ) {
+          const existStart = this.formatTime24Hour(exist.start_datetime);
+          const existEnd = this.formatTime24Hour(exist.end_datetime);
+          if (newSlot.start_time < existEnd && newSlot.end_time > existStart) {
             throw new BadRequestException(
-              `Slot ${newSlot.start_time}–${newSlot.end_time} overlaps with existing slot ${exist.start_time}–${exist.end_time}`,
+              `Slot ${newSlot.start_time}–${newSlot.end_time} overlaps with existing slot ${existStart}–${existEnd}`,
             );
           }
         }
@@ -509,34 +510,55 @@ export class GarageScheduleService {
     }
 
     // 5. Insert new slots
+    const newSlots = [];
     for (const slot of slots) {
-      await this.prisma.timeSlot.create({
-        data: {
-          garage_id: garageId,
-          date,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-        },
+      const startDateTime = new Date(date);
+      const [startHour, startMinute] = slot.start_time.split(':').map(Number);
+      startDateTime.setHours(startHour, startMinute, 0, 0);
+
+      const endDateTime = new Date(date);
+      const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+
+      newSlots.push({
+        garage_id: garageId,
+        start_datetime: startDateTime,
+        end_datetime: endDateTime,
+        is_available: true,
+        is_blocked: false,
       });
     }
 
-    // 6. Sync calendar event start/end time
-    await this.syncCalendarEventTimeWithSlots(garageId, date);
+    await this.prisma.timeSlot.createMany({
+      data: newSlots,
+      skipDuplicates: true,
+    });
 
     return {
       success: true,
       message: dto.replace
         ? 'Slots replaced for date'
         : 'Manual slots added for date',
-      count: slots.length,
+      count: newSlots.length,
     };
   }
 
+  // Remove all slots for a date
   async removeAllSlotsForDate(garageId: string, date: string) {
-    const d = new Date(date + 'T00:00:00Z');
+    // ✅ FIXED: Use local timezone
+    const startDate = new Date(date + 'T00:00:00');
+    const endDate = new Date(date + 'T23:59:59');
+
     const result = await this.prisma.timeSlot.deleteMany({
-      where: { garage_id: garageId, date: d },
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
     });
+
     return {
       success: true,
       message: 'All slots removed for date',
@@ -544,126 +566,247 @@ export class GarageScheduleService {
     };
   }
 
+  // Delete specific slot
   async deleteSlotById(garageId: string, slotId: string) {
     const slot = await this.prisma.timeSlot.findFirst({
       where: { id: slotId, garage_id: garageId },
     });
-    if (!slot) throw new NotFoundException('Slot not found');
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found.');
+    }
+
     await this.prisma.timeSlot.delete({ where: { id: slotId } });
-    return { success: true, message: 'Slot deleted' };
+
+    return {
+      success: true,
+      message: 'Slot deleted successfully',
+    };
   }
 
-  async syncCalendarEventTimeWithSlots(garageId: string, date: Date) {
-    const slots = await this.prisma.timeSlot.findMany({
-      where: { garage_id: garageId, date },
-      orderBy: { start_time: 'asc' },
-    });
-    if (!slots.length) return;
-    const start_time = slots[0].start_time;
-    const end_time = slots[slots.length - 1].end_time;
-    await this.prisma.calendar.updateMany({
-      where: { garage_id: garageId, event_date: date },
-      data: { start_time, end_time },
+  // ✅ FIXED: Enhanced 24-hour format validation
+  private isValidTimeFormat(time: string): boolean {
+    const regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!regex.test(time)) return false;
+
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+  }
+
+  private isStartBeforeEnd(start: string, end: string): boolean {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    return sh < eh || (sh === eh && sm < em);
+  }
+
+  // ✅ FIXED: Format time to 24-hour format
+  private formatTime24Hour(date: Date): string {
+    return date.toTimeString().slice(0, 5); // Returns "HH:mm" format
+  }
+
+  private isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
+    const dayOfWeek = date.getDay();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+
+    return restrictions.some((restriction) => {
+      if (restriction.type === 'HOLIDAY') {
+        if (restriction.is_recurring) {
+          if (
+            restriction.day_of_week !== undefined &&
+            restriction.day_of_week === dayOfWeek
+          ) {
+            return true;
+          }
+          if (
+            restriction.month !== undefined &&
+            restriction.month === month &&
+            restriction.day !== undefined &&
+            restriction.day === day
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
     });
   }
 
-  async updateSlotById(
+  // ✅ FIXED: Enhanced break time checking
+  private isTimeInBreak(
+    restrictions: RestrictionDto[],
+    date: Date,
+    startTime: string,
+    endTime: string,
+  ): boolean {
+    const dayOfWeek = date.getDay();
+
+    return restrictions.some((restriction) => {
+      if (restriction.type === 'BREAK') {
+        // Check if break applies to this day
+        if (
+          restriction.day_of_week !== undefined &&
+          restriction.day_of_week === dayOfWeek
+        ) {
+          // Check if slot overlaps with break time
+          if (restriction.start_time && restriction.end_time) {
+            const slotStart = startTime;
+            const slotEnd = endTime;
+            const breakStart = restriction.start_time;
+            const breakEnd = restriction.end_time;
+
+            // Check for overlap
+            return slotStart < breakEnd && slotEnd > breakStart;
+          }
+        }
+      }
+      return false;
+    });
+  }
+
+  // ✅ FIXED: Generate slots with proper timezone
+  private generateSlotsForDay(
+    startTime: string,
+    endTime: string,
+    slotDuration: number,
+    date: Date,
     garageId: string,
-    slotId: string,
-    newStart: string,
-    newEnd: string,
+    restrictions: RestrictionDto[] = [],
   ) {
-    const slot = await this.prisma.timeSlot.findFirst({
-      where: { id: slotId, garage_id: garageId },
-    });
-    if (!slot) throw new NotFoundException('Slot not found');
-    if (
-      !isValidTimeFormat(newStart) ||
-      !isValidTimeFormat(newEnd) ||
-      !isStartBeforeEnd(newStart, newEnd)
-    ) {
-      throw new BadRequestException('Invalid start or end time');
-    }
-    // Check for overlap with other slots for the same date
-    const overlapping = await this.prisma.timeSlot.findFirst({
-      where: {
-        garage_id: garageId,
-        date: slot.date,
-        id: { not: slotId },
-        OR: [
-          {
-            start_time: { lt: newEnd },
-            end_time: { gt: newStart },
-          },
-        ],
-      },
-    });
-    if (overlapping) {
-      throw new BadRequestException(
-        `Slot ${newStart}–${newEnd} overlaps with existing slot ${overlapping.start_time}–${overlapping.end_time}`,
+    const slots = [];
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+
+    let currentTime = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+
+    while (currentTime + slotDuration <= endMinutes) {
+      const slotStart = new Date(date);
+      slotStart.setHours(Math.floor(currentTime / 60), currentTime % 60, 0, 0);
+
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration);
+
+      // Check if slot conflicts with break time
+      const slotStartTime = this.formatTime24Hour(slotStart);
+      const slotEndTime = this.formatTime24Hour(slotEnd);
+
+      const isInBreak = this.isTimeInBreak(
+        restrictions,
+        date,
+        slotStartTime,
+        slotEndTime,
       );
+
+      if (!isInBreak) {
+        slots.push({
+          garage_id: garageId,
+          start_datetime: slotStart,
+          end_datetime: slotEnd,
+          is_available: true,
+          is_blocked: false,
+        });
+      }
+
+      currentTime += slotDuration;
     }
-    await this.prisma.timeSlot.update({
-      where: { id: slotId },
-      data: { start_time: newStart, end_time: newEnd },
-    });
-    // Sync calendar event
-    await this.syncCalendarEventTimeWithSlots(garageId, slot.date);
-    return { success: true, message: 'Slot updated' };
+
+    return slots;
   }
 
-  // Complete reset - delete everything
-  async completeReset(garageId: string) {
-    // Delete in order to avoid foreign key issues
-    const weeklyResult = await this.prisma.calendar.deleteMany({
-      where: { garage_id: garageId, is_recurring: true },
-    });
-
-    const calendarResult = await this.prisma.calendar.deleteMany({
-      where: { garage_id: garageId, is_recurring: false },
-    });
-
-    const slotsResult = await this.prisma.timeSlot.deleteMany({
+  // ✅ NEW: Get calendar data for month (holidays only)
+  async getCalendarData(garageId: string, year: number, month: number) {
+    // 1. Get schedule with restrictions
+    const schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
     });
 
-    // Set reset flag for the user
-    await this.prisma.user.update({
-      where: { id: garageId },
-      data: { is_reset: true },
-    });
+    if (!schedule) {
+      return {
+        success: true,
+        data: {
+          year,
+          month,
+          month_name: this.getMonthName(month),
+          holidays: [],
+        },
+      };
+    }
 
-    const totalDeleted =
-      weeklyResult.count + calendarResult.count + slotsResult.count;
+    // 2. Parse restrictions
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    // 3. Generate all holidays for the month
+    const holidays = this.generateHolidaysForMonth(restrictions, year, month);
 
     return {
       success: true,
-      message:
-        totalDeleted > 0
-          ? 'Complete schedule reset successful'
-          : 'No data found to reset',
       data: {
-        weekly_patterns_deleted: weeklyResult.count,
-        calendar_events_deleted: calendarResult.count,
-        time_slots_deleted: slotsResult.count,
-        total_deleted: totalDeleted,
-        is_reset: true,
+        year,
+        month,
+        month_name: this.getMonthName(month),
+        holidays,
       },
     };
   }
 
-  // Get user reset state
-  async getResetState(garageId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: garageId },
-      select: { is_reset: true },
-    });
+  // ✅ NEW: Generate holidays for a specific month
+  private generateHolidaysForMonth(
+    restrictions: RestrictionDto[],
+    year: number,
+    month: number,
+  ) {
+    const holidays = [];
 
-    return {
-      success: true,
-      data: {
-        is_reset: user?.is_reset || false,
-      },
-    };
+    // Get all dates in the month
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month - 1, day);
+      const dayOfWeek = date.getDay();
+
+      // Check if this date is a holiday
+      const holidayRestriction = restrictions.find(
+        (r) =>
+          r.type === 'HOLIDAY' &&
+          r.is_recurring &&
+          ((r.day_of_week !== undefined && r.day_of_week === dayOfWeek) ||
+            (r.month !== undefined &&
+              r.month === month &&
+              r.day !== undefined &&
+              r.day === day)),
+      );
+
+      if (holidayRestriction) {
+        holidays.push({
+          date: date.toISOString().split('T')[0], // YYYY-MM-DD format
+          day_of_week: dayOfWeek,
+          description: holidayRestriction.description || 'Holiday',
+        });
+      }
+    }
+
+    return holidays;
+  }
+
+  // ✅ NEW: Get month name helper
+  private getMonthName(month: number): string {
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return monthNames[month - 1];
   }
 }

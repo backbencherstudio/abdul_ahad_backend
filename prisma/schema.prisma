@@ -88,14 +88,12 @@ model User {
   vts_number      String? // VTS Number (Vehicle Testing Station)
   primary_contact String? // Primary Contact Person
 
-  type      UserRole   @default(DRIVER)
-  vehicles  Vehicle[]
-  orders    Order[]    @relation("DriverOrders")
-  services  Service[]  @relation("GarageServices")
-  calendars Calendar[] @relation("GarageCalendars")
-  Order     Order[]
-  Service   Service[]
-  Calendar  Calendar[]
+  type     UserRole  @default(DRIVER)
+  vehicles Vehicle[]
+  orders   Order[]   @relation("DriverOrders")
+  services Service[] @relation("GarageServices")
+  Order    Order[]
+  Service  Service[]
 
   invoices_issued   Invoice[] @relation("GarageInvoices")
   invoices_received Invoice[] @relation("DriverInvoices")
@@ -111,6 +109,7 @@ model User {
 
   // For TimeSlot relation (as garage)
   garageTimeSlots TimeSlot[] @relation("GarageTimeSlots")
+  schedule        Schedule?
 
   // Add this field for reset state tracking
   is_reset Boolean @default(false)
@@ -508,11 +507,9 @@ enum PaymentStatus {
   REFUNDED
 }
 
-enum CalendarEventType {
-  OPEN
-  CLOSED
+enum RestrictionType {
   HOLIDAY
-  SPECIAL
+  BREAK
 }
 
 // --- NEW MODELS ---
@@ -556,8 +553,11 @@ model Order {
   User                 User?                @relation(fields: [userId], references: [id])
   userId               String?
   invoices             Invoice[]
-  slot_id              String?              @unique // One-to-one: must be unique
-  slot                 TimeSlot?            @relation(fields: [slot_id], references: [id])
+
+  // FIXED: Add @unique to timeSlotId for one-to-one relation
+  slot_id    String?   @unique
+  slot       TimeSlot? @relation("OrderSlot", fields: [timeSlotId], references: [id])
+  timeSlotId String?   @unique // FIXED: Add @unique here
 }
 
 model Service {
@@ -622,28 +622,6 @@ model MotDefect {
   @@index([dangerous])
 }
 
-model Calendar {
-  id            String            @id @default(cuid())
-  created_at    DateTime          @default(now())
-  updated_at    DateTime          @default(now())
-  garage_id     String
-  garage        User              @relation("GarageCalendars", fields: [garage_id], references: [id])
-  event_date    DateTime
-  start_time    String?
-  end_time      String?
-  type          CalendarEventType
-  slot_duration Int?
-  is_recurring  Boolean           @default(false) // NEW: For weekly patterns
-  day_of_week   Int? // NEW: For recurring patterns (0-6)
-  User          User?             @relation(fields: [userId], references: [id])
-  userId        String?
-
-  @@unique([garage_id, event_date, is_recurring, day_of_week]) // Add day_of_week to make it truly unique
-  @@index([garage_id, event_date])
-  @@index([garage_id, is_recurring, day_of_week])
-  @@map("calendars")
-}
-
 model Invoice {
   id         String   @id @default(cuid())
   created_at DateTime @default(now())
@@ -677,20 +655,53 @@ enum InvoiceStatus {
   CANCELLED
 }
 
-model TimeSlot {
-  id           String   @id @default(cuid())
-  garage_id    String
-  garage       User     @relation("GarageTimeSlots", fields: [garage_id], references: [id])
-  date         DateTime // date only (midnight UTC)
-  start_time   String // "HH:mm"
-  end_time     String // "HH:mm"
-  is_available Boolean  @default(true)
-  is_blocked   Boolean  @default(false)
-  order_id     String? // if booked
-  order        Order? // <-- just this, no @relation, no fields/references
-  User         User?    @relation(fields: [userId], references: [id])
-  userId       String?
+model Schedule {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  garage_id  String   @unique
+  garage     User     @relation(fields: [garage_id], references: [id], onDelete: Cascade)
 
-  @@unique([garage_id, date, start_time]) // <--- Add this line
-  @@index([garage_id, date])
+  start_time    String // "HH:mm" format
+  end_time      String // "HH:mm" format
+  slot_duration Int     @default(60) // minutes
+  restrictions  Json    @default("[]") // Array of restriction objects
+  is_active     Boolean @default(true)
+
+  // Relations
+  time_slots TimeSlot[]
+
+  @@index([garage_id])
+  @@map("schedules")
+}
+
+model TimeSlot {
+  id        String @id @default(cuid())
+  garage_id String
+  garage    User   @relation("GarageTimeSlots", fields: [garage_id], references: [id])
+
+  // NEW: Use DateTime instead of separate date/time fields
+  start_datetime DateTime
+  end_datetime   DateTime
+
+  // LEGACY: Keep for backward compatibility during migration
+  date       DateTime? // date only (midnight UTC)
+  start_time String? // "HH:mm"
+  end_time   String? // "HH:mm"
+
+  is_available Boolean @default(true)
+  is_blocked   Boolean @default(false)
+
+  // FIXED: Add @unique for one-to-one relation and fix relation name
+  order_id String? @unique // if booked
+
+  // Relations
+  order      Order?    @relation("OrderSlot") // FIXED: Use named relation
+  User       User?     @relation(fields: [userId], references: [id])
+  userId     String?
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id])
+  scheduleId String?
+
+  @@unique([garage_id, start_datetime])
+  @@index([garage_id, start_datetime])
 }

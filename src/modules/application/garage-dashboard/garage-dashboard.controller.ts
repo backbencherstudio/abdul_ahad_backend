@@ -26,8 +26,6 @@ import { GarageProfileService } from './services/garage-profile.service';
 import { GaragePricingService } from './services/garage-pricing.service';
 import { GarageScheduleService } from './services/garage-schedule.service';
 import { UpdateGarageProfileDto } from './dto/update-garage-profile.dto';
-import { CreateServiceDto } from './dto/create-service.dto';
-import { UpdateServiceDto } from './dto/update-service.dto';
 import { GarageBookingService } from './services/garage-booking.service';
 import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
@@ -124,77 +122,127 @@ export class GarageDashboardController {
 
   // ==================== SCHEDULE MANAGEMENT ====================
 
-  @ApiOperation({ summary: 'Get schedule for specific date' })
+  @ApiOperation({ summary: 'Get garage schedule' })
   @Get('schedule')
-  async getScheduleForDate(@Req() req, @Query('date') date: string) {
-    if (!date) throw new BadRequestException('date is required');
-    return this.garageScheduleService.getScheduleForDate(req.user.userId, date);
+  async getSchedule(@Req() req) {
+    return this.garageScheduleService.getSchedule(req.user.userId);
   }
 
-  @ApiOperation({ summary: 'Get week schedule' })
-  @Get('schedule/week')
-  async getWeekSchedule(@Req() req, @Query('startDate') startDate: string) {
-    if (!startDate) throw new BadRequestException('startDate is required');
-    return this.garageScheduleService.getWeekSchedule(
-      req.user.userId,
-      startDate,
-    );
-  }
-
-  @ApiOperation({ summary: 'Get month schedule' })
-  @Get('schedule/month')
-  async getMonthSchedule(
-    @Req() req,
-    @Query('month') month: string,
-    @Query('year') year: string,
-  ) {
-    if (!month || !year) {
-      throw new BadRequestException('month and year are required');
-    }
-    const monthNum = parseInt(month, 10);
-    const yearNum = parseInt(year, 10);
-    if (isNaN(monthNum) || isNaN(yearNum)) {
-      throw new BadRequestException('month and year must be numbers');
-    }
-    return this.garageScheduleService.getMonthSchedule(
-      req.user.userId,
-      yearNum,
-      monthNum,
-    );
-  }
-
-  @ApiOperation({ summary: 'Set schedule for specific date' })
+  @ApiOperation({ summary: 'Set garage schedule' })
   @Post('schedule')
-  async setScheduleForDate(@Req() req, @Body() dto: ScheduleDto) {
-    return this.garageScheduleService.setScheduleForDate(req.user.userId, dto);
+  async setSchedule(@Req() req, @Body() dto: ScheduleDto) {
+    return this.garageScheduleService.setSchedule(req.user.userId, dto);
   }
 
-  @ApiOperation({ summary: 'Set weekly pattern' })
+  @ApiOperation({ summary: 'Set weekly pattern (legacy support)' })
   @Post('schedule/weekly')
   async setWeeklyPattern(@Req() req, @Body() dto: SetWeeklyPatternDto) {
     return this.garageScheduleService.setWeeklyPattern(req.user.userId, dto);
   }
 
-  @ApiOperation({ summary: 'Delete schedule for specific date' })
-  @Delete('schedule')
-  async deleteScheduleForDate(@Req() req, @Query('date') date: string) {
+  // NEW: View available slots dynamically
+  @ApiOperation({ summary: 'View available slots for date (dynamic)' })
+  @Get('schedule/slots/view')
+  async viewAvailableSlots(@Req() req, @Query('date') date: string) {
+    if (!date) {
+      throw new BadRequestException('Date parameter is required');
+    }
+    return this.garageScheduleService.viewAvailableSlots(req.user.userId, date);
+  }
+
+  // NEW: Create specific slot
+  @ApiOperation({ summary: 'Create specific slot for date and time' })
+  @Post('schedule/slots')
+  async createSlot(
+    @Req() req,
+    @Body() dto: { date: string; start_time: string },
+  ) {
+    return this.garageScheduleService.createSlot(
+      req.user.userId,
+      dto.date,
+      dto.start_time,
+    );
+  }
+
+  // Get existing available slots for a date
+  @ApiOperation({ summary: 'Get existing available slots for date' })
+  @Get('schedule/slots')
+  async getAvailableSlots(@Req() req, @Query('date') date: string) {
+    if (!date) {
+      throw new BadRequestException('Date parameter is required');
+    }
+    return this.garageScheduleService.getAvailableSlots(req.user.userId, date);
+  }
+
+  @ApiOperation({ summary: 'Block a time slot' })
+  @Patch('schedule/slots/:id/block')
+  async blockSlot(@Req() req, @Param('id') slotId: string) {
+    return this.garageScheduleService.blockSlot(req.user.userId, slotId);
+  }
+
+  @ApiOperation({ summary: 'Unblock a time slot' })
+  @Patch('schedule/slots/:id/unblock')
+  async unblockSlot(@Req() req, @Param('id') slotId: string) {
+    return this.garageScheduleService.unblockSlot(req.user.userId, slotId);
+  }
+
+  @ApiOperation({ summary: 'Add manual slots for date' })
+  @Post('schedule/slots/manual')
+  async setManualSlotsForDate(@Req() req, @Body() dto: ManualSlotDto) {
+    return this.garageScheduleService.setManualSlotsForDate(
+      req.user.userId,
+      dto,
+    );
+  }
+
+  @ApiOperation({ summary: 'Remove all slots for date' })
+  @Delete('schedule/slots/manual')
+  async removeAllSlotsForDate(@Req() req, @Query('date') date: string) {
     if (!date) throw new BadRequestException('date is required');
-    return this.garageScheduleService.deleteScheduleForDate(
+    return this.garageScheduleService.removeAllSlotsForDate(
       req.user.userId,
       date,
     );
   }
 
-  @ApiOperation({ summary: 'Complete schedule reset (delete everything)' })
-  @Delete('schedule/reset')
-  async completeReset(@Req() req) {
-    return this.garageScheduleService.completeReset(req.user.userId);
+  @ApiOperation({ summary: 'Delete specific slot' })
+  @Delete('schedule/slots/:id')
+  async deleteSlot(@Req() req, @Param('id') slotId: string) {
+    return this.garageScheduleService.deleteSlotById(req.user.userId, slotId);
   }
 
-  @ApiOperation({ summary: 'Get user reset state' })
-  @Get('schedule/reset-state')
-  async getResetState(@Req() req) {
-    return this.garageScheduleService.getResetState(req.user.userId);
+  // ✅ NEW: Get calendar data for month (holidays only)
+  @ApiOperation({
+    summary: 'Get calendar data for month',
+    description:
+      'Returns all holidays for a specific month. Frontend can use this to render week/month views and mark holidays appropriately.',
+  })
+  @Get('schedule/calendar')
+  async getCalendarData(
+    @Req() req,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    if (!year || !month) {
+      throw new BadRequestException('Year and month parameters are required');
+    }
+
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
+
+    if (isNaN(yearNum) || isNaN(monthNum)) {
+      throw new BadRequestException('Invalid year or month format');
+    }
+
+    if (monthNum < 1 || monthNum > 12) {
+      throw new BadRequestException('Month must be between 1 and 12');
+    }
+
+    return this.garageScheduleService.getCalendarData(
+      req.user.userId,
+      yearNum,
+      monthNum,
+    );
   }
 
   // ==================== BOOKING MANAGEMENT ====================
@@ -257,74 +305,5 @@ export class GarageDashboardController {
   @Post('invoices/:id/download')
   async downloadInvoice(@Req() req, @Param('id') id: string) {
     return this.garageInvoiceService.downloadInvoice(req.user.userId, id);
-  }
-
-  // ==================== SLOT MANAGEMENT ====================
-
-  @ApiOperation({ summary: 'Get slots for specific date' })
-  @Get('slots')
-  async getSlotsForDate(@Req() req, @Query('date') date: string) {
-    if (!date) throw new BadRequestException('date is required');
-    return this.garageScheduleService.getSlotsForDate(req.user.userId, date);
-  }
-
-  @ApiOperation({ summary: 'Block a slot' })
-  @Patch('slots/:id/block')
-  async blockSlot(@Req() req, @Param('id') id: string) {
-    return this.garageScheduleService.setSlotBlockedStatus(
-      req.user.userId,
-      id,
-      true,
-    );
-  }
-
-  @ApiOperation({ summary: 'Unblock a slot' })
-  @Patch('slots/:id/unblock')
-  async unblockSlot(@Req() req, @Param('id') id: string) {
-    return this.garageScheduleService.setSlotBlockedStatus(
-      req.user.userId,
-      id,
-      false,
-    );
-  }
-
-  @ApiOperation({ summary: 'Update slot time' })
-  @Patch('slots/:id')
-  async updateSlot(
-    @Req() req,
-    @Param('id') id: string,
-    @Body() body: { start_time: string; end_time: string },
-  ) {
-    return this.garageScheduleService.updateSlotById(
-      req.user.userId,
-      id,
-      body.start_time,
-      body.end_time,
-    );
-  }
-
-  @ApiOperation({ summary: 'Add manual slots for date' })
-  @Post('slots/manual')
-  async setManualSlotsForDate(@Req() req, @Body() dto: ManualSlotDto) {
-    return this.garageScheduleService.setManualSlotsForDate(
-      req.user.userId,
-      dto,
-    );
-  }
-
-  @ApiOperation({ summary: 'Remove all slots for date' })
-  @Delete('slots/manual')
-  async removeAllSlotsForDate(@Req() req, @Query('date') date: string) {
-    if (!date) throw new BadRequestException('date is required');
-    return this.garageScheduleService.removeAllSlotsForDate(
-      req.user.userId,
-      date,
-    );
-  }
-
-  @ApiOperation({ summary: 'Delete specific slot' })
-  @Delete('slots/:id')
-  async deleteSlot(@Req() req, @Param('id') id: string) {
-    return this.garageScheduleService.deleteSlotById(req.user.userId, id);
   }
 }
