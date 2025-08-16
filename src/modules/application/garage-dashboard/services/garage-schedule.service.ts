@@ -10,29 +10,148 @@ import {
   RestrictionDto,
 } from '../dto/schedule.dto';
 import { ManualSlotDto } from '../dto/manual-slot.dto';
+import {
+  SlotModificationDto,
+  ModificationResult,
+  ModificationType,
+} from '../dto/slot-modification.dto';
+import { ModifySlotTimeDto } from '../dto/modify-slot-time.dto';
 
 @Injectable()
 export class GarageScheduleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Get schedule for garage
-  async getSchedule(garageId: string) {
-    const schedule = await this.prisma.schedule.findUnique({
-      where: { garage_id: garageId },
-    });
+  // Time Handling Helper Methods
+  private parseTimeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
 
-    if (!schedule) {
-      return {
-        success: true,
-        data: null,
-        message: 'No schedule configured',
-      };
+  private formatTime24Hour(date: Date): string {
+    return date.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
+  private isValidTimeFormat(time: string): boolean {
+    const regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!regex.test(time)) return false;
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+  }
+
+  private isStartBeforeEnd(start: string, end: string): boolean {
+    const startMins = this.parseTimeToMinutes(start);
+    const endMins = this.parseTimeToMinutes(end);
+    return startMins < endMins;
+  }
+
+  private isTimeInBreak(
+    restrictions: RestrictionDto[],
+    date: Date,
+    startTime: string,
+    endTime: string,
+  ): { isBreak: boolean; breakInfo?: RestrictionDto } {
+    const dayOfWeek = date.getDay();
+    const slotStartMins = this.parseTimeToMinutes(startTime);
+    const slotEndMins = this.parseTimeToMinutes(endTime);
+
+    for (const restriction of restrictions) {
+      if (
+        restriction.type === 'BREAK' &&
+        Array.isArray(restriction.day_of_week) &&
+        restriction.day_of_week.includes(dayOfWeek)
+      ) {
+        const breakStartMins = this.parseTimeToMinutes(restriction.start_time);
+        const breakEndMins = this.parseTimeToMinutes(restriction.end_time);
+
+        // Check if slot overlaps with break
+        if (
+          (slotStartMins >= breakStartMins && slotStartMins < breakEndMins) ||
+          (slotEndMins > breakStartMins && slotEndMins <= breakEndMins) ||
+          (slotStartMins <= breakStartMins && slotEndMins >= breakEndMins)
+        ) {
+          return { isBreak: true, breakInfo: restriction };
+        }
+      }
+    }
+    return { isBreak: false };
+  }
+
+  private isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
+    const dayOfWeek = date.getDay();
+    return restrictions.some(
+      (r) => r.type === 'HOLIDAY' && r.day_of_week === dayOfWeek,
+    );
+  }
+
+  // ✅ FIXED: Make slot duration validation flexible
+  private validateSlotDuration(
+    startTime: string,
+    endTime: string,
+    expectedDuration: number,
+    allowFlexibleDuration: boolean = false,
+  ): void {
+    const duration =
+      this.parseTimeToMinutes(endTime) - this.parseTimeToMinutes(startTime);
+
+    if (!allowFlexibleDuration && duration !== expectedDuration) {
+      throw new BadRequestException(
+        `Slot duration must be ${expectedDuration} minutes. Got ${duration} minutes.`,
+      );
     }
 
+    // Even with flexible duration, ensure minimum and maximum bounds
+    if (duration < 15) {
+      throw new BadRequestException(
+        `Slot duration must be at least 15 minutes. Got ${duration} minutes.`,
+      );
+    }
+
+    if (duration > 480) {
+      // 8 hours max
+      throw new BadRequestException(
+        `Slot duration cannot exceed 480 minutes (8 hours). Got ${duration} minutes.`,
+      );
+    }
+  }
+
+  // ✅ FIXED: Enhanced slot display formatting
+  private formatSlotForDisplay(slot: any) {
+    // Always use the actual database datetime values for display
+    const localStart = new Date(slot.start_datetime);
+    const localEnd = new Date(slot.end_datetime);
+
     return {
-      success: true,
-      data: schedule,
+      ...slot,
+      display_time: {
+        start: this.formatTime24Hour(localStart),
+        end: this.formatTime24Hour(localEnd),
+      },
     };
+  }
+
+  private getSlotStatus(slot: any): string {
+    if (slot.order_id) return 'BOOKED';
+    if (slot.is_blocked) return 'BLOCKED';
+    return slot.is_available ? 'AVAILABLE' : 'UNAVAILABLE';
+  }
+
+  private getModificationType(action: string): ModificationType | null {
+    switch (action) {
+      case 'BLOCK':
+        return ModificationType.MANUAL_BLOCK;
+      case 'TIME_MODIFIED':
+        return ModificationType.TIME_MODIFIED;
+      case 'BOOKED':
+        return ModificationType.BOOKED;
+      case 'UNBLOCK':
+        return null;
+      default:
+        return null;
+    }
   }
 
   // Create or update schedule (FIXED: No auto-generation)
@@ -157,129 +276,6 @@ export class GarageScheduleService {
   }
 
   // ✅ FIXED: View available slots with clean response structure
-  async viewAvailableSlots(garageId: string, date: string) {
-    // 1. Get schedule configuration
-    const schedule = await this.prisma.schedule.findUnique({
-      where: { garage_id: garageId },
-    });
-
-    if (!schedule || !schedule.is_active) {
-      throw new BadRequestException('No active schedule found.');
-    }
-
-    // 2. Parse restrictions
-    const restrictions = Array.isArray(schedule.restrictions)
-      ? schedule.restrictions
-      : JSON.parse(schedule.restrictions as string);
-
-    // ✅ FIXED: Use local timezone instead of UTC
-    const targetDate = new Date(date + 'T00:00:00');
-
-    // 3. Check if day is restricted (holiday)
-    if (this.isDayRestricted(restrictions, targetDate)) {
-      return {
-        success: true,
-        data: {
-          garage_id: garageId,
-          date: date,
-          slots: [],
-        },
-        message: 'Day is closed (holiday)',
-      };
-    }
-
-    // 4. Generate potential slots for this date (NOT saved to database)
-    const potentialSlots = this.generateSlotsForDay(
-      schedule.start_time,
-      schedule.end_time,
-      schedule.slot_duration,
-      targetDate,
-      garageId,
-      restrictions,
-    );
-
-    // 5. Check existing slots (created manually or by bookings)
-    const existingSlots = await this.prisma.timeSlot.findMany({
-      where: {
-        garage_id: garageId,
-        start_datetime: {
-          gte: targetDate,
-          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
-        },
-      },
-    });
-
-    // 6. Merge potential slots with existing slots
-    const bookableSlotViews = potentialSlots.map((potentialSlot) => {
-      const existingSlot = existingSlots.find(
-        (existing) =>
-          existing.start_datetime.getTime() ===
-          potentialSlot.start_datetime.getTime(),
-      );
-
-      if (existingSlot) {
-        return {
-          type: 'BOOKABLE',
-          start_time: this.formatTime24Hour(existingSlot.start_datetime),
-          end_time: this.formatTime24Hour(existingSlot.end_datetime),
-          start_datetime: existingSlot.start_datetime,
-          end_datetime: existingSlot.end_datetime,
-          is_available:
-            existingSlot.is_available &&
-            !existingSlot.is_blocked &&
-            !existingSlot.order_id,
-          is_blocked: existingSlot.is_blocked,
-          order_id: existingSlot.order_id,
-          is_existing: true,
-        };
-      }
-
-      return {
-        type: 'BOOKABLE',
-        start_time: this.formatTime24Hour(potentialSlot.start_datetime),
-        end_time: this.formatTime24Hour(potentialSlot.end_datetime),
-        start_datetime: potentialSlot.start_datetime,
-        end_datetime: potentialSlot.end_datetime,
-        is_available: true,
-        is_blocked: false,
-        order_id: null,
-        is_existing: false,
-      };
-    });
-
-    // 7. Add break slots for this day
-    const dayOfWeek = targetDate.getDay();
-    const breakSlots = (restrictions || [])
-      .filter(
-        (r) =>
-          r.type === 'BREAK' &&
-          r.day_of_week !== undefined &&
-          r.day_of_week === dayOfWeek,
-      )
-      .map((r) => ({
-        type: 'BREAK',
-        start_time: r.start_time,
-        end_time: r.end_time,
-        description: r.description || 'Break',
-      }));
-
-    // 8. Combine and sort by start_time
-    const allSlots = [...bookableSlotViews, ...breakSlots].sort((a, b) =>
-      a.start_time.localeCompare(b.start_time),
-    );
-
-    return {
-      success: true,
-      data: {
-        garage_id: garageId,
-        date: date,
-        slots: allSlots,
-      },
-      message: `Found ${bookableSlotViews.length} bookable slots and ${breakSlots.length} break(s) for ${date}`,
-    };
-  }
-
-  // ✅ FIXED: Garage manually creates a specific slot with proper timezone
   async createSlot(garageId: string, date: string, startTime: string) {
     const schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
@@ -327,6 +323,7 @@ export class GarageScheduleService {
 
     if (
       this.isTimeInBreak(restrictions, targetDate, slotStartTime, slotEndTime)
+        .isBreak
     ) {
       throw new BadRequestException('Slot conflicts with break time.');
     }
@@ -584,87 +581,447 @@ export class GarageScheduleService {
     };
   }
 
-  // ✅ FIXED: Enhanced 24-hour format validation
-  private isValidTimeFormat(time: string): boolean {
-    const regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!regex.test(time)) return false;
+  // Modified slot modification method
+  async modifySlots(
+    garageId: string,
+    dto: SlotModificationDto,
+  ): Promise<ModificationResult> {
+    return await this.prisma.$transaction(async (tx) => {
+      try {
+        const schedule = await tx.schedule.findUnique({
+          where: { garage_id: garageId },
+        });
 
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
-  }
+        if (!schedule) {
+          throw new NotFoundException('Schedule not found');
+        }
 
-  private isStartBeforeEnd(start: string, end: string): boolean {
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    return sh < eh || (sh === eh && sm < em);
-  }
+        // Validate times
+        if (
+          !this.isValidTimeFormat(dto.start_time) ||
+          !this.isValidTimeFormat(dto.end_time)
+        ) {
+          throw new BadRequestException('Invalid time format');
+        }
 
-  // ✅ FIXED: Format time to 24-hour format
-  private formatTime24Hour(date: Date): string {
-    return date.toTimeString().slice(0, 5); // Returns "HH:mm" format
-  }
+        // ✅ FIXED: Allow flexible duration for modifications
+        this.validateSlotDuration(
+          dto.start_time,
+          dto.end_time,
+          schedule.slot_duration,
+          true, // Allow flexible duration
+        );
 
-  private isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
-    const dayOfWeek = date.getDay();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
+        const restrictions = Array.isArray(schedule.restrictions)
+          ? schedule.restrictions
+          : JSON.parse(schedule.restrictions as string);
 
-    return restrictions.some((restriction) => {
-      if (restriction.type === 'HOLIDAY') {
-        if (restriction.is_recurring) {
-          if (
-            restriction.day_of_week !== undefined &&
-            restriction.day_of_week === dayOfWeek
-          ) {
-            return true;
+        const startDate = new Date(dto.start_date);
+        const endDate = new Date(dto.end_date);
+
+        // Generate slots to modify
+        const slotsToModify = [];
+        let currentDate = new Date(startDate);
+
+        while (currentDate <= endDate) {
+          // Skip if day is restricted
+          if (!this.isDayRestricted(restrictions, currentDate)) {
+            const [startHour, startMinute] = dto.start_time
+              .split(':')
+              .map(Number);
+            const [endHour, endMinute] = dto.end_time.split(':').map(Number);
+
+            const slotStart = new Date(currentDate);
+            slotStart.setHours(startHour, startMinute, 0, 0);
+
+            const slotEnd = new Date(currentDate);
+            slotEnd.setHours(endHour, endMinute, 0, 0);
+
+            // Check for break time
+            const { isBreak } = this.isTimeInBreak(
+              restrictions,
+              currentDate,
+              dto.start_time,
+              dto.end_time,
+            );
+
+            if (!isBreak) {
+              slotsToModify.push({
+                start_datetime: slotStart,
+                end_datetime: slotEnd,
+              });
+            }
           }
-          if (
-            restriction.month !== undefined &&
-            restriction.month === month &&
-            restriction.day !== undefined &&
-            restriction.day === day
-          ) {
-            return true;
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        const modifications = [];
+
+        if (dto.action === 'UNBLOCK') {
+          // Handle unblock
+          const blockedSlots = await tx.timeSlot.findMany({
+            where: {
+              garage_id: garageId,
+              start_datetime: {
+                in: slotsToModify.map((slot) => slot.start_datetime),
+              },
+              is_blocked: true,
+              order_id: null,
+            },
+          });
+
+          for (const slot of blockedSlots) {
+            const updated = await tx.timeSlot.update({
+              where: { id: slot.id },
+              data: {
+                is_blocked: false,
+                is_available: true,
+                modification_type: null,
+                modification_reason: null,
+                modified_by: garageId,
+              },
+            });
+
+            modifications.push({
+              slot_id: updated.id,
+              status: 'UPDATED',
+            });
+          }
+        } else {
+          // Handle block
+          for (const slot of slotsToModify) {
+            const created = await tx.timeSlot.upsert({
+              where: {
+                garage_id_start_datetime: {
+                  garage_id: garageId,
+                  start_datetime: slot.start_datetime,
+                },
+              },
+              update: {
+                is_blocked: true,
+                is_available: false,
+                modification_type: this.getModificationType('BLOCK'),
+                modification_reason: dto.reason,
+                modified_by: garageId,
+                end_datetime: slot.end_datetime,
+              },
+              create: {
+                garage_id: garageId,
+                start_datetime: slot.start_datetime,
+                end_datetime: slot.end_datetime,
+                is_blocked: true,
+                is_available: false,
+                modification_type: this.getModificationType('BLOCK'),
+                modification_reason: dto.reason,
+                modified_by: garageId,
+              },
+            });
+
+            modifications.push({
+              slot_id: created.id,
+              status: 'CREATED',
+            });
           }
         }
+
+        return {
+          success: true,
+          modifications,
+          message: `Modified ${modifications.length} slots`,
+        };
+      } catch (error) {
+        console.error('Slot modification error:', error);
+        if (
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException
+        ) {
+          throw error;
+        }
+        throw new BadRequestException('Failed to modify slots');
       }
-      return false;
     });
   }
 
-  // ✅ FIXED: Enhanced break time checking
-  private isTimeInBreak(
-    restrictions: RestrictionDto[],
-    date: Date,
+  // ✅ NEW: Helper method to check if two slots overlap
+  private slotsOverlap(slot1: any, slot2: any): boolean {
+    const start1 = new Date(slot1.start_datetime).getTime();
+    const end1 = new Date(slot1.end_datetime).getTime();
+    const start2 = new Date(slot2.start_datetime).getTime();
+    const end2 = new Date(slot2.end_datetime).getTime();
+
+    // Check if slots overlap (one starts before the other ends and ends after the other starts)
+    return start1 < end2 && end1 > start2;
+  }
+
+  // ✅ NEW: Helper method to check if a slot is within a time range
+  private isSlotInTimeRange(
+    slot: any,
     startTime: string,
     endTime: string,
+    date: Date,
   ): boolean {
-    const dayOfWeek = date.getDay();
+    const slotStart = this.formatTime24Hour(slot.start_datetime);
+    const slotEnd = this.formatTime24Hour(slot.end_datetime);
 
-    return restrictions.some((restriction) => {
-      if (restriction.type === 'BREAK') {
-        // Check if break applies to this day
-        if (
-          restriction.day_of_week !== undefined &&
-          restriction.day_of_week === dayOfWeek
-        ) {
-          // Check if slot overlaps with break time
-          if (restriction.start_time && restriction.end_time) {
-            const slotStart = startTime;
-            const slotEnd = endTime;
-            const breakStart = restriction.start_time;
-            const breakEnd = restriction.end_time;
-
-            // Check for overlap
-            return slotStart < breakEnd && slotEnd > breakStart;
-          }
-        }
-      }
-      return false;
-    });
+    return slotStart >= startTime && slotEnd <= endTime;
   }
 
-  // ✅ FIXED: Generate slots with proper timezone
+  // ✅ FIXED: Enhanced viewAvailableSlots with proper overlap detection and break handling
+  async viewAvailableSlots(garageId: string, date: string) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule || !schedule.is_active) {
+      throw new BadRequestException('No active schedule found.');
+    }
+
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    const targetDate = new Date(date + 'T00:00:00');
+
+    // Check if day is restricted (holiday)
+    if (this.isDayRestricted(restrictions, targetDate)) {
+      return {
+        success: true,
+        data: {
+          garage_id: garageId,
+          date,
+          working_hours: {
+            start: schedule.start_time,
+            end: schedule.end_time,
+          },
+          slots: [],
+          summary: {
+            total_slots: 0,
+            available: 0,
+            blocked: 0,
+            breaks: 0,
+            booked: 0,
+          },
+          is_holiday: true,
+        },
+      };
+    }
+
+    // ✅ FIXED: Get existing slots first (prioritize database over template)
+    const existingSlots = await this.prisma.timeSlot.findMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: targetDate,
+          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { start_datetime: 'asc' },
+    });
+
+    // ✅ FIXED: Generate template slots with actual restrictions
+    const potentialSlots = this.generateSlotsForDay(
+      schedule.start_time,
+      schedule.end_time,
+      schedule.slot_duration,
+      targetDate,
+      garageId,
+      restrictions, // Pass actual restrictions
+    );
+
+    // ✅ FIXED: Enhanced slot merging with overlap detection
+    const enhancedSlots = [];
+    const processedTimeRanges = new Set(); // Track processed time ranges to avoid duplicates
+
+    // Step 1: Process existing slots (database takes priority)
+    for (const existingSlot of existingSlots) {
+      const slotStartTime = this.formatTime24Hour(existingSlot.start_datetime);
+      const slotEndTime = this.formatTime24Hour(existingSlot.end_datetime);
+      const timeRangeKey = `${slotStartTime}-${slotEndTime}`;
+
+      // Check if this slot conflicts with break time
+      const { isBreak, breakInfo } = this.isTimeInBreak(
+        restrictions,
+        targetDate,
+        slotStartTime,
+        slotEndTime,
+      );
+
+      if (isBreak && breakInfo) {
+        // If existing slot conflicts with break, mark it as break
+        enhancedSlots.push({
+          ...existingSlot,
+          type: 'BREAK',
+          is_available: false,
+          is_blocked: true,
+          status: 'BREAK',
+          description: breakInfo.description || 'Break Time',
+          display_time: {
+            start: slotStartTime,
+            end: slotEndTime,
+          },
+        });
+        processedTimeRanges.add(timeRangeKey);
+      } else {
+        // Process as normal slot
+        enhancedSlots.push(
+          this.formatSlotForDisplay({
+            ...existingSlot,
+            type: 'BOOKABLE',
+            status: this.getSlotStatus(existingSlot),
+          }),
+        );
+        processedTimeRanges.add(timeRangeKey);
+      }
+    }
+
+    // Step 2: Add template slots that don't overlap with existing slots
+    for (const templateSlot of potentialSlots) {
+      const slotStartTime = this.formatTime24Hour(templateSlot.start_datetime);
+      const slotEndTime = this.formatTime24Hour(templateSlot.end_datetime);
+      const timeRangeKey = `${slotStartTime}-${slotEndTime}`;
+
+      // Skip if this time range has already been processed
+      if (processedTimeRanges.has(timeRangeKey)) {
+        continue;
+      }
+
+      // ✅ FIXED: Check for overlap with existing slots using proper overlap detection
+      const hasOverlappingSlot = existingSlots.some((existing) => {
+        return this.slotsOverlap(templateSlot, existing);
+      });
+
+      if (!hasOverlappingSlot) {
+        // Check for break time
+        const { isBreak, breakInfo } = this.isTimeInBreak(
+          restrictions,
+          targetDate,
+          slotStartTime,
+          slotEndTime,
+        );
+
+        if (isBreak && breakInfo) {
+          enhancedSlots.push({
+            ...templateSlot,
+            type: 'BREAK',
+            is_available: false,
+            is_blocked: true,
+            status: 'BREAK',
+            description: breakInfo.description || 'Break Time',
+            display_time: {
+              start: slotStartTime,
+              end: slotEndTime,
+            },
+          });
+        } else {
+          enhancedSlots.push(
+            this.formatSlotForDisplay({
+              ...templateSlot,
+              type: 'BOOKABLE',
+              is_available: true,
+              is_blocked: false,
+              status: 'AVAILABLE',
+            }),
+          );
+        }
+        processedTimeRanges.add(timeRangeKey);
+      }
+    }
+
+    // ✅ FIXED: Ensure break slots are properly included even if not in template
+    const dayOfWeek = targetDate.getDay();
+    for (const restriction of restrictions) {
+      if (
+        restriction.type === 'BREAK' &&
+        Array.isArray(restriction.day_of_week) &&
+        restriction.day_of_week.includes(dayOfWeek) &&
+        restriction.start_time &&
+        restriction.end_time
+      ) {
+        const breakStartTime = restriction.start_time;
+        const breakEndTime = restriction.end_time;
+        const breakTimeRangeKey = `${breakStartTime}-${breakEndTime}`;
+
+        // Check if break slot already exists
+        const breakExists = enhancedSlots.some((slot) => {
+          if (slot.type === 'BREAK') {
+            const slotStart =
+              slot.display_time?.start ||
+              this.formatTime24Hour(slot.start_datetime);
+            const slotEnd =
+              slot.display_time?.end ||
+              this.formatTime24Hour(slot.end_datetime);
+            return slotStart === breakStartTime && slotEnd === breakEndTime;
+          }
+          return false;
+        });
+
+        if (!breakExists && !processedTimeRanges.has(breakTimeRangeKey)) {
+          // Create break slot
+          const breakStart = new Date(targetDate);
+          const [breakStartHour, breakStartMinute] = breakStartTime
+            .split(':')
+            .map(Number);
+          breakStart.setHours(breakStartHour, breakStartMinute, 0, 0);
+
+          const breakEnd = new Date(targetDate);
+          const [breakEndHour, breakEndMinute] = breakEndTime
+            .split(':')
+            .map(Number);
+          breakEnd.setHours(breakEndHour, breakEndMinute, 0, 0);
+
+          enhancedSlots.push({
+            garage_id: garageId,
+            start_datetime: breakStart,
+            end_datetime: breakEnd,
+            type: 'BREAK',
+            is_available: false,
+            is_blocked: true,
+            status: 'BREAK',
+            description: restriction.description || 'Break Time',
+            display_time: {
+              start: breakStartTime,
+              end: breakEndTime,
+            },
+          });
+          processedTimeRanges.add(breakTimeRangeKey);
+        }
+      }
+    }
+
+    // ✅ FIXED: Sort slots by start time
+    enhancedSlots.sort(
+      (a, b) =>
+        new Date(a.start_datetime).getTime() -
+        new Date(b.start_datetime).getTime(),
+    );
+
+    // ✅ FIXED: Calculate accurate summary
+    const summary = {
+      total_slots: enhancedSlots.length,
+      available: enhancedSlots.filter(
+        (s) => s.type === 'BOOKABLE' && s.status === 'AVAILABLE',
+      ).length,
+      blocked: enhancedSlots.filter((s) => s.status === 'BLOCKED').length,
+      breaks: enhancedSlots.filter((s) => s.type === 'BREAK').length,
+      booked: enhancedSlots.filter((s) => s.status === 'BOOKED').length,
+    };
+
+    return {
+      success: true,
+      data: {
+        garage_id: garageId,
+        date,
+        working_hours: {
+          start: schedule.start_time,
+          end: schedule.end_time,
+        },
+        slots: enhancedSlots,
+        summary,
+      },
+    };
+  }
+
+  // ✅ FIXED: Enhanced slot generation with proper break handling
   private generateSlotsForDay(
     startTime: string,
     endTime: string,
@@ -687,18 +1044,18 @@ export class GarageScheduleService {
       const slotEnd = new Date(slotStart);
       slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration);
 
-      // Check if slot conflicts with break time
+      // ✅ FIXED: Check if slot conflicts with break time using actual restrictions
       const slotStartTime = this.formatTime24Hour(slotStart);
       const slotEndTime = this.formatTime24Hour(slotEnd);
 
-      const isInBreak = this.isTimeInBreak(
-        restrictions,
+      const { isBreak } = this.isTimeInBreak(
+        restrictions, // Use actual restrictions
         date,
         slotStartTime,
         slotEndTime,
       );
 
-      if (!isInBreak) {
+      if (!isBreak) {
         slots.push({
           garage_id: garageId,
           start_datetime: slotStart,
@@ -808,5 +1165,250 @@ export class GarageScheduleService {
       'December',
     ];
     return monthNames[month - 1];
+  }
+
+  // Add these helper methods
+  private getBreakInfo(
+    restrictions: any[],
+    dayOfWeek: number,
+    slotStartTime: string,
+  ) {
+    const breakRestriction = restrictions.find(
+      (r) =>
+        r.type === 'BREAK' &&
+        r.day_of_week?.includes(dayOfWeek) &&
+        r.start_time === slotStartTime,
+    );
+
+    return {
+      description: breakRestriction?.description || 'Break Time',
+    };
+  }
+
+  // Add these helper methods at the class level
+  private getLocalDateTime(date: string, time: string): Date {
+    const [hours, minutes] = time.split(':').map(Number);
+    const dateTime = new Date(date);
+    dateTime.setHours(hours, minutes, 0, 0);
+    return dateTime;
+  }
+
+  private convertToUTC(localDate: Date): Date {
+    return new Date(
+      Date.UTC(
+        localDate.getFullYear(),
+        localDate.getMonth(),
+        localDate.getDate(),
+        localDate.getHours(),
+        localDate.getMinutes(),
+        0,
+        0,
+      ),
+    );
+  }
+
+  private convertToLocal(utcDate: Date): Date {
+    const localDate = new Date(utcDate);
+    localDate.setMinutes(
+      localDate.getMinutes() + localDate.getTimezoneOffset(),
+    );
+    return localDate;
+  }
+
+  async modifySlotTime(
+    garageId: string,
+    dto: ModifySlotTimeDto,
+  ): Promise<ModificationResult> {
+    return await this.prisma.$transaction(async (tx) => {
+      try {
+        // 1. Validate schedule exists
+        const schedule = await tx.schedule.findUnique({
+          where: { garage_id: garageId },
+        });
+
+        if (!schedule || !schedule.is_active) {
+          throw new BadRequestException('No active schedule found.');
+        }
+
+        // 2. Validate time formats
+        const timeFields = [
+          dto.current_time,
+          dto.new_start_time,
+          dto.new_end_time,
+        ];
+        for (const time of timeFields) {
+          if (!this.isValidTimeFormat(time)) {
+            throw new BadRequestException(
+              `Invalid time format: ${time}. Use 24-hour HH:mm format.`,
+            );
+          }
+        }
+
+        // 3. Create date objects with proper timezone handling
+        const targetDate = new Date(dto.date);
+        const [currentHour, currentMinute] = dto.current_time
+          .split(':')
+          .map(Number);
+        const [newStartHour, newStartMinute] = dto.new_start_time
+          .split(':')
+          .map(Number);
+        const [newEndHour, newEndMinute] = dto.new_end_time
+          .split(':')
+          .map(Number);
+
+        const currentSlotTime = new Date(targetDate);
+        currentSlotTime.setHours(currentHour, currentMinute, 0, 0);
+
+        const newStartTime = new Date(targetDate);
+        newStartTime.setHours(newStartHour, newStartMinute, 0, 0);
+
+        const newEndTime = new Date(targetDate);
+        newEndTime.setHours(newEndHour, newEndMinute, 0, 0);
+
+        // 4. Validate against schedule (but allow flexible duration)
+        if (
+          dto.new_start_time < schedule.start_time ||
+          dto.new_end_time > schedule.end_time
+        ) {
+          throw new BadRequestException('New time is outside operating hours');
+        }
+
+        // ✅ FIXED: Allow flexible duration for time modifications
+        this.validateSlotDuration(
+          dto.new_start_time,
+          dto.new_end_time,
+          schedule.slot_duration,
+          true, // Allow flexible duration
+        );
+
+        // 5. Check for existing slot or create new one
+        let existingSlot = await tx.timeSlot.findFirst({
+          where: {
+            garage_id: garageId,
+            start_datetime: currentSlotTime,
+          },
+        });
+
+        if (!existingSlot) {
+          // Create new slot if it doesn't exist
+          existingSlot = await tx.timeSlot.create({
+            data: {
+              garage_id: garageId,
+              start_datetime: currentSlotTime,
+              end_datetime: newEndTime,
+              is_available: true,
+              is_blocked: false,
+            },
+          });
+        } else if (existingSlot.order_id) {
+          throw new BadRequestException('Cannot modify a booked slot');
+        }
+
+        // ✅ FIXED: Enhanced overlap detection using the new helper method
+        const overlappingSlot = await tx.timeSlot.findFirst({
+          where: {
+            garage_id: garageId,
+            id: { not: existingSlot.id },
+            start_datetime: {
+              gte: targetDate,
+              lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
+            },
+          },
+        });
+
+        // Check for overlaps using the new overlap detection method
+        const hasOverlap =
+          overlappingSlot &&
+          this.slotsOverlap(
+            { start_datetime: newStartTime, end_datetime: newEndTime },
+            overlappingSlot,
+          );
+
+        if (hasOverlap) {
+          throw new BadRequestException(
+            'New slot time overlaps with existing slot',
+          );
+        }
+
+        // 7. Update the slot
+        const updatedSlot = await tx.timeSlot.update({
+          where: { id: existingSlot.id },
+          data: {
+            start_datetime: newStartTime,
+            end_datetime: newEndTime,
+            modification_type: this.getModificationType('TIME_MODIFIED'),
+            modification_reason: dto.reason || 'Time modified',
+            modified_by: garageId,
+            is_blocked: false,
+            is_available: true,
+          },
+        });
+
+        // 8. Format response
+        const formattedSlot = this.formatSlotForDisplay(updatedSlot);
+
+        return {
+          success: true,
+          modifications: [
+            {
+              slot_id: updatedSlot.id,
+              status: 'UPDATED',
+              details: {
+                original_time: {
+                  start: dto.current_time,
+                  end: this.formatTime24Hour(existingSlot.end_datetime),
+                },
+                new_time: {
+                  start: dto.new_start_time,
+                  end: dto.new_end_time,
+                },
+              },
+            },
+          ],
+          message: 'Slot time modified successfully',
+        };
+      } catch (error) {
+        console.error('Slot time modification error:', error);
+
+        if (
+          error instanceof NotFoundException ||
+          error instanceof BadRequestException
+        ) {
+          throw error;
+        }
+
+        throw new BadRequestException(
+          'Failed to modify slot time. Please check your input and try again.',
+        );
+      }
+    });
+  }
+
+  // Get schedule for garage
+  async getSchedule(garageId: string) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule) {
+      return {
+        success: true,
+        data: null,
+        message: 'No schedule configured',
+      };
+    }
+
+    // Parse restrictions to ensure they're in the correct format
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    return {
+      success: true,
+      data: {
+        ...schedule,
+        restrictions, // Return parsed restrictions
+      },
+    };
   }
 }

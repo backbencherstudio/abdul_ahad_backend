@@ -130,4 +130,20 @@ export class SetWeeklyPatternDto {
   @Min(1)
   @Max(365)
   daysToGenerate?: number;
+
+
+}
+
+// src/modules/application/garage-dashboard/dto/schedule.dto.ts
+
+export interface RestrictionDto {
+  type: 'HOLIDAY' | 'BREAK';
+  date?: string;
+  is_recurring?: boolean;
+  day_of_week?: number;
+  month?: number;
+  day?: number;
+  start_time?: string;
+  end_time?: string;
+  description?: string;
 }

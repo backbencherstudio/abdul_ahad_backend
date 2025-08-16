@@ -654,6 +654,11 @@ enum InvoiceStatus {
   OVERDUE
   CANCELLED
 }
+enum ModificationType {
+  MANUAL_BLOCK  // When garage manually blocks a slot
+  BOOKED       // When a customer books a slot
+  TIME_MODIFIED
+}
 
 model Schedule {
   id         String   @id @default(cuid())
@@ -684,10 +689,6 @@ model TimeSlot {
   start_datetime DateTime
   end_datetime   DateTime
 
-  // LEGACY: Keep for backward compatibility during migration
-  date       DateTime? // date only (midnight UTC)
-  start_time String? // "HH:mm"
-  end_time   String? // "HH:mm"
 
   is_available Boolean @default(true)
   is_blocked   Boolean @default(false)
@@ -702,6 +703,10 @@ model TimeSlot {
   schedule   Schedule? @relation(fields: [scheduleId], references: [id])
   scheduleId String?
 
+  modified_by         String?          // Who modified
+  modification_reason String?          // Why modified
+  modification_type   ModificationType? // How modified
+
   @@unique([garage_id, start_datetime])
-  @@index([garage_id, start_datetime])
+  @@index([garage_id, start_datetime, end_datetime])
 }

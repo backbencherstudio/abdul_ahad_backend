@@ -33,6 +33,8 @@ import { memoryStorage } from 'multer';
 import { ManualSlotDto } from './dto/manual-slot.dto';
 import { ScheduleDto, SetWeeklyPatternDto } from './dto/schedule.dto';
 import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
+import { SlotModificationDto } from './dto/slot-modification.dto';
+import { ModifySlotTimeDto } from './dto/modify-slot-time.dto';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -243,6 +245,19 @@ export class GarageDashboardController {
       yearNum,
       monthNum,
     );
+  }
+
+  // NEW: Modify slots (block/unblock)
+  @Post('schedule/modify')
+  @ApiOperation({ summary: 'Modify slots (block/unblock)' })
+  async modifySlots(@Req() req, @Body() dto: SlotModificationDto) {
+    return this.garageScheduleService.modifySlots(req.user.userId, dto);
+  }
+
+  @Patch('schedule/slots/time')
+  @ApiOperation({ summary: 'Modify slot time' })
+  async modifySlotTime(@Req() req, @Body() dto: ModifySlotTimeDto) {
+    return this.garageScheduleService.modifySlotTime(req.user.userId, dto);
   }
 
   // ==================== BOOKING MANAGEMENT ====================
