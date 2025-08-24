@@ -255,7 +255,22 @@ export class GarageDashboardController {
   }
 
   @Patch('schedule/slots/time')
-  @ApiOperation({ summary: 'Modify slot time' })
+  @ApiOperation({
+    summary: 'Modify slot time with overlap control',
+    description: `
+      Modify the start/end time of a specific slot.
+      
+      **Overlap Behavior:**
+      - If overlap=false (default): Rejects modification if it would affect existing slots
+      - If overlap=true: Allows modification and deletes overlapping slots
+      - Booked slots are always protected (no override allowed)
+      
+      **Example Responses:**
+      - Success: Slot modified successfully
+      - Warning: Shows affected slots when overlap=false
+      - Error: Cannot overlap with booked slots
+    `,
+  })
   async modifySlotTime(@Req() req, @Body() dto: ModifySlotTimeDto) {
     return this.garageScheduleService.modifySlotTime(req.user.userId, dto);
   }

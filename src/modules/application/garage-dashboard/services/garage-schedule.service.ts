@@ -118,25 +118,52 @@ export class GarageScheduleService {
     }
   }
 
-  // ✅ FIXED: Enhanced slot display formatting
+  // ✅ NEW: Enhanced slot display formatting with clean structure
   private formatSlotForDisplay(slot: any) {
     // Always use the actual database datetime values for display
     const localStart = new Date(slot.start_datetime);
     const localEnd = new Date(slot.end_datetime);
+    const startTime = this.formatTime24Hour(localStart);
+    const endTime = this.formatTime24Hour(localEnd);
 
-    return {
-      ...slot,
-      display_time: {
-        start: this.formatTime24Hour(localStart),
-        end: this.formatTime24Hour(localEnd),
-      },
+    // Base slot object with essential information
+    const cleanSlot: any = {
+      time: `${startTime}-${endTime}`,
+      status: this.getSlotStatus(slot),
     };
+
+    // Add database-specific fields only for database slots
+    if (slot.id) {
+      cleanSlot.id = slot.id;
+      cleanSlot.source = 'DATABASE';
+
+      // Add modification info if slot was modified
+      if (slot.modification_reason) {
+        cleanSlot.modification_reason = slot.modification_reason;
+      }
+
+      if (slot.modification_type) {
+        cleanSlot.modification_type = slot.modification_type;
+      }
+    } else {
+      cleanSlot.source = 'TEMPLATE';
+    }
+
+    // Add break-specific information
+    if (slot.type === 'BREAK' && slot.description) {
+      cleanSlot.description = slot.description;
+    }
+
+    return cleanSlot;
   }
 
+  // ✅ ENHANCED: Unified status system
   private getSlotStatus(slot: any): string {
     if (slot.order_id) return 'BOOKED';
     if (slot.is_blocked) return 'BLOCKED';
-    return slot.is_available ? 'AVAILABLE' : 'UNAVAILABLE';
+    if (slot.type === 'BREAK') return 'BREAK';
+    if (slot.modification_type) return 'MODIFIED';
+    return 'AVAILABLE';
   }
 
   private getModificationType(action: string): ModificationType | null {
@@ -540,13 +567,14 @@ export class GarageScheduleService {
     };
   }
 
-  // Remove all slots for a date
+  // Enhanced remove all slots for a date
   async removeAllSlotsForDate(garageId: string, date: string) {
     // ✅ FIXED: Use local timezone
     const startDate = new Date(date + 'T00:00:00');
     const endDate = new Date(date + 'T23:59:59');
 
-    const result = await this.prisma.timeSlot.deleteMany({
+    // ✅ NEW: First check if any slots exist
+    const existingSlots = await this.prisma.timeSlot.findMany({
       where: {
         garage_id: garageId,
         start_datetime: {
@@ -554,12 +582,77 @@ export class GarageScheduleService {
           lte: endDate,
         },
       },
+      select: {
+        id: true,
+        start_datetime: true,
+        end_datetime: true,
+        order_id: true,
+        modification_reason: true,
+      },
+    });
+
+    // ✅ NEW: Separate booked and available slots
+    const bookedSlots = existingSlots.filter((slot) => slot.order_id);
+    const availableSlots = existingSlots.filter((slot) => !slot.order_id);
+
+    if (existingSlots.length === 0) {
+      return {
+        success: true,
+        message:
+          'No manual slots found for this date. Only template slots exist.',
+        count: 0,
+        details: {
+          total_slots: 0,
+          booked_slots: 0,
+          available_slots: 0,
+          note: 'Template slots (generated from schedule) cannot be deleted individually. They will be regenerated automatically.',
+        },
+      };
+    }
+
+    if (bookedSlots.length > 0) {
+      return {
+        success: false,
+        message: `Cannot remove all slots: ${bookedSlots.length} slot(s) are booked`,
+        count: 0,
+        details: {
+          total_slots: existingSlots.length,
+          booked_slots: bookedSlots.length,
+          available_slots: availableSlots.length,
+          booked_slot_times: bookedSlots.map(
+            (slot) =>
+              `${this.formatTime24Hour(slot.start_datetime)}-${this.formatTime24Hour(slot.end_datetime)}`,
+          ),
+        },
+      };
+    }
+
+    // ✅ NEW: Delete only available slots
+    const result = await this.prisma.timeSlot.deleteMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: startDate,
+          lte: endDate,
+        },
+        order_id: null, // Only delete non-booked slots
+      },
     });
 
     return {
       success: true,
-      message: 'All slots removed for date',
+      message: `Successfully removed ${result.count} manual slot(s) for the date`,
       count: result.count,
+      details: {
+        total_slots: existingSlots.length,
+        deleted_slots: result.count,
+        booked_slots: 0,
+        available_slots: availableSlots.length,
+        deleted_slot_times: availableSlots.map(
+          (slot) =>
+            `${this.formatTime24Hour(slot.start_datetime)}-${this.formatTime24Hour(slot.end_datetime)}`,
+        ),
+      },
     };
   }
 
@@ -573,11 +666,21 @@ export class GarageScheduleService {
       throw new NotFoundException('Slot not found.');
     }
 
+    // ✅ NEW: Protect booked slots
+    if (slot.order_id) {
+      throw new BadRequestException('Cannot delete a booked slot.');
+    }
+
     await this.prisma.timeSlot.delete({ where: { id: slotId } });
 
     return {
       success: true,
       message: 'Slot deleted successfully',
+      deleted_slot: {
+        id: slot.id,
+        time: `${this.formatTime24Hour(slot.start_datetime)}-${this.formatTime24Hour(slot.end_datetime)}`,
+        modification_reason: slot.modification_reason,
+      },
     };
   }
 
@@ -766,7 +869,63 @@ export class GarageScheduleService {
     return slotStart >= startTime && slotEnd <= endTime;
   }
 
-  // ✅ FIXED: Enhanced viewAvailableSlots with proper overlap detection and break handling
+  // ✅ NEW: Enhanced summary calculation
+  private calculateEnhancedSummary(slots: any[]) {
+    const summary = {
+      total_slots: slots.length,
+      by_status: {
+        available: 0,
+        booked: 0,
+        blocked: 0,
+        breaks: 0,
+        modified: 0,
+      },
+      by_source: {
+        template: 0,
+        database: 0,
+      },
+      modifications: 0,
+    };
+
+    for (const slot of slots) {
+      const status = this.getSlotStatus(slot);
+
+      // Count by status
+      switch (status) {
+        case 'AVAILABLE':
+          summary.by_status.available++;
+          break;
+        case 'BOOKED':
+          summary.by_status.booked++;
+          break;
+        case 'BLOCKED':
+          summary.by_status.blocked++;
+          break;
+        case 'BREAK':
+          summary.by_status.breaks++;
+          break;
+        case 'MODIFIED':
+          summary.by_status.modified++;
+          break;
+      }
+
+      // Count by source
+      if (slot.id) {
+        summary.by_source.database++;
+      } else {
+        summary.by_source.template++;
+      }
+
+      // Count modifications
+      if (slot.modification_type) {
+        summary.modifications++;
+      }
+    }
+
+    return summary;
+  }
+
+  // ✅ ENHANCED: View available slots with clean response structure
   async viewAvailableSlots(garageId: string, date: string) {
     const schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
@@ -796,10 +955,18 @@ export class GarageScheduleService {
           slots: [],
           summary: {
             total_slots: 0,
-            available: 0,
-            blocked: 0,
-            breaks: 0,
-            booked: 0,
+            by_status: {
+              available: 0,
+              booked: 0,
+              blocked: 0,
+              breaks: 0,
+              modified: 0,
+            },
+            by_source: {
+              template: 0,
+              database: 0,
+            },
+            modifications: 0,
           },
           is_holiday: true,
         },
@@ -855,21 +1022,11 @@ export class GarageScheduleService {
           is_blocked: true,
           status: 'BREAK',
           description: breakInfo.description || 'Break Time',
-          display_time: {
-            start: slotStartTime,
-            end: slotEndTime,
-          },
         });
         processedTimeRanges.add(timeRangeKey);
       } else {
         // Process as normal slot
-        enhancedSlots.push(
-          this.formatSlotForDisplay({
-            ...existingSlot,
-            type: 'BOOKABLE',
-            status: this.getSlotStatus(existingSlot),
-          }),
-        );
+        enhancedSlots.push(existingSlot);
         processedTimeRanges.add(timeRangeKey);
       }
     }
@@ -907,21 +1064,15 @@ export class GarageScheduleService {
             is_blocked: true,
             status: 'BREAK',
             description: breakInfo.description || 'Break Time',
-            display_time: {
-              start: slotStartTime,
-              end: slotEndTime,
-            },
           });
         } else {
-          enhancedSlots.push(
-            this.formatSlotForDisplay({
-              ...templateSlot,
-              type: 'BOOKABLE',
-              is_available: true,
-              is_blocked: false,
-              status: 'AVAILABLE',
-            }),
-          );
+          enhancedSlots.push({
+            ...templateSlot,
+            type: 'BOOKABLE',
+            is_available: true,
+            is_blocked: false,
+            status: 'AVAILABLE',
+          });
         }
         processedTimeRanges.add(timeRangeKey);
       }
@@ -944,12 +1095,8 @@ export class GarageScheduleService {
         // Check if break slot already exists
         const breakExists = enhancedSlots.some((slot) => {
           if (slot.type === 'BREAK') {
-            const slotStart =
-              slot.display_time?.start ||
-              this.formatTime24Hour(slot.start_datetime);
-            const slotEnd =
-              slot.display_time?.end ||
-              this.formatTime24Hour(slot.end_datetime);
+            const slotStart = this.formatTime24Hour(slot.start_datetime);
+            const slotEnd = this.formatTime24Hour(slot.end_datetime);
             return slotStart === breakStartTime && slotEnd === breakEndTime;
           }
           return false;
@@ -978,10 +1125,6 @@ export class GarageScheduleService {
             is_blocked: true,
             status: 'BREAK',
             description: restriction.description || 'Break Time',
-            display_time: {
-              start: breakStartTime,
-              end: breakEndTime,
-            },
           });
           processedTimeRanges.add(breakTimeRangeKey);
         }
@@ -995,16 +1138,13 @@ export class GarageScheduleService {
         new Date(b.start_datetime).getTime(),
     );
 
-    // ✅ FIXED: Calculate accurate summary
-    const summary = {
-      total_slots: enhancedSlots.length,
-      available: enhancedSlots.filter(
-        (s) => s.type === 'BOOKABLE' && s.status === 'AVAILABLE',
-      ).length,
-      blocked: enhancedSlots.filter((s) => s.status === 'BLOCKED').length,
-      breaks: enhancedSlots.filter((s) => s.type === 'BREAK').length,
-      booked: enhancedSlots.filter((s) => s.status === 'BOOKED').length,
-    };
+    // ✅ ENHANCED: Format slots with clean structure
+    const cleanSlots = enhancedSlots.map((slot) =>
+      this.formatSlotForDisplay(slot),
+    );
+
+    // ✅ ENHANCED: Calculate enhanced summary
+    const summary = this.calculateEnhancedSummary(enhancedSlots);
 
     return {
       success: true,
@@ -1015,7 +1155,7 @@ export class GarageScheduleService {
           start: schedule.start_time,
           end: schedule.end_time,
         },
-        slots: enhancedSlots,
+        slots: cleanSlots,
         summary,
       },
     };
@@ -1304,8 +1444,8 @@ export class GarageScheduleService {
           throw new BadRequestException('Cannot modify a booked slot');
         }
 
-        // ✅ FIXED: Enhanced overlap detection using the new helper method
-        const overlappingSlot = await tx.timeSlot.findFirst({
+        // ✅ NEW: Enhanced overlap detection that checks both database and template slots
+        const overlappingSlots = await tx.timeSlot.findMany({
           where: {
             garage_id: garageId,
             id: { not: existingSlot.id },
@@ -1316,18 +1456,101 @@ export class GarageScheduleService {
           },
         });
 
-        // Check for overlaps using the new overlap detection method
-        const hasOverlap =
-          overlappingSlot &&
-          this.slotsOverlap(
-            { start_datetime: newStartTime, end_datetime: newEndTime },
-            overlappingSlot,
+        // Generate template slots for the day to check for overlaps
+        const restrictions = Array.isArray(schedule.restrictions)
+          ? schedule.restrictions
+          : JSON.parse(schedule.restrictions as string);
+
+        const templateSlots = this.generateSlotsForDay(
+          schedule.start_time,
+          schedule.end_time,
+          schedule.slot_duration,
+          targetDate,
+          garageId,
+          restrictions,
+        );
+
+        // Check for overlaps with BOTH database and template slots
+        const affectedSlots = [];
+
+        // Check database slots
+        for (const dbSlot of overlappingSlots) {
+          if (
+            this.slotsOverlap(
+              { start_datetime: newStartTime, end_datetime: newEndTime },
+              dbSlot,
+            )
+          ) {
+            affectedSlots.push({
+              id: dbSlot.id,
+              time: `${this.formatTime24Hour(dbSlot.start_datetime)}-${this.formatTime24Hour(dbSlot.end_datetime)}`,
+              status: dbSlot.order_id ? 'BOOKED' : 'AVAILABLE',
+              source: 'DATABASE',
+            });
+          }
+        }
+
+        // Check template slots (these don't have IDs!)
+        for (const templateSlot of templateSlots) {
+          // Skip if this template slot already exists in database
+          const existsInDb = overlappingSlots.some((dbSlot) =>
+            this.slotsOverlap(templateSlot, dbSlot),
           );
 
-        if (hasOverlap) {
-          throw new BadRequestException(
-            'New slot time overlaps with existing slot',
+          if (
+            !existsInDb &&
+            this.slotsOverlap(
+              { start_datetime: newStartTime, end_datetime: newEndTime },
+              templateSlot,
+            )
+          ) {
+            affectedSlots.push({
+              time: `${this.formatTime24Hour(templateSlot.start_datetime)}-${this.formatTime24Hour(templateSlot.end_datetime)}`,
+              status: 'AVAILABLE',
+              source: 'TEMPLATE',
+              // No ID for template slots!
+            });
+          }
+        }
+
+        // Handle overlaps based on user preference
+        if (affectedSlots.length > 0) {
+          const bookedSlots = affectedSlots.filter(
+            (s) => s.status === 'BOOKED',
           );
+
+          // Always protect booked slots - no override allowed
+          if (bookedSlots.length > 0) {
+            throw new BadRequestException(
+              `Cannot modify slot: would overlap with booked slots: ${bookedSlots.map((s) => s.time).join(', ')}`,
+            );
+          }
+
+          // Check user's overlap preference
+          if (!dto.overlap) {
+            // User doesn't want overlaps - show warning and reject
+            return {
+              success: false,
+              warning: `This modification would affect existing slots: ${affectedSlots.map((s) => s.time).join(', ')}`,
+              affected_slots: affectedSlots,
+              message:
+                'Modification rejected due to overlaps. Set overlap: true to proceed.',
+              requires_confirmation: true,
+            };
+          }
+
+          // User allows overlaps - delete only database slots (template slots don't exist in DB)
+          const dbSlotsToDelete = affectedSlots
+            .filter((s) => s.source === 'DATABASE' && s.id)
+            .map((s) => s.id);
+
+          if (dbSlotsToDelete.length > 0) {
+            await tx.timeSlot.deleteMany({
+              where: {
+                id: { in: dbSlotsToDelete },
+              },
+            });
+          }
         }
 
         // 7. Update the slot
@@ -1365,6 +1588,7 @@ export class GarageScheduleService {
               },
             },
           ],
+          affected_slots: affectedSlots.length > 0 ? affectedSlots : undefined,
           message: 'Slot time modified successfully',
         };
       } catch (error) {

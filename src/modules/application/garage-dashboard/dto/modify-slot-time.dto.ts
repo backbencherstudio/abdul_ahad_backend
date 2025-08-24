@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsOptional } from 'class-validator';
+import { IsString, IsDateString, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ModifySlotTimeDto {
@@ -18,8 +18,22 @@ export class ModifySlotTimeDto {
   @IsString()
   new_end_time: string;
 
-  @ApiProperty({ description: 'Reason for modification', required: false })
+  @ApiProperty({
+    description: 'Reason for modification',
+    required: false,
+  })
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @ApiProperty({
+    description:
+      'Allow overlapping with existing slots (default: false). Set to true to override overlap protection.',
+    required: false,
+    default: false,
+    example: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  overlap?: boolean;
 }

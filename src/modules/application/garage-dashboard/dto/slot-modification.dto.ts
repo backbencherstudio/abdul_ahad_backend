@@ -52,11 +52,30 @@ export class SlotModificationDto {
   replace_existing?: boolean;
 }
 
+// ✅ FIXED: Enhanced interface to handle both success and failure cases
 export interface ModificationResult {
   success: boolean;
-  modifications: Array<{
+  modifications?: Array<{
     slot_id: string;
     status: 'CREATED' | 'UPDATED' | 'SKIPPED_BOOKED';
+    details?: {
+      original_time?: {
+        start: string;
+        end: string;
+      };
+      new_time?: {
+        start: string;
+        end: string;
+      };
+    };
   }>;
   message: string;
+  warning?: string;
+  affected_slots?: Array<{
+    id?: string; // Optional - only for database slots
+    time: string;
+    status: 'AVAILABLE' | 'BOOKED';
+    source: 'DATABASE' | 'TEMPLATE';
+  }>;
+  requires_confirmation?: boolean;
 }
