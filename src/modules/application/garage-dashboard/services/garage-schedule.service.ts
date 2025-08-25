@@ -80,11 +80,37 @@ export class GarageScheduleService {
     return { isBreak: false };
   }
 
+  // ✅ FIXED: Enhanced day restriction check with debug
   private isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
     const dayOfWeek = date.getDay();
-    return restrictions.some(
-      (r) => r.type === 'HOLIDAY' && r.day_of_week === dayOfWeek,
-    );
+
+    // Ensure restrictions is an array
+    if (!Array.isArray(restrictions)) {
+      return false;
+    }
+
+    const result = restrictions.some((r) => {
+      if (r.type !== 'HOLIDAY') {
+        return false;
+      }
+
+      // Handle both single day and array of days
+      if (Array.isArray(r.day_of_week)) {
+        const matches = r.day_of_week.includes(dayOfWeek);
+        return matches;
+      }
+
+      // Handle string vs number comparison
+      const restrictionDay =
+        typeof r.day_of_week === 'string'
+          ? parseInt(r.day_of_week, 10)
+          : r.day_of_week;
+
+      const matches = restrictionDay === dayOfWeek;
+      return matches;
+    });
+
+    return result;
   }
 
   // ✅ FIXED: Make slot duration validation flexible
@@ -118,7 +144,7 @@ export class GarageScheduleService {
     }
   }
 
-  // ✅ NEW: Enhanced slot display formatting with clean structure
+  // ✅ ENHANCED: Enhanced slot display formatting with status array support
   private formatSlotForDisplay(slot: any) {
     // Always use the actual database datetime values for display
     const localStart = new Date(slot.start_datetime);
@@ -129,7 +155,9 @@ export class GarageScheduleService {
     // Base slot object with essential information
     const cleanSlot: any = {
       time: `${startTime}-${endTime}`,
-      status: this.getSlotStatus(slot),
+      status: Array.isArray(slot.status)
+        ? slot.status
+        : this.getSlotStatus(slot), // ✅ Support both array and single status
     };
 
     // Add database-specific fields only for database slots
@@ -149,21 +177,65 @@ export class GarageScheduleService {
       cleanSlot.source = 'TEMPLATE';
     }
 
-    // Add break-specific information
+    // Add break/holiday-specific information
     if (slot.type === 'BREAK' && slot.description) {
+      cleanSlot.description = slot.description;
+    }
+
+    if (slot.type === 'HOLIDAY' && slot.description) {
       cleanSlot.description = slot.description;
     }
 
     return cleanSlot;
   }
 
-  // ✅ ENHANCED: Unified status system
-  private getSlotStatus(slot: any): string {
-    if (slot.order_id) return 'BOOKED';
-    if (slot.is_blocked) return 'BLOCKED';
-    if (slot.type === 'BREAK') return 'BREAK';
-    if (slot.modification_type) return 'MODIFIED';
-    return 'AVAILABLE';
+  // ✅ ENHANCED: Unified status system with array support
+  private getSlotStatus(slot: any): string[] {
+    const statuses: string[] = [];
+
+    // Check for booking (highest priority)
+    if (slot.order_id) {
+      statuses.push('BOOKED');
+    }
+
+    // Check for break time
+    if (slot.type === 'BREAK') {
+      statuses.push('BREAK');
+    }
+
+    // Check for holiday
+    if (slot.type === 'HOLIDAY') {
+      statuses.push('HOLIDAY');
+    }
+
+    // Check for blocking
+    if (slot.is_blocked && !slot.order_id) {
+      statuses.push('BLOCKED');
+    }
+
+    // Check for modifications
+    if (slot.modification_type) {
+      statuses.push('MODIFIED');
+    }
+
+    // Default to available if no other status
+    if (statuses.length === 0) {
+      statuses.push('AVAILABLE');
+    }
+
+    return statuses;
+  }
+
+  // ✅ NEW: Enhanced status combination for conflicts
+  private combineSlotStatuses(slot: any, additionalStatus: string): string[] {
+    const baseStatuses = this.getSlotStatus(slot);
+
+    // Add additional status if not already present
+    if (!baseStatuses.includes(additionalStatus)) {
+      baseStatuses.push(additionalStatus);
+    }
+
+    return baseStatuses;
   }
 
   private getModificationType(action: string): ModificationType | null {
@@ -833,7 +905,6 @@ export class GarageScheduleService {
           message: `Modified ${modifications.length} slots`,
         };
       } catch (error) {
-        console.error('Slot modification error:', error);
         if (
           error instanceof BadRequestException ||
           error instanceof NotFoundException
@@ -869,7 +940,7 @@ export class GarageScheduleService {
     return slotStart >= startTime && slotEnd <= endTime;
   }
 
-  // ✅ NEW: Enhanced summary calculation
+  // ✅ ENHANCED: Enhanced summary calculation with status array support
   private calculateEnhancedSummary(slots: any[]) {
     const summary = {
       total_slots: slots.length,
@@ -879,6 +950,8 @@ export class GarageScheduleService {
         blocked: 0,
         breaks: 0,
         modified: 0,
+        holiday: 0,
+        dual_status: 0, // ✅ NEW: Count slots with multiple statuses
       },
       by_source: {
         template: 0,
@@ -888,25 +961,35 @@ export class GarageScheduleService {
     };
 
     for (const slot of slots) {
-      const status = this.getSlotStatus(slot);
+      const statuses = Array.isArray(slot.status) ? slot.status : [slot.status];
 
-      // Count by status
-      switch (status) {
-        case 'AVAILABLE':
-          summary.by_status.available++;
-          break;
-        case 'BOOKED':
-          summary.by_status.booked++;
-          break;
-        case 'BLOCKED':
-          summary.by_status.blocked++;
-          break;
-        case 'BREAK':
-          summary.by_status.breaks++;
-          break;
-        case 'MODIFIED':
-          summary.by_status.modified++;
-          break;
+      // ✅ NEW: Count dual-status slots
+      if (statuses.length > 1) {
+        summary.by_status.dual_status++;
+      }
+
+      // Count by individual statuses
+      for (const status of statuses) {
+        switch (status) {
+          case 'AVAILABLE':
+            summary.by_status.available++;
+            break;
+          case 'BOOKED':
+            summary.by_status.booked++;
+            break;
+          case 'BLOCKED':
+            summary.by_status.blocked++;
+            break;
+          case 'BREAK':
+            summary.by_status.breaks++;
+            break;
+          case 'MODIFIED':
+            summary.by_status.modified++;
+            break;
+          case 'HOLIDAY':
+            summary.by_status.holiday++;
+            break;
+        }
       }
 
       // Count by source
@@ -925,7 +1008,7 @@ export class GarageScheduleService {
     return summary;
   }
 
-  // ✅ ENHANCED: View available slots with clean response structure
+  // ✅ ENHANCED: View available slots with status array support
   async viewAvailableSlots(garageId: string, date: string) {
     const schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
@@ -941,8 +1024,24 @@ export class GarageScheduleService {
 
     const targetDate = new Date(date + 'T00:00:00');
 
-    // Check if day is restricted (holiday)
-    if (this.isDayRestricted(restrictions, targetDate)) {
+    // ✅ FIXED: Check if day is restricted (holiday)
+    const isHoliday = this.isDayRestricted(restrictions, targetDate);
+
+    // ✅ FIXED: Get existing slots first (even for holidays)
+    const existingSlots = await this.prisma.timeSlot.findMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: targetDate,
+          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { start_datetime: 'asc' },
+    });
+
+
+    // ✅ FIXED: If holiday with no existing slots, return empty
+    if (isHoliday && existingSlots.length === 0) {
       return {
         success: true,
         data: {
@@ -961,6 +1060,8 @@ export class GarageScheduleService {
               blocked: 0,
               breaks: 0,
               modified: 0,
+              holiday: 0,
+              dual_status: 0,
             },
             by_source: {
               template: 0,
@@ -973,18 +1074,40 @@ export class GarageScheduleService {
       };
     }
 
-    // ✅ FIXED: Get existing slots first (prioritize database over template)
-    const existingSlots = await this.prisma.timeSlot.findMany({
-      where: {
-        garage_id: garageId,
-        start_datetime: {
-          gte: targetDate,
-          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
-        },
-      },
-      orderBy: { start_datetime: 'asc' },
-    });
+    // ✅ FIXED: If holiday with existing slots, show them with dual status
+    if (isHoliday && existingSlots.length > 0) {
+      const enhancedSlots = existingSlots.map((slot) => ({
+        ...slot,
+        type: 'HOLIDAY',
+        is_available: false,
+        is_blocked: true,
+        status: ['HOLIDAY', ...this.getSlotStatus(slot)], // ✅ Dual status
+        description: 'Holiday day with existing slot',
+      }));
 
+      const cleanSlots = enhancedSlots.map((slot) =>
+        this.formatSlotForDisplay(slot),
+      );
+
+      const summary = this.calculateEnhancedSummary(enhancedSlots);
+
+      return {
+        success: true,
+        data: {
+          garage_id: garageId,
+          date,
+          working_hours: {
+            start: schedule.start_time,
+            end: schedule.end_time,
+          },
+          slots: cleanSlots,
+          summary,
+          is_holiday: true,
+        },
+      };
+    }
+
+    // ✅ FIXED: Normal day processing (keep existing logic from line 1034 onwards)
     // ✅ FIXED: Generate template slots with actual restrictions
     const potentialSlots = this.generateSlotsForDay(
       schedule.start_time,
@@ -995,7 +1118,7 @@ export class GarageScheduleService {
       restrictions, // Pass actual restrictions
     );
 
-    // ✅ FIXED: Enhanced slot merging with overlap detection
+    // ✅ FIXED: Enhanced slot merging with status array support
     const enhancedSlots = [];
     const processedTimeRanges = new Set(); // Track processed time ranges to avoid duplicates
 
@@ -1005,7 +1128,10 @@ export class GarageScheduleService {
       const slotEndTime = this.formatTime24Hour(existingSlot.end_datetime);
       const timeRangeKey = `${slotStartTime}-${slotEndTime}`;
 
-      // Check if this slot conflicts with break time
+      // ✅ NEW: Check for holiday conflicts
+      const isHoliday = this.isDayRestricted(restrictions, targetDate);
+
+      // ✅ NEW: Check for break conflicts
       const { isBreak, breakInfo } = this.isTimeInBreak(
         restrictions,
         targetDate,
@@ -1013,20 +1139,45 @@ export class GarageScheduleService {
         slotEndTime,
       );
 
-      if (isBreak && breakInfo) {
-        // If existing slot conflicts with break, mark it as break
+      if (isHoliday && existingSlot.order_id) {
+        // ✅ NEW: Existing booking on holiday day - show both statuses
+        enhancedSlots.push({
+          ...existingSlot,
+          type: 'HOLIDAY',
+          is_available: false,
+          is_blocked: true,
+          status: ['HOLIDAY', 'BOOKED'], // ✅ Status array
+          description: 'Holiday day but has existing booking',
+        });
+        processedTimeRanges.add(timeRangeKey);
+      } else if (isBreak && breakInfo && existingSlot.order_id) {
+        // ✅ NEW: Existing booking during break time - show both statuses
         enhancedSlots.push({
           ...existingSlot,
           type: 'BREAK',
           is_available: false,
           is_blocked: true,
-          status: 'BREAK',
+          status: ['BREAK', 'BOOKED'], // ✅ Status array
+          description: 'Break time but has existing booking',
+        });
+        processedTimeRanges.add(timeRangeKey);
+      } else if (isBreak && breakInfo) {
+        // ✅ NEW: Existing slot conflicts with break (no booking)
+        enhancedSlots.push({
+          ...existingSlot,
+          type: 'BREAK',
+          is_available: false,
+          is_blocked: true,
+          status: ['BREAK'], // ✅ Status array
           description: breakInfo.description || 'Break Time',
         });
         processedTimeRanges.add(timeRangeKey);
       } else {
-        // Process as normal slot
-        enhancedSlots.push(existingSlot);
+        // ✅ NEW: Process as normal slot with status array
+        enhancedSlots.push({
+          ...existingSlot,
+          status: this.getSlotStatus(existingSlot), // ✅ Status array
+        });
         processedTimeRanges.add(timeRangeKey);
       }
     }
@@ -1062,7 +1213,7 @@ export class GarageScheduleService {
             type: 'BREAK',
             is_available: false,
             is_blocked: true,
-            status: 'BREAK',
+            status: ['BREAK'], // ✅ Status array
             description: breakInfo.description || 'Break Time',
           });
         } else {
@@ -1071,7 +1222,7 @@ export class GarageScheduleService {
             type: 'BOOKABLE',
             is_available: true,
             is_blocked: false,
-            status: 'AVAILABLE',
+            status: ['AVAILABLE'], // ✅ Status array
           });
         }
         processedTimeRanges.add(timeRangeKey);
@@ -1123,7 +1274,7 @@ export class GarageScheduleService {
             type: 'BREAK',
             is_available: false,
             is_blocked: true,
-            status: 'BREAK',
+            status: ['BREAK'], // ✅ Status array
             description: restriction.description || 'Break Time',
           });
           processedTimeRanges.add(breakTimeRangeKey);
@@ -1138,12 +1289,12 @@ export class GarageScheduleService {
         new Date(b.start_datetime).getTime(),
     );
 
-    // ✅ ENHANCED: Format slots with clean structure
+    // ✅ ENHANCED: Format slots with status array support
     const cleanSlots = enhancedSlots.map((slot) =>
       this.formatSlotForDisplay(slot),
     );
 
-    // ✅ ENHANCED: Calculate enhanced summary
+    // ✅ ENHANCED: Calculate enhanced summary with status array support
     const summary = this.calculateEnhancedSummary(enhancedSlots);
 
     return {
@@ -1261,7 +1412,8 @@ export class GarageScheduleService {
     const daysInMonth = new Date(year, month, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month - 1, day);
+      // ✅ FIXED: Use local timezone to avoid date shifting
+      const date = new Date(year, month - 1, day, 12, 0, 0, 0); // Use noon to avoid timezone issues
       const dayOfWeek = date.getDay();
 
       // Check if this date is a holiday
@@ -1592,7 +1744,6 @@ export class GarageScheduleService {
           message: 'Slot time modified successfully',
         };
       } catch (error) {
-        console.error('Slot time modification error:', error);
 
         if (
           error instanceof NotFoundException ||
