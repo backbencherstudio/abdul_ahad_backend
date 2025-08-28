@@ -247,6 +247,59 @@ export class GarageDashboardController {
     );
   }
 
+  // ✅ NEW: Enhanced calendar view with week calculation
+  @ApiOperation({
+    summary: 'Get enhanced calendar view with week schedule',
+    description: `
+    Returns comprehensive calendar data including:
+    - Current week information (automatically calculated)
+    - Week schedule with working hours for left panel
+    - Month holidays for right panel (calendar)
+    
+    Parameters:
+    - year: Required - The year to view
+    - month: Required - The month to view (1-12)
+    - week_number: Optional - Specific week to show (1-6). If not provided, shows current week.
+  `,
+  })
+  @Get('schedule/calendar-view')
+  async getCalendarView(
+    @Req() req,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('week_number') weekNumber?: string,
+  ) {
+    if (!year || !month) {
+      throw new BadRequestException('Year and month parameters are required');
+    }
+
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
+    const weekNumberNum = weekNumber ? parseInt(weekNumber, 10) : undefined;
+
+    if (isNaN(yearNum) || isNaN(monthNum)) {
+      throw new BadRequestException('Invalid year or month format');
+    }
+
+    if (monthNum < 1 || monthNum > 12) {
+      throw new BadRequestException('Month must be between 1 and 12');
+    }
+
+    if (
+      weekNumberNum !== undefined &&
+      (weekNumberNum < 1 || weekNumberNum > 6)
+    ) {
+      throw new BadRequestException('Week number must be between 1 and 6');
+    }
+
+    return this.garageScheduleService.getCalendarView(
+      req.user.userId,
+      yearNum,
+      monthNum,
+      weekNumberNum,
+    );
+  }
+
   // NEW: Modify slots (block/unblock)
   @Post('schedule/modify')
   @ApiOperation({ summary: 'Modify slots (block/unblock)' })

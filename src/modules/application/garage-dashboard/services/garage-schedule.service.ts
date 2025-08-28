@@ -17,6 +17,17 @@ import {
 } from '../dto/slot-modification.dto';
 import { ModifySlotTimeDto } from '../dto/modify-slot-time.dto';
 
+import {
+  getWeekDateRange,
+  getCurrentWeekInfo,
+  generateWeekSchedule,
+  validateWeekNumber,
+  getMonthName,
+  CurrentWeekInfo,
+  WeekDateRange,
+  generateHolidaysForMonth,
+} from './calendar-view.helper';
+
 @Injectable()
 export class GarageScheduleService {
   constructor(private readonly prisma: PrismaService) {}
@@ -1039,7 +1050,6 @@ export class GarageScheduleService {
       orderBy: { start_datetime: 'asc' },
     });
 
-
     // ✅ FIXED: If holiday with no existing slots, return empty
     if (isHoliday && existingSlots.length === 0) {
       return {
@@ -1387,7 +1397,7 @@ export class GarageScheduleService {
       : JSON.parse(schedule.restrictions as string);
 
     // 3. Generate all holidays for the month
-    const holidays = this.generateHolidaysForMonth(restrictions, year, month);
+    const holidays = generateHolidaysForMonth(restrictions, year, month);
 
     return {
       success: true,
@@ -1400,45 +1410,114 @@ export class GarageScheduleService {
     };
   }
 
-  // ✅ NEW: Generate holidays for a specific month
-  private generateHolidaysForMonth(
-    restrictions: RestrictionDto[],
+  // ✅ NEW: Enhanced calendar view with week calculation
+  async getCalendarView(
+    garageId: string,
     year: number,
     month: number,
+    weekNumber?: number,
   ) {
-    const holidays = [];
+    // 1. Get schedule with restrictions
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
 
-    // Get all dates in the month
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      // ✅ FIXED: Use local timezone to avoid date shifting
-      const date = new Date(year, month - 1, day, 12, 0, 0, 0); // Use noon to avoid timezone issues
-      const dayOfWeek = date.getDay();
-
-      // Check if this date is a holiday
-      const holidayRestriction = restrictions.find(
-        (r) =>
-          r.type === 'HOLIDAY' &&
-          r.is_recurring &&
-          ((r.day_of_week !== undefined && r.day_of_week === dayOfWeek) ||
-            (r.month !== undefined &&
-              r.month === month &&
-              r.day !== undefined &&
-              r.day === day)),
-      );
-
-      if (holidayRestriction) {
-        holidays.push({
-          date: date.toISOString().split('T')[0], // YYYY-MM-DD format
-          day_of_week: dayOfWeek,
-          description: holidayRestriction.description || 'Holiday',
-        });
-      }
+    if (!schedule) {
+      return {
+        success: true,
+        data: {
+          year,
+          month,
+          month_name: getMonthName(month),
+          current_week: {
+            week_number: 1,
+            is_current_month: false,
+            today_date: new Date().toISOString().split('T')[0],
+          },
+          week_schedule: {
+            week_number: 1,
+            start_date: new Date(year, month - 1, 1)
+              .toISOString()
+              .split('T')[0],
+            end_date: new Date(year, month - 1, 7).toISOString().split('T')[0],
+            days: [],
+          },
+          month_holidays: [],
+        },
+      };
     }
 
-    return holidays;
+    // 2. Parse restrictions
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+
+    // 3. Calculate current week info
+    const currentWeekInfo: CurrentWeekInfo = getCurrentWeekInfo(year, month);
+
+    // 4. Determine which week to show
+    let targetWeekNumber: number;
+    if (weekNumber !== undefined) {
+      // Validate provided week number
+      if (!validateWeekNumber(weekNumber, year, month)) {
+        throw new BadRequestException(
+          `Invalid week number: ${weekNumber} for ${getMonthName(month)} ${year}`,
+        );
+      }
+      targetWeekNumber = weekNumber;
+    } else {
+      // Use current week
+      targetWeekNumber = currentWeekInfo.weekNumber;
+    }
+
+    // 5. Calculate week date range
+    const weekDateRange: WeekDateRange = getWeekDateRange(
+      year,
+      month,
+      targetWeekNumber,
+    );
+
+    // 6. Generate week schedule
+    const weekDays = generateWeekSchedule(
+      weekDateRange.start,
+      weekDateRange.end,
+      schedule,
+      restrictions,
+      currentWeekInfo.todayDate,
+    );
+
+    // 7. Generate holidays for the month
+    const monthHolidays = generateHolidaysForMonth(restrictions, year, month);
+
+    // 8. Format response
+    return {
+      success: true,
+      data: {
+        year,
+        month,
+        month_name: getMonthName(month),
+
+        // Current week info (backend calculated)
+        current_week: {
+          week_number: currentWeekInfo.weekNumber,
+          is_current_month: currentWeekInfo.isCurrentMonth,
+          today_date: currentWeekInfo.todayDate,
+        },
+
+        // Week schedule for left panel
+        week_schedule: {
+          week_number: targetWeekNumber,
+          start_date: weekDateRange.start.toISOString().split('T')[0],
+          end_date: weekDateRange.end.toISOString().split('T')[0],
+          days: weekDays,
+        },
+
+        // Holidays for right panel (calendar)
+        month_holidays: monthHolidays,
+      },
+    };
   }
+
 
   // ✅ NEW: Get month name helper
   private getMonthName(month: number): string {
@@ -1744,7 +1823,6 @@ export class GarageScheduleService {
           message: 'Slot time modified successfully',
         };
       } catch (error) {
-
         if (
           error instanceof NotFoundException ||
           error instanceof BadRequestException
