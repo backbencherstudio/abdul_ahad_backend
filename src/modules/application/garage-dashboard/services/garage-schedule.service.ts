@@ -1117,8 +1117,6 @@ export class GarageScheduleService {
       };
     }
 
-   
-
     const potentialSlots = this.generateSlotsForDay(
       schedule.start_time,
       schedule.end_time,
@@ -1128,8 +1126,6 @@ export class GarageScheduleService {
       restrictions, // Pass actual restrictions
       existingSlots, // ✅ NEW: Pass existing database slots
     );
-
-    
 
     // ✅ FIXED: Enhanced slot merging with status array support
     const enhancedSlots = [];
@@ -1309,7 +1305,6 @@ export class GarageScheduleService {
 
     // ✅ ENHANCED: Calculate enhanced summary with status array support
     const summary = this.calculateEnhancedSummary(enhancedSlots);
-
 
     return {
       success: true,
@@ -1612,14 +1607,11 @@ export class GarageScheduleService {
   ): Promise<ModificationResult> {
     return await this.prisma.$transaction(async (tx) => {
       try {
-
         const schedule = await tx.schedule.findUnique({
           where: { garage_id: garageId },
         });
         if (!schedule || !schedule.is_active)
           throw new BadRequestException('No active schedule found.');
-
-
 
         const timeFields = [
           dto.current_time,
@@ -1654,7 +1646,6 @@ export class GarageScheduleService {
         const newEndTime = new Date(targetDate);
         newEndTime.setHours(newEndHour, newEndMinute, 0, 0);
 
-
         if (
           dto.new_start_time < schedule.start_time ||
           dto.new_end_time > schedule.end_time
@@ -1669,47 +1660,35 @@ export class GarageScheduleService {
           true,
         );
 
-        let existingSlot = await tx.timeSlot.findFirst({
+        // ✅ FIXED: Find existing slot but don't create one if it doesn't exist
+        const existingSlot = await tx.timeSlot.findFirst({
           where: { garage_id: garageId, start_datetime: currentSlotTime },
         });
 
-        if (!existingSlot) {
-          existingSlot = await tx.timeSlot.create({
-            data: {
-              garage_id: garageId,
-              start_datetime: currentSlotTime,
-              end_datetime: newEndTime,
-              is_available: true,
-              is_blocked: false,
-            },
-          });
-        } else if (existingSlot.order_id) {
+        // ✅ FIXED: If existing slot is booked, reject immediately
+        if (existingSlot && existingSlot.order_id) {
           throw new BadRequestException('Cannot modify a booked slot');
         }
-
-        
 
         const startOfDay = new Date(targetDate);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(targetDate);
         endOfDay.setHours(23, 59, 59, 999);
 
-        const overlappingSlots = await tx.timeSlot.findMany({
+        // ✅ FIXED: Get all overlapping database slots (excluding current slot if it exists)
+        const overlappingDatabaseSlots = await tx.timeSlot.findMany({
           where: {
             garage_id: garageId,
-            id: { not: existingSlot.id },
+            ...(existingSlot ? { id: { not: existingSlot.id } } : {}),
             start_datetime: { gte: startOfDay, lte: endOfDay },
           },
         });
 
-        
-
         const restrictions = Array.isArray(schedule.restrictions)
           ? schedule.restrictions
           : JSON.parse(schedule.restrictions as string);
-        
 
-        // Generate templates WITHOUT excluding DB here; we will check DB-first then use templates if needed
+        // ✅ FIXED: Generate template slots for conflict detection
         const templateSlots = this.generateSlotsForDay(
           schedule.start_time,
           schedule.end_time,
@@ -1717,10 +1696,23 @@ export class GarageScheduleService {
           targetDate,
           garageId,
           restrictions,
-          [], // do not filter by DB here; DB check is explicit and first-priority
+          [], // Don't filter by DB here - we want ALL template slots for conflict checking
         );
 
-        
+        // ✅ FIXED: Filter out template slots that overlap with existing database slots
+        const activeTemplateSlots = templateSlots.filter((templateSlot) => {
+          // Check if this template slot overlaps with ANY existing database slot
+          const overlapsWithDb = overlappingDatabaseSlots.some((dbSlot) =>
+            this.slotsOverlap(templateSlot, dbSlot),
+          );
+
+          // Also check if it overlaps with the current slot being modified (if it exists)
+          const overlapsWithCurrent =
+            existingSlot && this.slotsOverlap(templateSlot, existingSlot);
+
+          // Only keep template slots that don't overlap with any database slots
+          return !overlapsWithDb && !overlapsWithCurrent;
+        });
 
         const affectedSlots: Array<{
           id?: string;
@@ -1729,7 +1721,7 @@ export class GarageScheduleService {
           source: 'DATABASE' | 'TEMPLATE';
         }> = [];
 
-        // Include the current DB slot as an affected DB conflict if the new range differs
+        // ✅ FIXED: Only include current DB slot as affected if it exists and time range changes
         if (
           existingSlot &&
           (existingSlot.start_datetime.getTime() !== newStartTime.getTime() ||
@@ -1745,18 +1737,35 @@ export class GarageScheduleService {
           });
         }
 
-        // Always check TEMPLATE conflicts too, but skip templates that overlap the existing DB slot
-        for (const templateSlot of templateSlots) {
+        // ✅ FIXED: Check database slots for conflicts with new time range
+        for (const dbSlot of overlappingDatabaseSlots) {
+          const overlapsNew = this.slotsOverlap(
+            { start_datetime: newStartTime, end_datetime: newEndTime },
+            dbSlot,
+          );
+
+          if (overlapsNew) {
+            // Add to affected slots
+            affectedSlots.push({
+              id: dbSlot.id,
+              time: `${this.formatTime24Hour(dbSlot.start_datetime)}-${this.formatTime24Hour(dbSlot.end_datetime)}`,
+              status: dbSlot.order_id
+                ? ('BOOKED' as const)
+                : ('AVAILABLE' as const),
+              source: 'DATABASE',
+            });
+          }
+        }
+
+        // ✅ FIXED: Check only ACTIVE template slots for conflicts with new time range
+        for (const templateSlot of activeTemplateSlots) {
           const overlapsNew = this.slotsOverlap(
             { start_datetime: newStartTime, end_datetime: newEndTime },
             templateSlot,
           );
 
-          // Skip template 08:00-09:00 if it overlaps the existing DB 08:00-08:30 (avoid duplicate/confusing entry)
-          const overlapsExistingDb =
-            !!existingSlot && this.slotsOverlap(templateSlot, existingSlot);
-
-          if (overlapsNew && !overlapsExistingDb) {
+          if (overlapsNew) {
+            // Add to affected slots
             affectedSlots.push({
               time: `${this.formatTime24Hour(templateSlot.start_datetime)}-${this.formatTime24Hour(templateSlot.end_datetime)}`,
               status: 'AVAILABLE' as const,
@@ -1771,7 +1780,6 @@ export class GarageScheduleService {
           );
 
           if (!dto.overlap) {
-            
             return {
               success: false,
               warning: `This modification would affect existing slots: ${affectedSlots.map((s) => s.time).join(', ')}`,
@@ -1788,11 +1796,15 @@ export class GarageScheduleService {
             );
           }
 
+          // ✅ FIXED: Delete ALL overlapping database slots (including current one if it exists)
           const dbSlotsToDelete = affectedSlots
             .filter((s) => s.source === 'DATABASE' && s.id)
             .map((s) => s.id as string);
 
-          
+          // ✅ FIXED: Also delete the current slot if it exists
+          if (existingSlot && existingSlot.id) {
+            dbSlotsToDelete.push(existingSlot.id);
+          }
 
           if (dbSlotsToDelete.length > 0) {
             await tx.timeSlot.deleteMany({
@@ -1801,33 +1813,32 @@ export class GarageScheduleService {
           }
         }
 
-        const updatedSlot = await tx.timeSlot.update({
-          where: { id: existingSlot.id },
+        // ✅ FIXED: Create the new slot with exact specifications
+        const newSlot = await tx.timeSlot.create({
           data: {
+            garage_id: garageId,
             start_datetime: newStartTime,
             end_datetime: newEndTime,
+            is_available: true,
+            is_blocked: false,
             modification_type: this.getModificationType('TIME_MODIFIED'),
             modification_reason: dto.reason || 'Time modified',
             modified_by: garageId,
-            is_blocked: false,
-            is_available: true,
           },
         });
-
-        
-
-        const formattedSlot = this.formatSlotForDisplay(updatedSlot);
 
         return {
           success: true,
           modifications: [
             {
-              slot_id: updatedSlot.id,
+              slot_id: newSlot.id,
               status: 'UPDATED',
               details: {
                 original_time: {
                   start: dto.current_time,
-                  end: this.formatTime24Hour(existingSlot.end_datetime),
+                  end: existingSlot
+                    ? this.formatTime24Hour(existingSlot.end_datetime)
+                    : dto.current_time, // If no existing slot, use current time as end
                 },
                 new_time: {
                   start: dto.new_start_time,
@@ -1836,7 +1847,6 @@ export class GarageScheduleService {
               },
             },
           ],
-          affected_slots: affectedSlots.length > 0 ? affectedSlots : undefined,
           message: 'Slot time modified successfully',
         };
       } catch (error) {
