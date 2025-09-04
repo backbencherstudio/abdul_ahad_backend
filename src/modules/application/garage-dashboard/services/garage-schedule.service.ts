@@ -1117,8 +1117,8 @@ export class GarageScheduleService {
       };
     }
 
-    // ✅ FIXED: Normal day processing (keep existing logic from line 1034 onwards)
-    // ✅ FIXED: Generate template slots with actual restrictions
+   
+
     const potentialSlots = this.generateSlotsForDay(
       schedule.start_time,
       schedule.end_time,
@@ -1126,7 +1126,10 @@ export class GarageScheduleService {
       targetDate,
       garageId,
       restrictions, // Pass actual restrictions
+      existingSlots, // ✅ NEW: Pass existing database slots
     );
+
+    
 
     // ✅ FIXED: Enhanced slot merging with status array support
     const enhancedSlots = [];
@@ -1307,6 +1310,7 @@ export class GarageScheduleService {
     // ✅ ENHANCED: Calculate enhanced summary with status array support
     const summary = this.calculateEnhancedSummary(enhancedSlots);
 
+
     return {
       success: true,
       data: {
@@ -1330,6 +1334,7 @@ export class GarageScheduleService {
     date: Date,
     garageId: string,
     restrictions: RestrictionDto[] = [],
+    existingDatabaseSlots: any[] = [], // NEW: pass DB slots to avoid generating conflicting templates
   ) {
     const slots = [];
     const [sh, sm] = startTime.split(':').map(Number);
@@ -1345,25 +1350,34 @@ export class GarageScheduleService {
       const slotEnd = new Date(slotStart);
       slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration);
 
-      // ✅ FIXED: Check if slot conflicts with break time using actual restrictions
-      const slotStartTime = this.formatTime24Hour(slotStart);
-      const slotEndTime = this.formatTime24Hour(slotEnd);
+      // Skip if overlaps with a DB slot
+      const isOccupiedByDatabase = existingDatabaseSlots.some((dbSlot) => {
+        return this.slotsOverlap(
+          { start_datetime: slotStart, end_datetime: slotEnd },
+          dbSlot,
+        );
+      });
 
-      const { isBreak } = this.isTimeInBreak(
-        restrictions, // Use actual restrictions
-        date,
-        slotStartTime,
-        slotEndTime,
-      );
+      if (!isOccupiedByDatabase) {
+        // Check break
+        const slotStartTime = this.formatTime24Hour(slotStart);
+        const slotEndTime = this.formatTime24Hour(slotEnd);
+        const { isBreak } = this.isTimeInBreak(
+          restrictions,
+          date,
+          slotStartTime,
+          slotEndTime,
+        );
 
-      if (!isBreak) {
-        slots.push({
-          garage_id: garageId,
-          start_datetime: slotStart,
-          end_datetime: slotEnd,
-          is_available: true,
-          is_blocked: false,
-        });
+        if (!isBreak) {
+          slots.push({
+            garage_id: garageId,
+            start_datetime: slotStart,
+            end_datetime: slotEnd,
+            is_available: true,
+            is_blocked: false,
+          });
+        }
       }
 
       currentTime += slotDuration;
@@ -1518,7 +1532,6 @@ export class GarageScheduleService {
     };
   }
 
-
   // ✅ NEW: Get month name helper
   private getMonthName(month: number): string {
     const monthNames = [
@@ -1586,22 +1599,28 @@ export class GarageScheduleService {
     return localDate;
   }
 
+  private debugTimeRange(d: Date) {
+    return `${this.formatTime24Hour(d)}`;
+  }
+  private debugSlotRange(s: { start_datetime: Date; end_datetime: Date }) {
+    return `${this.debugTimeRange(s.start_datetime)}-${this.debugTimeRange(s.end_datetime)}`;
+  }
+
   async modifySlotTime(
     garageId: string,
     dto: ModifySlotTimeDto,
   ): Promise<ModificationResult> {
     return await this.prisma.$transaction(async (tx) => {
       try {
-        // 1. Validate schedule exists
+
         const schedule = await tx.schedule.findUnique({
           where: { garage_id: garageId },
         });
-
-        if (!schedule || !schedule.is_active) {
+        if (!schedule || !schedule.is_active)
           throw new BadRequestException('No active schedule found.');
-        }
 
-        // 2. Validate time formats
+
+
         const timeFields = [
           dto.current_time,
           dto.new_start_time,
@@ -1615,7 +1634,6 @@ export class GarageScheduleService {
           }
         }
 
-        // 3. Create date objects with proper timezone handling
         const targetDate = new Date(dto.date);
         const [currentHour, currentMinute] = dto.current_time
           .split(':')
@@ -1636,7 +1654,7 @@ export class GarageScheduleService {
         const newEndTime = new Date(targetDate);
         newEndTime.setHours(newEndHour, newEndMinute, 0, 0);
 
-        // 4. Validate against schedule (but allow flexible duration)
+
         if (
           dto.new_start_time < schedule.start_time ||
           dto.new_end_time > schedule.end_time
@@ -1644,24 +1662,18 @@ export class GarageScheduleService {
           throw new BadRequestException('New time is outside operating hours');
         }
 
-        // ✅ FIXED: Allow flexible duration for time modifications
         this.validateSlotDuration(
           dto.new_start_time,
           dto.new_end_time,
           schedule.slot_duration,
-          true, // Allow flexible duration
+          true,
         );
 
-        // 5. Check for existing slot or create new one
         let existingSlot = await tx.timeSlot.findFirst({
-          where: {
-            garage_id: garageId,
-            start_datetime: currentSlotTime,
-          },
+          where: { garage_id: garageId, start_datetime: currentSlotTime },
         });
 
         if (!existingSlot) {
-          // Create new slot if it doesn't exist
           existingSlot = await tx.timeSlot.create({
             data: {
               garage_id: garageId,
@@ -1675,23 +1687,29 @@ export class GarageScheduleService {
           throw new BadRequestException('Cannot modify a booked slot');
         }
 
-        // ✅ NEW: Enhanced overlap detection that checks both database and template slots
+        
+
+        const startOfDay = new Date(targetDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
         const overlappingSlots = await tx.timeSlot.findMany({
           where: {
             garage_id: garageId,
             id: { not: existingSlot.id },
-            start_datetime: {
-              gte: targetDate,
-              lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
-            },
+            start_datetime: { gte: startOfDay, lte: endOfDay },
           },
         });
 
-        // Generate template slots for the day to check for overlaps
+        
+
         const restrictions = Array.isArray(schedule.restrictions)
           ? schedule.restrictions
           : JSON.parse(schedule.restrictions as string);
+        
 
+        // Generate templates WITHOUT excluding DB here; we will check DB-first then use templates if needed
         const templateSlots = this.generateSlotsForDay(
           schedule.start_time,
           schedule.end_time,
@@ -1699,67 +1717,61 @@ export class GarageScheduleService {
           targetDate,
           garageId,
           restrictions,
+          [], // do not filter by DB here; DB check is explicit and first-priority
         );
 
-        // Check for overlaps with BOTH database and template slots
-        const affectedSlots = [];
+        
 
-        // Check database slots
-        for (const dbSlot of overlappingSlots) {
-          if (
-            this.slotsOverlap(
-              { start_datetime: newStartTime, end_datetime: newEndTime },
-              dbSlot,
-            )
-          ) {
-            affectedSlots.push({
-              id: dbSlot.id,
-              time: `${this.formatTime24Hour(dbSlot.start_datetime)}-${this.formatTime24Hour(dbSlot.end_datetime)}`,
-              status: dbSlot.order_id ? 'BOOKED' : 'AVAILABLE',
-              source: 'DATABASE',
-            });
-          }
+        const affectedSlots: Array<{
+          id?: string;
+          time: string;
+          status: 'BOOKED' | 'AVAILABLE';
+          source: 'DATABASE' | 'TEMPLATE';
+        }> = [];
+
+        // Include the current DB slot as an affected DB conflict if the new range differs
+        if (
+          existingSlot &&
+          (existingSlot.start_datetime.getTime() !== newStartTime.getTime() ||
+            existingSlot.end_datetime.getTime() !== newEndTime.getTime())
+        ) {
+          affectedSlots.push({
+            id: existingSlot.id,
+            time: `${this.formatTime24Hour(existingSlot.start_datetime)}-${this.formatTime24Hour(existingSlot.end_datetime)}`,
+            status: existingSlot.order_id
+              ? ('BOOKED' as const)
+              : ('AVAILABLE' as const),
+            source: 'DATABASE',
+          });
         }
 
-        // Check template slots (these don't have IDs!)
+        // Always check TEMPLATE conflicts too, but skip templates that overlap the existing DB slot
         for (const templateSlot of templateSlots) {
-          // Skip if this template slot already exists in database
-          const existsInDb = overlappingSlots.some((dbSlot) =>
-            this.slotsOverlap(templateSlot, dbSlot),
+          const overlapsNew = this.slotsOverlap(
+            { start_datetime: newStartTime, end_datetime: newEndTime },
+            templateSlot,
           );
 
-          if (
-            !existsInDb &&
-            this.slotsOverlap(
-              { start_datetime: newStartTime, end_datetime: newEndTime },
-              templateSlot,
-            )
-          ) {
+          // Skip template 08:00-09:00 if it overlaps the existing DB 08:00-08:30 (avoid duplicate/confusing entry)
+          const overlapsExistingDb =
+            !!existingSlot && this.slotsOverlap(templateSlot, existingSlot);
+
+          if (overlapsNew && !overlapsExistingDb) {
             affectedSlots.push({
               time: `${this.formatTime24Hour(templateSlot.start_datetime)}-${this.formatTime24Hour(templateSlot.end_datetime)}`,
-              status: 'AVAILABLE',
+              status: 'AVAILABLE' as const,
               source: 'TEMPLATE',
-              // No ID for template slots!
             });
           }
         }
 
-        // Handle overlaps based on user preference
         if (affectedSlots.length > 0) {
           const bookedSlots = affectedSlots.filter(
             (s) => s.status === 'BOOKED',
           );
 
-          // Always protect booked slots - no override allowed
-          if (bookedSlots.length > 0) {
-            throw new BadRequestException(
-              `Cannot modify slot: would overlap with booked slots: ${bookedSlots.map((s) => s.time).join(', ')}`,
-            );
-          }
-
-          // Check user's overlap preference
           if (!dto.overlap) {
-            // User doesn't want overlaps - show warning and reject
+            
             return {
               success: false,
               warning: `This modification would affect existing slots: ${affectedSlots.map((s) => s.time).join(', ')}`,
@@ -1770,21 +1782,25 @@ export class GarageScheduleService {
             };
           }
 
-          // User allows overlaps - delete only database slots (template slots don't exist in DB)
+          if (bookedSlots.length > 0) {
+            throw new BadRequestException(
+              `Cannot modify slot: would overlap with booked slots: ${bookedSlots.map((s) => s.time).join(', ')}`,
+            );
+          }
+
           const dbSlotsToDelete = affectedSlots
             .filter((s) => s.source === 'DATABASE' && s.id)
-            .map((s) => s.id);
+            .map((s) => s.id as string);
+
+          
 
           if (dbSlotsToDelete.length > 0) {
             await tx.timeSlot.deleteMany({
-              where: {
-                id: { in: dbSlotsToDelete },
-              },
+              where: { id: { in: dbSlotsToDelete } },
             });
           }
         }
 
-        // 7. Update the slot
         const updatedSlot = await tx.timeSlot.update({
           where: { id: existingSlot.id },
           data: {
@@ -1798,7 +1814,8 @@ export class GarageScheduleService {
           },
         });
 
-        // 8. Format response
+        
+
         const formattedSlot = this.formatSlotForDisplay(updatedSlot);
 
         return {
@@ -1826,10 +1843,8 @@ export class GarageScheduleService {
         if (
           error instanceof NotFoundException ||
           error instanceof BadRequestException
-        ) {
+        )
           throw error;
-        }
-
         throw new BadRequestException(
           'Failed to modify slot time. Please check your input and try again.',
         );
