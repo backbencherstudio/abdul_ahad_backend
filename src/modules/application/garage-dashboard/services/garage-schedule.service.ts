@@ -265,6 +265,7 @@ export class GarageScheduleService {
   }
 
   // Create or update schedule (FIXED: No auto-generation)
+  // Create or update schedule (FIXED: No auto-generation)
   async setSchedule(garageId: string, dto: ScheduleDto) {
     // ✅ FIXED: Enhanced 24-hour format validation
     if (
@@ -326,6 +327,24 @@ export class GarageScheduleService {
       ? JSON.parse(JSON.stringify(dto.restrictions))
       : [];
 
+    // ✅ NEW: Gate — block schedule change if any future booked slot exists
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const futureBookedCount = await this.prisma.timeSlot.count({
+      where: {
+        garage_id: garageId,
+        start_datetime: { gte: todayStart },
+        order_id: { not: null },
+      },
+    });
+
+    if (futureBookedCount > 0) {
+      throw new BadRequestException(
+        `Cannot change schedule: ${futureBookedCount} future booking(s) exist.`,
+      );
+    }
+
     const schedule = await this.prisma.schedule.upsert({
       where: { garage_id: garageId },
       update: {
@@ -346,11 +365,24 @@ export class GarageScheduleService {
       },
     });
 
+    // ✅ NEW: Cleanup — remove all future unbooked DB slots so templates reflect latest rules
+    const cleanupResult = await this.prisma.timeSlot.deleteMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: { gte: todayStart },
+        order_id: null, // keep booked
+      },
+    });
+
     // ✅ FIXED: NO auto-generation! Only create schedule
     return {
       success: true,
       message: 'Schedule updated successfully',
       data: schedule,
+      cleanup: {
+        deleted_unbooked_future_slots: cleanupResult.count,
+        note: 'All future unbooked modified slots were removed. Booked slots were preserved. Views will reflect the latest schedule.',
+      },
     };
   }
 
