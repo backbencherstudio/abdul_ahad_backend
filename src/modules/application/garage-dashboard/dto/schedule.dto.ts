@@ -8,7 +8,7 @@ import {
   Max,
   IsEnum,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // NEW: Define restriction types
 export type RestrictionType = 'HOLIDAY' | 'BREAK';
@@ -57,6 +57,43 @@ export class RestrictionDto {
   description?: string;
 }
 
+// NEW: Lightweight DTOs for daily hours (optional)
+export class DailyIntervalDto {
+  @ApiProperty({ description: 'Start time in HH:mm', example: '09:00' })
+  @IsString()
+  start_time: string;
+
+  @ApiProperty({ description: 'End time in HH:mm', example: '18:00' })
+  @IsString()
+  end_time: string;
+}
+
+export class DailyHoursDayDto {
+  @ApiPropertyOptional({ description: 'If true, the day is fully closed' })
+  @IsOptional()
+  @IsBoolean()
+  is_closed?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'List of open intervals for the day',
+    type: [DailyIntervalDto],
+  })
+  @IsOptional()
+  @IsArray()
+  intervals?: DailyIntervalDto[];
+
+  @ApiPropertyOptional({
+    description: 'Optional per-day slot duration (minutes)',
+    example: 45,
+  })
+  @IsOptional()
+  @IsNumber()
+  slot_duration?: number;
+}
+
+// We keep this as a plain record to avoid breaking validation; deeper checks in service
+export type DailyHoursDto = Record<string, DailyHoursDayDto>;
+
 export class ScheduleDto {
   @ApiProperty({ description: 'Start time in HH:mm format', example: '08:00' })
   @IsString()
@@ -81,6 +118,15 @@ export class ScheduleDto {
   @IsOptional()
   @IsArray()
   restrictions?: RestrictionDto[];
+
+  // NEW: Optional per-day hours; if absent, global start/end apply
+  @ApiPropertyOptional({
+    description:
+      'Per-day hours (keys: "0"-"6"). Example: {"0":{"is_closed":true},"1":{"intervals":[{"start_time":"09:00","end_time":"18:00"}]},"2":{"intervals":[{"start_time":"08:00","end_time":"12:00"},{"start_time":"13:00","end_time":"17:00"}],"slot_duration":45}}',
+    type: 'object',
+  })
+  @IsOptional()
+  daily_hours?: DailyHoursDto;
 }
 
 export class WeeklyPatternDto {
@@ -130,8 +176,6 @@ export class SetWeeklyPatternDto {
   @Min(1)
   @Max(365)
   daysToGenerate?: number;
-
-
 }
 
 // src/modules/application/garage-dashboard/dto/schedule.dto.ts

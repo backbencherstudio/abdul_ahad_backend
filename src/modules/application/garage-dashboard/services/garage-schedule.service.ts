@@ -327,6 +327,11 @@ export class GarageScheduleService {
       ? JSON.parse(JSON.stringify(dto.restrictions))
       : [];
 
+    // ✅ NEW: Validate optional daily_hours (per-day intervals)
+    if ((dto as any).daily_hours) {
+      this.validateDailyHours((dto as any).daily_hours);
+    }
+
     // ✅ NEW: Gate — block schedule change if any future booked slot exists
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -352,6 +357,8 @@ export class GarageScheduleService {
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
         restrictions: restrictionsJson,
+        // ✅ NEW: persist daily_hours when provided
+        daily_hours: (dto as any).daily_hours ?? undefined,
         is_active: dto.is_active ?? true,
         updated_at: new Date(),
       },
@@ -361,6 +368,8 @@ export class GarageScheduleService {
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
         restrictions: restrictionsJson,
+        // ✅ NEW: persist daily_hours when provided
+        daily_hours: (dto as any).daily_hours ?? undefined,
         is_active: dto.is_active ?? true,
       },
     });
@@ -436,6 +445,8 @@ export class GarageScheduleService {
 
     // ✅ FIXED: Use local timezone instead of UTC
     const targetDate = new Date(date + 'T00:00:00');
+    // Guard: disallow past dates
+    this.ensureNotPast(targetDate);
     const [startHour, startMinute] = startTime.split(':').map(Number);
     const slotStart = new Date(targetDate);
     slotStart.setHours(startHour, startMinute, 0, 0);
@@ -535,6 +546,9 @@ export class GarageScheduleService {
       throw new NotFoundException('Slot not found.');
     }
 
+    // Guard: disallow past slots
+    this.ensureNotPast(new Date(slot.start_datetime));
+
     if (slot.order_id) {
       throw new BadRequestException('Cannot block a booked slot.');
     }
@@ -560,6 +574,9 @@ export class GarageScheduleService {
       throw new NotFoundException('Slot not found.');
     }
 
+    // Guard: disallow past slots
+    this.ensureNotPast(new Date(slot.start_datetime));
+
     await this.prisma.timeSlot.update({
       where: { id: slotId },
       data: { is_blocked: false, is_available: true },
@@ -575,6 +592,8 @@ export class GarageScheduleService {
   async setManualSlotsForDate(garageId: string, dto: ManualSlotDto) {
     // ✅ FIXED: Use local timezone
     const date = new Date(dto.date + 'T00:00:00');
+    // Guard: disallow past dates
+    this.ensureNotPast(date);
     const slots = dto.slots;
 
     // Validate all slot times are in 24-hour format
@@ -688,6 +707,9 @@ export class GarageScheduleService {
     const startDate = new Date(date + 'T00:00:00');
     const endDate = new Date(date + 'T23:59:59');
 
+    // Guard: disallow past dates
+    this.ensureNotPast(startDate);
+
     // ✅ NEW: First check if any slots exist
     const existingSlots = await this.prisma.timeSlot.findMany({
       where: {
@@ -786,6 +808,9 @@ export class GarageScheduleService {
       throw new BadRequestException('Cannot delete a booked slot.');
     }
 
+    // Guard: disallow past slots
+    this.ensureNotPast(new Date(slot.start_datetime));
+
     await this.prisma.timeSlot.delete({ where: { id: slotId } });
 
     return {
@@ -837,37 +862,60 @@ export class GarageScheduleService {
         const startDate = new Date(dto.start_date);
         const endDate = new Date(dto.end_date);
 
-        // Generate slots to modify
+        // Guard: range must be today or future
+        this.ensureNotPast(startDate);
+        this.ensureNotPast(endDate);
+
+        // Generate slots to modify (respect per-day effective hours)
         const slotsToModify = [];
         let currentDate = new Date(startDate);
 
         while (currentDate <= endDate) {
-          // Skip if day is restricted
+          // Skip if day is restricted (holiday)
           if (!this.isDayRestricted(restrictions, currentDate)) {
-            const [startHour, startMinute] = dto.start_time
-              .split(':')
-              .map(Number);
-            const [endHour, endMinute] = dto.end_time.split(':').map(Number);
-
-            const slotStart = new Date(currentDate);
-            slotStart.setHours(startHour, startMinute, 0, 0);
-
-            const slotEnd = new Date(currentDate);
-            slotEnd.setHours(endHour, endMinute, 0, 0);
-
-            // Check for break time
-            const { isBreak } = this.isTimeInBreak(
-              restrictions,
+            // Resolve effective hours for this date
+            const effective = this.getEffectiveHoursForDate(
+              schedule as any,
               currentDate,
-              dto.start_time,
-              dto.end_time,
             );
 
-            if (!isBreak) {
-              slotsToModify.push({
-                start_datetime: slotStart,
-                end_datetime: slotEnd,
-              });
+            if (!effective.isClosed) {
+              // Ensure requested interval fits within one of the day's intervals
+              const fitsInterval = effective.intervals?.some(
+                (intv) =>
+                  dto.start_time >= intv.start_time &&
+                  dto.end_time <= intv.end_time,
+              );
+
+              if (fitsInterval) {
+                const [startHour, startMinute] = dto.start_time
+                  .split(':')
+                  .map(Number);
+                const [endHour, endMinute] = dto.end_time
+                  .split(':')
+                  .map(Number);
+
+                const slotStart = new Date(currentDate);
+                slotStart.setHours(startHour, startMinute, 0, 0);
+
+                const slotEnd = new Date(currentDate);
+                slotEnd.setHours(endHour, endMinute, 0, 0);
+
+                // Check for break time
+                const { isBreak } = this.isTimeInBreak(
+                  restrictions,
+                  currentDate,
+                  dto.start_time,
+                  dto.end_time,
+                );
+
+                if (!isBreak) {
+                  slotsToModify.push({
+                    start_datetime: slotStart,
+                    end_datetime: slotEnd,
+                  });
+                }
+              }
             }
           }
           currentDate.setDate(currentDate.getDate() + 1);
@@ -1067,6 +1115,12 @@ export class GarageScheduleService {
 
     const targetDate = new Date(date + 'T00:00:00');
 
+    // ✅ NEW: Resolve effective hours for this date (per-day support)
+    const effective = this.getEffectiveHoursForDate(
+      schedule as any,
+      targetDate,
+    );
+
     // ✅ FIXED: Check if day is restricted (holiday)
     const isHoliday = this.isDayRestricted(restrictions, targetDate);
 
@@ -1093,6 +1147,9 @@ export class GarageScheduleService {
             start: schedule.start_time,
             end: schedule.end_time,
           },
+          // ✅ NEW: Non-breaking additions
+          working_intervals: effective.intervals,
+          effective_slot_duration: effective.slotDuration,
           slots: [],
           summary: {
             total_slots: 0,
@@ -1149,15 +1206,17 @@ export class GarageScheduleService {
       };
     }
 
-    const potentialSlots = this.generateSlotsForDay(
-      schedule.start_time,
-      schedule.end_time,
-      schedule.slot_duration,
-      targetDate,
-      garageId,
-      restrictions, // Pass actual restrictions
-      existingSlots, // ✅ NEW: Pass existing database slots
-    );
+    // ✅ NEW: Generate potential template slots across effective intervals (skip if closed)
+    const potentialSlots = effective.isClosed
+      ? []
+      : this.generateSlotsForIntervals(
+          effective.intervals,
+          effective.slotDuration,
+          targetDate,
+          garageId,
+          restrictions,
+          existingSlots,
+        );
 
     // ✅ FIXED: Enhanced slot merging with status array support
     const enhancedSlots = [];
@@ -1347,6 +1406,9 @@ export class GarageScheduleService {
           start: schedule.start_time,
           end: schedule.end_time,
         },
+        // ✅ NEW: Non-breaking additions for per-day visibility
+        working_intervals: effective.intervals,
+        effective_slot_duration: effective.slotDuration,
         slots: cleanSlots,
         summary,
       },
@@ -1527,6 +1589,33 @@ export class GarageScheduleService {
       currentWeekInfo.todayDate,
     );
 
+    // ✅ NEW: Enhance each week day with effective per-day hours (non-breaking)
+    for (const day of weekDays as any[]) {
+      const dayDate = new Date(day.date + 'T00:00:00');
+      const effective = this.getEffectiveHoursForDate(schedule as any, dayDate);
+
+      // Preserve existing start/end by summarizing intervals (first->last) when open
+      if (!effective.isClosed && effective.intervals.length > 0) {
+        const first = effective.intervals[0];
+        const last = effective.intervals[effective.intervals.length - 1];
+        day.start_time = first.start_time ?? day.start_time;
+        day.end_time = last.end_time ?? day.end_time;
+      } else if (effective.isClosed) {
+        // When closed, reflect as holiday-like closed for that day
+        day.start_time = null;
+        day.end_time = null;
+      }
+
+      // Non-breaking additional fields for UI
+      day.working_intervals = effective.intervals;
+      day.effective_slot_duration = effective.slotDuration;
+      // Mark closure if effective says closed
+      if (effective.isClosed) {
+        day.is_holiday = true;
+        day.description = day.description || 'Closed';
+      }
+    }
+
     // 7. Generate holidays for the month
     const monthHolidays = generateHolidaysForMonth(restrictions, year, month);
 
@@ -1633,6 +1722,213 @@ export class GarageScheduleService {
     return `${this.debugTimeRange(s.start_datetime)}-${this.debugTimeRange(s.end_datetime)}`;
   }
 
+  // ========== Chapter 3: Core helpers for per-day hours ==========
+  // Date guard helpers (prevent past manipulations)
+  private getStartOfToday(): Date {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  private ensureNotPast(target: Date): void {
+    const startOfToday = this.getStartOfToday();
+    if (target < startOfToday) {
+      throw new BadRequestException(
+        'Cannot modify past slots. Only today or future dates are allowed.',
+      );
+    }
+  }
+  // Validate incoming daily_hours payload shape and time formats.
+  private validateDailyHours(dailyHours: any): void {
+    if (!dailyHours) return;
+
+    const dayKeys = Object.keys(dailyHours);
+    for (const key of dayKeys) {
+      // Accept string keys "0".."6"
+      const dayNum = parseInt(key, 10);
+      if (Number.isNaN(dayNum) || dayNum < 0 || dayNum > 6) {
+        throw new BadRequestException(
+          `daily_hours: invalid day key '${key}'. Use strings '0'-'6' (0=Sunday).`,
+        );
+      }
+
+      const config = dailyHours[key] ?? {};
+      if (config.is_closed) {
+        // Closed day: skip interval validations
+        continue;
+      }
+
+      if (config.slot_duration !== undefined) {
+        const d = Number(config.slot_duration);
+        if (Number.isNaN(d) || d < 15 || d > 480) {
+          throw new BadRequestException(
+            `daily_hours[${key}].slot_duration must be between 15 and 480 minutes`,
+          );
+        }
+      }
+
+      if (!config.intervals) {
+        // If no intervals and not closed, fallback to global start/end during resolution.
+        continue;
+      }
+
+      if (!Array.isArray(config.intervals)) {
+        throw new BadRequestException(
+          `daily_hours[${key}].intervals must be an array`,
+        );
+      }
+
+      // Sort and check overlaps within the day
+      const intervals = [...config.intervals].map((it: any) => ({
+        start_time: it?.start_time,
+        end_time: it?.end_time,
+      }));
+
+      for (const it of intervals) {
+        if (!it.start_time || !it.end_time) {
+          throw new BadRequestException(
+            `daily_hours[${key}].intervals items must include start_time and end_time`,
+          );
+        }
+        if (
+          !this.isValidTimeFormat(it.start_time) ||
+          !this.isValidTimeFormat(it.end_time)
+        ) {
+          throw new BadRequestException(
+            `daily_hours[${key}] interval has invalid time format. Use HH:mm 24-hour format`,
+          );
+        }
+        if (!this.isStartBeforeEnd(it.start_time, it.end_time)) {
+          throw new BadRequestException(
+            `daily_hours[${key}] interval start_time must be before end_time`,
+          );
+        }
+      }
+
+      intervals.sort((a, b) => a.start_time.localeCompare(b.start_time));
+      for (let i = 0; i < intervals.length - 1; i++) {
+        const a = intervals[i];
+        const b = intervals[i + 1];
+        if (a.end_time > b.start_time) {
+          throw new BadRequestException(
+            `daily_hours[${key}] intervals overlap: ${a.start_time}-${a.end_time} overlaps ${b.start_time}-${b.end_time}`,
+          );
+        }
+      }
+    }
+  }
+
+  // Resolve effective open intervals and slot duration for a specific date.
+  private getEffectiveHoursForDate(
+    schedule: any,
+    date: Date,
+  ): {
+    isClosed: boolean;
+    intervals: Array<{ start_time: string; end_time: string }>;
+    slotDuration: number;
+  } {
+    const dayKey = String(date.getDay()); // '0'..'6'
+    const dailyHours = (schedule as any)?.daily_hours as Record<
+      string,
+      {
+        is_closed?: boolean;
+        intervals?: Array<{ start_time: string; end_time: string }>;
+        slot_duration?: number;
+      }
+    > | null;
+
+    if (dailyHours && dailyHours[dayKey]) {
+      const cfg = dailyHours[dayKey];
+      if (cfg.is_closed) {
+        return {
+          isClosed: true,
+          intervals: [],
+          slotDuration: schedule.slot_duration,
+        };
+      }
+
+      const intervals =
+        Array.isArray(cfg.intervals) && cfg.intervals.length > 0
+          ? cfg.intervals
+          : [{ start_time: schedule.start_time, end_time: schedule.end_time }];
+
+      const slotDuration = cfg.slot_duration ?? schedule.slot_duration;
+      return { isClosed: false, intervals, slotDuration };
+    }
+
+    // Fallback to global hours
+    return {
+      isClosed: false,
+      intervals: [
+        { start_time: schedule.start_time, end_time: schedule.end_time },
+      ],
+      slotDuration: schedule.slot_duration,
+    };
+  }
+
+  // Generate slots for multiple intervals in a single day.
+  private generateSlotsForIntervals(
+    intervals: Array<{ start_time: string; end_time: string }>,
+    slotDuration: number,
+    date: Date,
+    garageId: string,
+    restrictions: RestrictionDto[] = [],
+    existingDatabaseSlots: any[] = [],
+  ) {
+    const all: any[] = [];
+    for (const interval of intervals) {
+      const [sh, sm] = interval.start_time.split(':').map(Number);
+      const [eh, em] = interval.end_time.split(':').map(Number);
+
+      let currentTime = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+
+      while (currentTime + slotDuration <= endMinutes) {
+        const slotStart = new Date(date);
+        slotStart.setHours(
+          Math.floor(currentTime / 60),
+          currentTime % 60,
+          0,
+          0,
+        );
+
+        const slotEnd = new Date(slotStart);
+        slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration);
+
+        // Skip if overlaps with a DB slot
+        const isOccupiedByDatabase = existingDatabaseSlots.some((dbSlot) =>
+          this.slotsOverlap(
+            { start_datetime: slotStart, end_datetime: slotEnd },
+            dbSlot,
+          ),
+        );
+        if (!isOccupiedByDatabase) {
+          // Check break
+          const slotStartTime = this.formatTime24Hour(slotStart);
+          const slotEndTime = this.formatTime24Hour(slotEnd);
+          const { isBreak } = this.isTimeInBreak(
+            restrictions,
+            date,
+            slotStartTime,
+            slotEndTime,
+          );
+          if (!isBreak) {
+            all.push({
+              garage_id: garageId,
+              start_datetime: slotStart,
+              end_datetime: slotEnd,
+              is_available: true,
+              is_blocked: false,
+            });
+          }
+        }
+
+        currentTime += slotDuration;
+      }
+    }
+    return all;
+  }
+
   async modifySlotTime(
     garageId: string,
     dto: ModifySlotTimeDto,
@@ -1659,6 +1955,8 @@ export class GarageScheduleService {
         }
 
         const targetDate = new Date(dto.date);
+        // Guard: disallow past date
+        this.ensureNotPast(new Date(dto.date + 'T00:00:00'));
         const [currentHour, currentMinute] = dto.current_time
           .split(':')
           .map(Number);
@@ -1678,11 +1976,41 @@ export class GarageScheduleService {
         const newEndTime = new Date(targetDate);
         newEndTime.setHours(newEndHour, newEndMinute, 0, 0);
 
-        if (
-          dto.new_start_time < schedule.start_time ||
-          dto.new_end_time > schedule.end_time
-        ) {
-          throw new BadRequestException('New time is outside operating hours');
+        // ✅ NEW: Validate against per-day effective hours
+        const effectiveForDay = this.getEffectiveHoursForDate(
+          schedule as any,
+          targetDate,
+        );
+
+        if (effectiveForDay.isClosed) {
+          throw new BadRequestException('Selected day is closed');
+        }
+
+        const fitsSomeInterval = effectiveForDay.intervals.some((intv) => {
+          return (
+            dto.new_start_time >= intv.start_time &&
+            dto.new_end_time <= intv.end_time
+          );
+        });
+
+        if (!fitsSomeInterval) {
+          throw new BadRequestException(
+            'New time must be within operating intervals for the day',
+          );
+        }
+
+        // Also ensure not within declared breaks
+        const restrictionsForBreak = Array.isArray(schedule.restrictions)
+          ? schedule.restrictions
+          : JSON.parse(schedule.restrictions as string);
+        const breakCheck = this.isTimeInBreak(
+          restrictionsForBreak,
+          targetDate,
+          dto.new_start_time,
+          dto.new_end_time,
+        );
+        if (breakCheck.isBreak) {
+          throw new BadRequestException('New time conflicts with break time');
         }
 
         this.validateSlotDuration(
@@ -1720,15 +2048,14 @@ export class GarageScheduleService {
           ? schedule.restrictions
           : JSON.parse(schedule.restrictions as string);
 
-        // ✅ FIXED: Generate template slots for conflict detection
-        const templateSlots = this.generateSlotsForDay(
-          schedule.start_time,
-          schedule.end_time,
-          schedule.slot_duration,
+        // ✅ FIXED: Generate template slots for conflict detection using effective intervals
+        const templateSlots = this.generateSlotsForIntervals(
+          effectiveForDay.intervals,
+          effectiveForDay.slotDuration,
           targetDate,
           garageId,
           restrictions,
-          [], // Don't filter by DB here - we want ALL template slots for conflict checking
+          [],
         );
 
         // ✅ FIXED: Filter out template slots that overlap with existing database slots
@@ -1913,11 +2240,30 @@ export class GarageScheduleService {
       ? schedule.restrictions
       : JSON.parse(schedule.restrictions as string);
 
+    // ✅ NEW: Parse daily_hours if present (backward compatible)
+    let daily_hours: any = null;
+    if (
+      (schedule as any).daily_hours !== undefined &&
+      (schedule as any).daily_hours !== null
+    ) {
+      const dh = (schedule as any).daily_hours as any;
+      if (typeof dh === 'string') {
+        try {
+          daily_hours = JSON.parse(dh);
+        } catch {
+          daily_hours = null;
+        }
+      } else {
+        daily_hours = dh;
+      }
+    }
+
     return {
       success: true,
       data: {
         ...schedule,
         restrictions, // Return parsed restrictions
+        daily_hours, // Return parsed daily_hours if any
       },
     };
   }

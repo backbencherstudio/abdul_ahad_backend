@@ -671,6 +671,7 @@ model Schedule {
   end_time      String // "HH:mm" format
   slot_duration Int     @default(60) // minutes
   restrictions  Json    @default("[]") // Array of restriction objects
+  daily_hours   Json?   // Optional per-day hours config: { "0": { is_closed?: boolean, intervals?: [{ start_time, end_time }], slot_duration?: number }, ... }
   is_active     Boolean @default(true)
 
   // Relations
