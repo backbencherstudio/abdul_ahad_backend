@@ -1031,6 +1031,144 @@ export class GarageScheduleService {
     return slotStart >= startTime && slotEnd <= endTime;
   }
 
+  // ✅ NEW: Validate if new time falls within operating hours
+  private validateOperatingHours(
+    newStartTime: string,
+    newEndTime: string,
+    workingIntervals: Array<{ start_time: string; end_time: string }>,
+  ): { isValid: boolean; errorMessage?: string } {
+    // Check if the new time range falls within any of the working intervals
+    const fitsInAnyInterval = workingIntervals.some((interval) => {
+      return (
+        newStartTime >= interval.start_time && newEndTime <= interval.end_time
+      );
+    });
+
+    if (!fitsInAnyInterval) {
+      const intervalStrings = workingIntervals.map(
+        (intv) => `${intv.start_time}-${intv.end_time}`,
+      );
+      return {
+        isValid: false,
+        errorMessage: `Cannot modify slot outside operating hours (${intervalStrings.join(', ')}). Please choose a time within these hours or update your schedule settings.`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  // ✅ NEW: Check for duplicate time slots
+  private async checkDuplicateTimeSlots(
+    garageId: string,
+    newStartTime: Date,
+    newEndTime: Date,
+    excludeSlotId?: string,
+  ): Promise<{
+    hasDuplicate: boolean;
+    duplicateSlot?: any;
+    errorMessage?: string;
+  }> {
+    const existingSlot = await this.prisma.timeSlot.findFirst({
+      where: {
+        garage_id: garageId,
+        start_datetime: newStartTime,
+        ...(excludeSlotId ? { id: { not: excludeSlotId } } : {}),
+      },
+    });
+
+    if (existingSlot) {
+      const existingTime = `${this.formatTime24Hour(existingSlot.start_datetime)}-${this.formatTime24Hour(existingSlot.end_datetime)}`;
+      return {
+        hasDuplicate: true,
+        duplicateSlot: existingSlot,
+        errorMessage: `A slot already exists at ${existingTime}. Please choose a different time or modify the existing slot.`,
+      };
+    }
+
+    return { hasDuplicate: false };
+  }
+
+  // ✅ NEW: Validate operating hours boundary integrity
+  private validateOperatingHoursBoundary(
+    currentTime: string,
+    newStartTime: string,
+    newEndTime: string,
+    workingIntervals: Array<{ start_time: string; end_time: string }>,
+    slotDuration: number,
+  ): { isValid: boolean; errorMessage?: string } {
+    // Check if this is a boundary slot modification
+    for (const interval of workingIntervals) {
+      // Check if current time is the first slot of the interval
+      const firstSlotStart = interval.start_time;
+      const firstSlotEnd = this.addMinutesToTime(firstSlotStart, slotDuration);
+
+      // Check if current time is the last slot of the interval
+      const lastSlotEnd = interval.end_time;
+      const lastSlotStart = this.subtractMinutesFromTime(
+        lastSlotEnd,
+        slotDuration,
+      );
+
+      // If modifying the first slot
+      if (currentTime === firstSlotStart) {
+        // ✅ FIXED: First slot must start at the same time (can't eliminate it)
+        if (newStartTime !== firstSlotStart) {
+          return {
+            isValid: false,
+            errorMessage: `Cannot modify first slot (${firstSlotStart}) to start at ${newStartTime}. The first slot must start at ${firstSlotStart} to maintain operating hours structure. You can only change its end time.`,
+          };
+        }
+
+        // Allow reducing duration but not eliminating the slot completely
+        if (newEndTime <= newStartTime) {
+          return {
+            isValid: false,
+            errorMessage: `Cannot eliminate the first slot (${firstSlotStart}). You can reduce its duration but must maintain at least a 15-minute slot.`,
+          };
+        }
+      }
+
+      // If modifying the last slot
+      if (currentTime === lastSlotStart) {
+        // ✅ FIXED: Last slot must end at the same time (can't eliminate it)
+        if (newEndTime > lastSlotEnd) {
+          return {
+            isValid: false,
+            errorMessage: `Cannot modify last slot (${lastSlotStart}) to end after operating hours (${lastSlotEnd}). This would violate the operating hour boundary.`,
+          };
+        }
+
+        // Allow reducing duration but not eliminating the slot completely
+        if (newEndTime <= newStartTime) {
+          return {
+            isValid: false,
+            errorMessage: `Cannot eliminate the last slot (${lastSlotStart}). You can reduce its duration but must maintain at least a 15-minute slot.`,
+          };
+        }
+      }
+    }
+
+    return { isValid: true };
+  }
+
+  // ✅ NEW: Helper method to add minutes to time
+  private addMinutesToTime(time: string, minutes: number): string {
+    const [hours, mins] = time.split(':').map(Number);
+    const totalMinutes = hours * 60 + mins + minutes;
+    const newHours = Math.floor(totalMinutes / 60);
+    const newMins = totalMinutes % 60;
+    return `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
+  }
+
+  // ✅ NEW: Helper method to subtract minutes from time
+  private subtractMinutesFromTime(time: string, minutes: number): string {
+    const [hours, mins] = time.split(':').map(Number);
+    const totalMinutes = hours * 60 + mins - minutes;
+    const newHours = Math.floor(totalMinutes / 60);
+    const newMins = totalMinutes % 60;
+    return `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
+  }
+
   // ✅ ENHANCED: Enhanced summary calculation with status array support
   private calculateEnhancedSummary(slots: any[]) {
     const summary = {
@@ -1971,11 +2109,33 @@ export class GarageScheduleService {
   ): Promise<ModificationResult> {
     return await this.prisma.$transaction(async (tx) => {
       try {
+        // ✅ NEW: Validate garage exists first
+        const garage = await tx.user.findUnique({
+          where: { id: garageId, type: 'GARAGE' },
+        });
+
+        if (!garage) {
+          throw new BadRequestException(
+            'Garage not found. Please check your garage ID.',
+          );
+        }
+
+        // ✅ NEW: Enhanced schedule validation with better error messages
         const schedule = await tx.schedule.findUnique({
           where: { garage_id: garageId },
         });
-        if (!schedule || !schedule.is_active)
-          throw new BadRequestException('No active schedule found.');
+
+        if (!schedule) {
+          throw new BadRequestException(
+            'No schedule found for this garage. Please set up your schedule first.',
+          );
+        }
+
+        if (!schedule.is_active) {
+          throw new BadRequestException(
+            'Schedule is currently inactive. Please activate your schedule to modify slots.',
+          );
+        }
 
         const timeFields = [
           dto.current_time,
@@ -2019,23 +2179,36 @@ export class GarageScheduleService {
         );
 
         if (effectiveForDay.isClosed) {
-          throw new BadRequestException('Selected day is closed');
-        }
-
-        const fitsSomeInterval = effectiveForDay.intervals.some((intv) => {
-          return (
-            dto.new_start_time >= intv.start_time &&
-            dto.new_end_time <= intv.end_time
-          );
-        });
-
-        if (!fitsSomeInterval) {
           throw new BadRequestException(
-            'New time must be within operating intervals for the day',
+            'Selected day is closed. Please choose a different date or update your schedule settings.',
           );
         }
 
-        // Also ensure not within declared breaks
+        // ✅ NEW: Validate operating hours with user-friendly error message
+        const operatingHoursValidation = this.validateOperatingHours(
+          dto.new_start_time,
+          dto.new_end_time,
+          effectiveForDay.intervals,
+        );
+
+        if (!operatingHoursValidation.isValid) {
+          throw new BadRequestException(operatingHoursValidation.errorMessage);
+        }
+
+        // ✅ NEW: Validate operating hours boundary integrity
+        const boundaryValidation = this.validateOperatingHoursBoundary(
+          dto.current_time,
+          dto.new_start_time,
+          dto.new_end_time,
+          effectiveForDay.intervals,
+          effectiveForDay.slotDuration,
+        );
+
+        if (!boundaryValidation.isValid) {
+          throw new BadRequestException(boundaryValidation.errorMessage);
+        }
+
+        // ✅ NEW: Check for break time conflicts (block modifications)
         const restrictionsForBreak = Array.isArray(schedule.restrictions)
           ? schedule.restrictions
           : JSON.parse(schedule.restrictions as string);
@@ -2045,8 +2218,12 @@ export class GarageScheduleService {
           dto.new_start_time,
           dto.new_end_time,
         );
-        if (breakCheck.isBreak) {
-          throw new BadRequestException('New time conflicts with break time');
+
+        // ✅ FIXED: Block modifications during break time (even with overlap=true)
+        if (breakCheck.isBreak && breakCheck.breakInfo) {
+          throw new BadRequestException(
+            `Cannot modify slot during break time (${breakCheck.breakInfo.start_time}-${breakCheck.breakInfo.end_time}). Please choose a time outside break hours.`,
+          );
         }
 
         this.validateSlotDuration(
@@ -2063,7 +2240,21 @@ export class GarageScheduleService {
 
         // ✅ FIXED: If existing slot is booked, reject immediately
         if (existingSlot && existingSlot.order_id) {
-          throw new BadRequestException('Cannot modify a booked slot');
+          throw new BadRequestException(
+            'Cannot modify a booked slot. Please choose a different slot or contact the customer to reschedule.',
+          );
+        }
+
+        // ✅ NEW: Check for duplicate time slots
+        const duplicateCheck = await this.checkDuplicateTimeSlots(
+          garageId,
+          newStartTime,
+          newEndTime,
+          existingSlot?.id,
+        );
+
+        if (duplicateCheck.hasDuplicate) {
+          throw new BadRequestException(duplicateCheck.errorMessage);
         }
 
         const startOfDay = new Date(targetDate);
@@ -2222,6 +2413,19 @@ export class GarageScheduleService {
           },
         });
 
+        // ✅ FIXED: Calculate original end time correctly
+        let originalEndTime: string;
+        if (existingSlot) {
+          // If there's an existing slot, use its end time
+          originalEndTime = this.formatTime24Hour(existingSlot.end_datetime);
+        } else {
+          // If no existing slot (template slot), calculate end time by adding slot duration
+          originalEndTime = this.addMinutesToTime(
+            dto.current_time,
+            effectiveForDay.slotDuration,
+          );
+        }
+
         return {
           success: true,
           modifications: [
@@ -2231,9 +2435,7 @@ export class GarageScheduleService {
               details: {
                 original_time: {
                   start: dto.current_time,
-                  end: existingSlot
-                    ? this.formatTime24Hour(existingSlot.end_datetime)
-                    : dto.current_time, // If no existing slot, use current time as end
+                  end: originalEndTime,
                 },
                 new_time: {
                   start: dto.new_start_time,
@@ -2245,13 +2447,40 @@ export class GarageScheduleService {
           message: 'Slot time modified successfully',
         };
       } catch (error) {
-        if (
-          error instanceof NotFoundException ||
-          error instanceof BadRequestException
-        )
+        // ✅ NEW: Enhanced error handling with specific error types
+        if (error instanceof NotFoundException) {
           throw error;
+        }
+
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        // ✅ NEW: Handle database constraint violations
+        if (error.code === 'P2002') {
+          throw new BadRequestException(
+            'A slot already exists at this time. Please choose a different time.',
+          );
+        }
+
+        // ✅ NEW: Handle database connection issues
+        if (error.code === 'P1001') {
+          throw new BadRequestException(
+            'Database connection failed. Please try again in a moment.',
+          );
+        }
+
+        // ✅ NEW: Handle transaction timeout
+        if (error.code === 'P2024') {
+          throw new BadRequestException(
+            'Operation timed out. Please try again with a smaller time range.',
+          );
+        }
+
+        // ✅ NEW: Generic error with more helpful message
+        console.error('Slot modification error:', error);
         throw new BadRequestException(
-          'Failed to modify slot time. Please check your input and try again.',
+          'Failed to modify slot time. Please check your input and try again. If the problem persists, contact support.',
         );
       }
     });
