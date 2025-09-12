@@ -1500,7 +1500,12 @@ export class GarageScheduleService {
       : JSON.parse(schedule.restrictions as string);
 
     // 3. Generate all holidays for the month
-    const holidays = generateHolidaysForMonth(restrictions, year, month);
+    const holidays = generateHolidaysForMonth(
+      restrictions,
+      year,
+      month,
+      schedule,
+    );
 
     return {
       success: true,
@@ -1609,6 +1614,22 @@ export class GarageScheduleService {
       // Non-breaking additional fields for UI
       day.working_intervals = effective.intervals;
       day.effective_slot_duration = effective.slotDuration;
+      // ✅ NEW: Filter breaks to those that fall within working intervals; clear on closed days
+      if (effective.isClosed) {
+        day.breaks = [];
+      } else if (
+        Array.isArray(day.breaks) &&
+        Array.isArray(effective.intervals)
+      ) {
+        day.breaks = day.breaks.filter(
+          (brk: { start_time: string; end_time: string }) =>
+            effective.intervals.some(
+              (intv: { start_time: string; end_time: string }) =>
+                brk.start_time >= intv.start_time &&
+                brk.end_time <= intv.end_time,
+            ),
+        );
+      }
       // Mark closure if effective says closed
       if (effective.isClosed) {
         day.is_holiday = true;
@@ -1617,7 +1638,12 @@ export class GarageScheduleService {
     }
 
     // 7. Generate holidays for the month
-    const monthHolidays = generateHolidaysForMonth(restrictions, year, month);
+    const monthHolidays = generateHolidaysForMonth(
+      restrictions,
+      year,
+      month,
+      schedule,
+    );
 
     // 8. Format response
     return {
@@ -1753,6 +1779,16 @@ export class GarageScheduleService {
       }
 
       const config = dailyHours[key] ?? {};
+      // Reject conflicting configuration
+      if (
+        config?.is_closed &&
+        Array.isArray(config?.intervals) &&
+        config.intervals.length > 0
+      ) {
+        throw new BadRequestException(
+          `daily_hours[${key}]: Cannot set both is_closed and intervals. Choose one.`,
+        );
+      }
       if (config.is_closed) {
         // Closed day: skip interval validations
         continue;

@@ -32,6 +32,13 @@ export interface WeekDateRange {
 
 // Helper Functions
 
+function formatLocalYMD(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Calculate which week of the month a date belongs to
  */
@@ -90,7 +97,7 @@ export function getCurrentWeekInfo(
   month: number,
 ): CurrentWeekInfo {
   const today = new Date();
-  const todayDate = today.toISOString().split('T')[0];
+  const todayDate = formatLocalYMD(today);
 
   // Check if today is in the requested month
   const isCurrentMonth =
@@ -219,7 +226,7 @@ export function generateWeekSchedule(
 
   // Generate 7 days
   for (let i = 0; i < 7; i++) {
-    const dateString = currentDate.toISOString().split('T')[0];
+    const dateString = formatLocalYMD(currentDate);
     const dayOfWeek = currentDate.getDay();
     const isHoliday = isDayRestricted(restrictions, currentDate);
     const isToday = dateString === todayDate;
@@ -266,34 +273,61 @@ export function generateHolidaysForMonth(
   restrictions: RestrictionDto[],
   year: number,
   month: number,
+  schedule?: any,
 ) {
   const holidays = [];
+  const added = new Set<string>();
 
   // Get all dates in the month
   const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Determine closed weekdays from schedule.daily_hours (0..6)
+  const closedWeekdays = new Set<number>();
+  try {
+    const daily = schedule?.daily_hours as Record<
+      string,
+      { is_closed?: boolean }
+    >;
+    if (daily && typeof daily === 'object') {
+      for (const key of Object.keys(daily)) {
+        const dayNum = parseInt(key, 10);
+        if (!Number.isNaN(dayNum) && dayNum >= 0 && dayNum <= 6) {
+          if (daily[key]?.is_closed) closedWeekdays.add(dayNum);
+        }
+      }
+    }
+  } catch {}
 
   for (let day = 1; day <= daysInMonth; day++) {
     // Use noon to avoid timezone issues
     const date = new Date(year, month - 1, day, 12, 0, 0, 0);
     const dayOfWeek = date.getDay();
 
-    // Check if this date is a holiday
+    const ymd = formatLocalYMD(date);
+
+    // 1) Closed weekdays from daily_hours
+    if (closedWeekdays.has(dayOfWeek) && !added.has(ymd)) {
+      holidays.push({
+        date: ymd,
+        day_of_week: dayOfWeek,
+        description: 'Closed',
+      });
+      added.add(ymd);
+    }
+
+    // 2) Restriction-based holidays
     const holidayRestriction = restrictions.find((r) => {
-      if (r.type !== 'HOLIDAY' || !r.is_recurring) {
-        return false;
+      if (r.type !== 'HOLIDAY') return false;
+
+      // Recurring by weekday
+      if (r.is_recurring) {
+        if (Array.isArray(r.day_of_week))
+          return r.day_of_week.includes(dayOfWeek);
+        if (r.day_of_week !== undefined && r.day_of_week === dayOfWeek)
+          return true;
       }
 
-      // Handle both single day and array of days
-      if (Array.isArray(r.day_of_week)) {
-        return r.day_of_week.includes(dayOfWeek);
-      }
-
-      // Handle single day value
-      if (r.day_of_week !== undefined && r.day_of_week === dayOfWeek) {
-        return true;
-      }
-
-      // Handle specific month/day combinations
+      // Specific date (month/day)
       if (
         r.month !== undefined &&
         r.month === month &&
@@ -302,16 +336,16 @@ export function generateHolidaysForMonth(
       ) {
         return true;
       }
-
       return false;
     });
 
-    if (holidayRestriction) {
+    if (holidayRestriction && !added.has(ymd)) {
       holidays.push({
-        date: date.toISOString().split('T')[0], // YYYY-MM-DD format
+        date: ymd,
         day_of_week: dayOfWeek,
         description: holidayRestriction.description || 'Holiday',
       });
+      added.add(ymd);
     }
   }
 
