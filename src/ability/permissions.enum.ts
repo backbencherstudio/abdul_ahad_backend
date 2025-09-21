@@ -23,4 +23,47 @@ export enum Permissions {
   note_update = 'note_update',
   note_show = 'note_show',
   note_delete = 'note_delete',
+
+  // ========== ADMIN PERMISSIONS ==========
+  // Dashboard
+  dashboard_read = 'dashboard_read',
+
+  // Garage Management
+  garage_management_read = 'garage_management_read',
+  garage_management_create = 'garage_management_create',
+  garage_management_update = 'garage_management_update',
+  garage_management_show = 'garage_management_show',
+  garage_management_delete = 'garage_management_delete',
+  garage_management_approve = 'garage_management_approve',
+
+  // Driver Management
+  driver_management_read = 'driver_management_read',
+  driver_management_create = 'driver_management_create',
+  driver_management_update = 'driver_management_update',
+  driver_management_show = 'driver_management_show',
+  driver_management_delete = 'driver_management_delete',
+
+  // Booking Management
+  booking_management_read = 'booking_management_read',
+  booking_management_update = 'booking_management_update',
+  booking_management_show = 'booking_management_show',
+  booking_management_cancel = 'booking_management_cancel',
+  booking_management_assign = 'booking_management_assign',
+
+  // Subscription Management
+  subscription_management_read = 'subscription_management_read',
+  subscription_management_create = 'subscription_management_create',
+  subscription_management_update = 'subscription_management_update',
+  subscription_management_show = 'subscription_management_show',
+  subscription_management_delete = 'subscription_management_delete',
+
+  // Payment Management
+  payment_management_read = 'payment_management_read',
+  payment_management_create = 'payment_management_create',
+  payment_management_refund = 'payment_management_refund',
+  payment_management_show = 'payment_management_show',
+
+  // Analytics & Reports
+  analytics_read = 'analytics_read',
+  reports_generate = 'reports_generate',
 }

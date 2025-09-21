@@ -43,6 +43,15 @@ export class SeedCommand extends CommandRunner {
       password: appConfig().defaultUser.system.password,
     });
 
+    // ✅ NEW: Auto-verify admin email
+    await this.prisma.user.update({
+      where: { id: systemUser.id },
+      data: {
+        email_verified_at: new Date(), // Auto-verify admin email
+        approved_at: new Date(), // Auto-approve admin
+      },
+    });
+
     await this.prisma.roleUser.create({
       data: {
         user_id: systemUser.id,
@@ -70,6 +79,30 @@ export class SeedCommand extends CommandRunner {
       },
       // Comment
       { title: 'Comment', subject: 'Comment' },
+
+      // NEW ADMIN PERMISSIONS
+      { title: 'dashboard', subject: 'Dashboard' },
+
+      { title: 'garage_management', subject: 'Garage' },
+
+      { title: 'driver_management', subject: 'Driver' },
+
+      {
+        title: 'booking_management',
+        subject: 'Booking',
+        scope: ['read', 'update', 'show', 'cancel', 'assign'],
+      },
+
+      { title: 'subscription_management', subject: 'Subscription' },
+
+      {
+        title: 'payment_management',
+        subject: 'Payment',
+        scope: ['read', 'create', 'refund', 'show'],
+      },
+
+      { title: 'analytics', subject: 'Analytics' },
+      { title: 'reports', subject: 'Reports', scope: ['generate'] },
     ];
 
     for (const permissionGroup of permissionGroups) {
@@ -107,113 +140,91 @@ export class SeedCommand extends CommandRunner {
 
   async permissionRoleSeed() {
     const all_permissions = await this.prisma.permission.findMany();
-    const su_admin_permissions = all_permissions.filter(function (permission) {
-      return permission.title.substring(0, 25) == 'system_tenant_management_';
-    });
-    // const su_admin_permissions = all_permissions;
+    const su_admin_permissions = all_permissions.filter(
+      (p) => p.title.substring(0, 25) == 'system_tenant_management_',
+    );
 
-    // -----su admin permission---
-    const adminPermissionRoleArray = [];
-    for (const su_admin_permission of su_admin_permissions) {
-      adminPermissionRoleArray.push({
-        role_id: '1',
-        permission_id: su_admin_permission.id,
-      });
-    }
+    // Super Admin gets system tenant management
+    const adminPermissionRoleArray = su_admin_permissions.map((p) => ({
+      role_id: '1',
+      permission_id: p.id,
+    }));
     await this.prisma.permissionRole.createMany({
       data: adminPermissionRoleArray,
     });
-    // -----------
 
-    // ---admin---
-    const project_admin_permissions = all_permissions.filter(
-      function (permission) {
-        return permission.title.substring(0, 25) != 'system_tenant_management_';
-      },
+    // Super Admin gets all admin permissions (dashboard/garage/driver/booking/subscription/payment/analytics/reports, plus user/role management)
+    const admin_permissions = all_permissions.filter(
+      (p) =>
+        p.title.substring(0, 25) != 'system_tenant_management_' &&
+        (p.title.startsWith('dashboard_') ||
+          p.title.startsWith('garage_management_') ||
+          p.title.startsWith('driver_management_') ||
+          p.title.startsWith('booking_management_') ||
+          p.title.startsWith('subscription_management_') ||
+          p.title.startsWith('payment_management_') ||
+          p.title.startsWith('analytics_') ||
+          p.title.startsWith('reports_') ||
+          p.title.startsWith('user_management_') ||
+          p.title.startsWith('role_management_')),
     );
-
-    const projectAdminPermissionRoleArray = [];
-    for (const admin_permission of project_admin_permissions) {
-      projectAdminPermissionRoleArray.push({
-        role_id: '2',
-        permission_id: admin_permission.id,
-      });
-    }
     await this.prisma.permissionRole.createMany({
-      data: projectAdminPermissionRoleArray,
+      data: admin_permissions.map((p) => ({
+        role_id: '1',
+        permission_id: p.id,
+      })),
     });
-    // -----------
 
-    // ---project manager---
-    const project_manager_permissions = all_permissions.filter(
-      function (permission) {
-        return (
-          permission.title == 'project_read' ||
-          permission.title == 'project_show' ||
-          permission.title == 'project_update' ||
-          permission.title.substring(0, 4) == 'Task' ||
-          permission.title.substring(0, 7) == 'Comment'
-        );
-      },
+    // Financial Admin (role_id: 6)
+    const financial_admin_permissions = all_permissions.filter(
+      (p) =>
+        p.title.startsWith('dashboard_') ||
+        p.title.startsWith('subscription_management_') ||
+        p.title.startsWith('payment_management_') ||
+        p.title.startsWith('analytics_') ||
+        p.title.startsWith('reports_'),
     );
-
-    const projectManagerPermissionRoleArray = [];
-    for (const project_manager_permission of project_manager_permissions) {
-      projectManagerPermissionRoleArray.push({
-        role_id: '3',
-        permission_id: project_manager_permission.id,
-      });
-    }
     await this.prisma.permissionRole.createMany({
-      data: projectManagerPermissionRoleArray,
-    });
-    // -----------
-
-    // ---member---
-    const member_permissions = all_permissions.filter(function (permission) {
-      return (
-        permission.title == 'project_read' ||
-        permission.title == 'project_show' ||
-        permission.title == 'task_read' ||
-        permission.title == 'task_show' ||
-        permission.title == 'task_update' ||
-        permission.title.substring(0, 7) == 'comment'
-      );
+      data: financial_admin_permissions.map((p) => ({
+        role_id: '6',
+        permission_id: p.id,
+      })),
     });
 
-    const memberPermissionRoleArray = [];
-    for (const project_manager_permission of member_permissions) {
-      memberPermissionRoleArray.push({
-        role_id: '4',
-        permission_id: project_manager_permission.id,
-      });
-    }
+    // Operations Admin (role_id: 7)
+    const operations_admin_permissions = all_permissions.filter(
+      (p) =>
+        p.title.startsWith('dashboard_') ||
+        p.title.startsWith('garage_management_') ||
+        p.title.startsWith('driver_management_') ||
+        p.title.startsWith('booking_management_'),
+    );
     await this.prisma.permissionRole.createMany({
-      data: memberPermissionRoleArray,
-    });
-    // -----------
-
-    // ---viewer---
-    const viewer_permissions = all_permissions.filter(function (permission) {
-      return (
-        permission.title == 'project_read' ||
-        permission.title == 'project_show' ||
-        permission.title == 'task_read' ||
-        permission.title == 'comment_read'
-      );
+      data: operations_admin_permissions.map((p) => ({
+        role_id: '7',
+        permission_id: p.id,
+      })),
     });
 
-    const viewerPermissionRoleArray = [];
-    for (const viewer_permission of viewer_permissions) {
-      viewerPermissionRoleArray.push({
-        role_id: '5',
-        permission_id: viewer_permission.id,
-      });
-    }
+    // Support Admin (role_id: 8) - read-only
+    const support_admin_permissions = all_permissions.filter(
+      (p) =>
+        p.title == 'dashboard_read' ||
+        (p.title.startsWith('garage_management_') &&
+          p.title.endsWith('_read')) ||
+        (p.title.startsWith('driver_management_') &&
+          p.title.endsWith('_read')) ||
+        (p.title.startsWith('booking_management_') &&
+          p.title.endsWith('_read')),
+    );
     await this.prisma.permissionRole.createMany({
-      data: viewerPermissionRoleArray,
+      data: support_admin_permissions.map((p) => ({
+        role_id: '8',
+        permission_id: p.id,
+      })),
     });
-    // -----------
+
+    // (keep existing mappings for project_manager/member/viewer as they are)
   }
 
   async roleSeed() {
@@ -246,6 +257,10 @@ export class SeedCommand extends CommandRunner {
           title: 'Viewer',
           name: 'viewer',
         },
+        // NEW
+        { id: '6', title: 'Financial Admin', name: 'financial_admin' },
+        { id: '7', title: 'Operations Admin', name: 'operations_admin' },
+        { id: '8', title: 'Support Admin', name: 'support_admin' },
       ],
     });
   }

@@ -18,6 +18,7 @@ export class StripeController {
 
       // Handle events
       switch (event.type) {
+        // ✅ EXISTING: Payment Intent Events (KEEP YOUR EXISTING CODE)
         case 'customer.created':
           break;
         case 'payment_intent.created':
@@ -45,6 +46,7 @@ export class StripeController {
             status: 'failed',
             raw_status: failedPaymentIntent.status,
           });
+          break;
         case 'payment_intent.canceled':
           const canceledPaymentIntent = event.data.object;
           // Update transaction status in database
@@ -71,6 +73,43 @@ export class StripeController {
           const failedPayout = event.data.object;
           console.log(failedPayout);
           break;
+
+        // ✅ NEW: Subscription Events (ADDED TO YOUR EXISTING CODE)
+        case 'product.created':
+          console.log('Product created:', event.data.object);
+          break;
+
+        case 'price.created':
+          console.log('Price created:', event.data.object);
+          break;
+
+        case 'customer.subscription.created':
+          console.log('Subscription created:', event.data.object);
+          await this.stripeService.handleSubscriptionCreated(event.data.object);
+          break;
+
+        case 'customer.subscription.updated':
+          console.log('Subscription updated:', event.data.object);
+          await this.stripeService.handleSubscriptionUpdated(event.data.object);
+          break;
+
+        case 'customer.subscription.deleted':
+          console.log('Subscription cancelled:', event.data.object);
+          await this.stripeService.handleSubscriptionCancelled(
+            event.data.object,
+          );
+          break;
+
+        case 'invoice.payment_succeeded':
+          console.log('Payment succeeded:', event.data.object);
+          await this.stripeService.handlePaymentSucceeded(event.data.object);
+          break;
+
+        case 'invoice.payment_failed':
+          console.log('Payment failed:', event.data.object);
+          await this.stripeService.handlePaymentFailed(event.data.object);
+          break;
+
         default:
           console.log(`Unhandled event type ${event.type}`);
       }

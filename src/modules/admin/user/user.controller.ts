@@ -17,10 +17,13 @@ import { Role } from '../../../common/guard/role/role.enum';
 import { Roles } from '../../../common/guard/role/roles.decorator';
 import { RolesGuard } from '../../../common/guard/role/roles.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { AbilitiesGuard } from '../../../ability/abilities.guard';
+import { CheckAbilities } from '../../../ability/abilities.decorator';
+import { Action } from '../../../ability/ability.factory';
 
 @ApiBearerAuth()
 @ApiTags('User')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, AbilitiesGuard)
 @Roles(Role.ADMIN)
 @Controller('admin/user')
 export class UserController {
@@ -28,6 +31,7 @@ export class UserController {
 
   @ApiResponse({ description: 'Create a user' })
   @Post()
+  @CheckAbilities({ action: Action.Create, subject: 'User' })
   async create(@Body() createUserDto: CreateUserDto) {
     try {
       const user = await this.userService.create(createUserDto);
@@ -42,6 +46,7 @@ export class UserController {
 
   @ApiResponse({ description: 'Get all users' })
   @Get()
+  @CheckAbilities({ action: Action.Read, subject: 'User' })
   async findAll(
     @Query() query: { q?: string; type?: string; approved?: string },
   ) {
@@ -64,6 +69,7 @@ export class UserController {
   @Roles(Role.ADMIN)
   @ApiResponse({ description: 'Approve a user' })
   @Post(':id/approve')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
   async approve(@Param('id') id: string) {
     try {
       const user = await this.userService.approve(id);
@@ -80,6 +86,7 @@ export class UserController {
   @Roles(Role.ADMIN)
   @ApiResponse({ description: 'Reject a user' })
   @Post(':id/reject')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
   async reject(@Param('id') id: string) {
     try {
       const user = await this.userService.reject(id);
@@ -94,6 +101,7 @@ export class UserController {
 
   @ApiResponse({ description: 'Get a user by id' })
   @Get(':id')
+  @CheckAbilities({ action: Action.Show, subject: 'User' })
   async findOne(@Param('id') id: string) {
     try {
       const user = await this.userService.findOne(id);
@@ -107,6 +115,7 @@ export class UserController {
   }
 
   @Patch(':id')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     try {
       const user = await this.userService.update(id, updateUserDto);
@@ -120,6 +129,7 @@ export class UserController {
   }
 
   @Delete(':id')
+  @CheckAbilities({ action: Action.Delete, subject: 'User' })
   async remove(@Param('id') id: string) {
     try {
       const user = await this.userService.remove(id);

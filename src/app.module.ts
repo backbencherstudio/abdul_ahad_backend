@@ -4,6 +4,7 @@ import { MiddlewareConsumer, Module } from '@nestjs/common';
 // import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // internal imports
 import appConfig from './config/app.config';
@@ -19,6 +20,7 @@ import { ApplicationModule } from './modules/application/application.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { SubscriptionStatusService } from './modules/admin/subscription/subscription-status.service';
 
 @Module({
   imports: [
@@ -65,6 +67,7 @@ import { PaymentModule } from './modules/payment/payment.module';
     AdminModule,
     ChatModule,
     PaymentModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [
@@ -78,6 +81,7 @@ import { PaymentModule } from './modules/payment/payment.module';
     //   useClass: ThrottlerBehindProxyGuard,
     // },
     AppService,
+    SubscriptionStatusService,
   ],
 })
 export class AppModule {

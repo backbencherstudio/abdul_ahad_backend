@@ -46,6 +46,9 @@ export class AuthService {
           state: true,
           city: true,
           zip_code: true,
+          email_verified_at: true,
+          approved_at: true,
+          status: true,
         },
       });
 
@@ -56,23 +59,107 @@ export class AuthService {
         };
       }
 
+      // ✅ NEW: Get user roles and permissions for admin users
+      let userRoles = [];
+      let userPermissions = [];
+
+      if (user.type === 'ADMIN') {
+        // Fetch user roles with role details
+        const roleUsers = await this.prisma.roleUser.findMany({
+          where: { user_id: userId },
+          include: {
+            role: {
+              include: {
+                permission_roles: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Extract role titles
+        userRoles = roleUsers.map((ru) => ({
+          id: ru.role.id,
+          title: ru.role.title,
+          name: ru.role.name,
+          created_at: ru.role.created_at,
+        }));
+
+        // Extract all permissions from all roles
+        const allPermissions = new Set();
+        roleUsers.forEach((ru) => {
+          ru.role.permission_roles.forEach((pr) => {
+            allPermissions.add(
+              JSON.stringify({
+                id: pr.permission.id,
+                title: pr.permission.title,
+                action: pr.permission.action,
+                subject: pr.permission.subject,
+                conditions: pr.permission.conditions,
+                fields: pr.permission.fields,
+              }),
+            );
+          });
+        });
+
+        // Convert Set back to array of objects, ensuring type safety
+        userPermissions = Array.from(allPermissions).map((permStr) =>
+          JSON.parse(permStr as string),
+        );
+      }
+
+      // Handle avatar URL
       if (user.avatar) {
         user['avatar_url'] = SojebStorage.url(
           appConfig().storageUrl.avatar + user.avatar,
         );
       }
 
-      if (user) {
-        return {
-          success: true,
-          data: user,
-        };
-      } else {
-        return {
-          success: false,
-          message: 'User not found',
-        };
-      }
+      // ✅ NEW: Enhanced response with roles and permissions
+      const responseData = {
+        ...user,
+        ...(user.type === 'ADMIN' && {
+          roles: userRoles,
+          permissions: userPermissions,
+          // ✅ NEW: Add permission summary for easy frontend use
+          permission_summary: {
+            can_manage_dashboard: userPermissions.some(
+              (p) => p.subject === 'Dashboard',
+            ),
+            can_manage_garages: userPermissions.some(
+              (p) => p.subject === 'Garage',
+            ),
+            can_manage_drivers: userPermissions.some(
+              (p) => p.subject === 'Driver',
+            ),
+            can_manage_bookings: userPermissions.some(
+              (p) => p.subject === 'Booking',
+            ),
+            can_manage_subscriptions: userPermissions.some(
+              (p) => p.subject === 'Subscription',
+            ),
+            can_manage_payments: userPermissions.some(
+              (p) => p.subject === 'Payment',
+            ),
+            can_manage_roles: userPermissions.some((p) => p.subject === 'Role'),
+            can_manage_users: userPermissions.some((p) => p.subject === 'User'),
+            can_view_analytics: userPermissions.some(
+              (p) => p.subject === 'Analytics',
+            ),
+            can_generate_reports: userPermissions.some(
+              (p) => p.subject === 'Reports',
+            ),
+          },
+        }),
+      };
+
+      return {
+        success: true,
+        data: responseData,
+      };
     } catch (error) {
       return {
         success: false,
@@ -200,6 +287,7 @@ export class AuthService {
       });
       if (_isValidPassword) {
         const { password, ...result } = user;
+
         if (user.is_two_factor_enabled) {
           if (token) {
             const isValid = await UserRepository.verify2FA(user.id, token);
@@ -241,6 +329,17 @@ export class AuthService {
       const token = this.jwtService.sign(payload);
       const user = await UserRepository.getUserDetails(userId);
 
+      // ✅ FIXED: Get user roles for admin users using 'name' instead of 'title'
+      let userRoles = [];
+      if (user.type === 'ADMIN') {
+        const roleUsers = await this.prisma.roleUser.findMany({
+          where: { user_id: userId },
+          include: { role: true },
+        });
+        // ✅ FIXED: Use role.name for snake_case format
+        userRoles = roleUsers.map((ru) => ru.role.name);
+      }
+
       return {
         success: true,
         message: 'Logged in successfully',
@@ -249,6 +348,7 @@ export class AuthService {
           type: 'bearer',
         },
         type: user.type,
+        roles: userRoles, // ✅ Now returns ["financial_admin"] instead of ["Financial Admin"]
       };
     } catch (error) {
       return {
@@ -278,7 +378,7 @@ export class AuthService {
     garage_name?: string;
     vts_number?: string;
     primary_contact?: string;
-    type?: Role
+    type?: Role;
     phone_number?: string;
   }) {
     try {
@@ -307,7 +407,7 @@ export class AuthService {
         primary_contact: primary_contact,
         phone_number: phone_number,
       });
-    
+
       if (user == null && user.success == false) {
         return {
           success: false,

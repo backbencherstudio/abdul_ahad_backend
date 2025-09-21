@@ -110,6 +110,7 @@ model User {
   // For TimeSlot relation (as garage)
   garageTimeSlots TimeSlot[] @relation("GarageTimeSlots")
   schedule        Schedule?
+  garage_subscriptions GarageSubscription[]
 
   // Add this field for reset state tracking
   is_reset Boolean @default(false)
@@ -710,4 +711,64 @@ model TimeSlot {
 
   @@unique([garage_id, start_datetime])
   @@index([garage_id, start_datetime, end_datetime])
+}
+
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  CANCELLED
+  PAST_DUE
+}
+
+model SubscriptionPlan {
+  id                        String   @id @default(cuid())
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+  name                      String   @unique
+  description               String?
+  price_pence               Int
+  currency                  String   @default("GBP")
+  max_bookings_per_month    Int
+  max_vehicles              Int
+  priority_support          Boolean  @default(false)
+  advanced_analytics        Boolean  @default(false)
+  custom_branding           Boolean  @default(false)
+  is_active                 Boolean  @default(true)
+  stripe_price_id           String?
+  stripe_product_id         String?
+
+  garage_subscriptions      GarageSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model GarageSubscription {
+  id                     String             @id @default(cuid())
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+
+  garage_id              String
+  garage                 User               @relation(fields: [garage_id], references: [id], onDelete: Cascade)
+
+  plan_id                String
+  plan                   SubscriptionPlan   @relation(fields: [plan_id], references: [id], onDelete: Restrict)
+
+  status                 SubscriptionStatus @default(ACTIVE)
+
+  current_period_start   DateTime?
+  current_period_end     DateTime?
+  next_billing_date      DateTime?
+
+  price_pence            Int
+  currency               String             @default("GBP")
+
+  stripe_subscription_id String?
+  stripe_customer_id     String?
+
+  @@index([garage_id])
+  @@index([plan_id])
+  @@index([status])
+  @@map("garage_subscriptions")
 }

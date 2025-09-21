@@ -452,12 +452,85 @@ export class StripePayment {
   }
   // end ACH
 
+  // Create or reuse a Stripe Product
+  static async createProduct({
+    name,
+    active,
+  }: {
+    name: string;
+    active: boolean;
+  }): Promise<stripe.Product> {
+    // Stripe has no product-by-name fetch API; create a new product each sync
+    // If you want idempotency per name, you can store product_id in DB later.
+    const product = await Stripe.products.create({
+      name,
+      active,
+    });
+    return product;
+  }
+
+  // Create a recurring Price for a product
+  static async createPrice({
+    unit_amount,
+    currency,
+    product,
+    recurring_interval,
+    metadata,
+  }: {
+    unit_amount: number; // in minor units (pence)
+    currency: string; // e.g. GBP
+    product: string; // product id
+    recurring_interval: 'day' | 'week' | 'month' | 'year';
+    metadata?: stripe.MetadataParam;
+  }): Promise<stripe.Price> {
+    const price = await Stripe.prices.create({
+      unit_amount,
+      currency: currency.toLowerCase(),
+      recurring: { interval: recurring_interval },
+      product,
+      metadata,
+    });
+    return price;
+  }
+
+  // Create a Subscription for a customer and a price
+  static async createSubscription({
+    customer,
+    price,
+    metadata,
+  }: {
+    customer: string; // stripe customer id
+    price: string; // stripe price id
+    metadata?: stripe.MetadataParam;
+  }): Promise<stripe.Subscription> {
+    const subscription = await Stripe.subscriptions.create({
+      customer,
+      items: [{ price }],
+      expand: ['latest_invoice.payment_intent'],
+      metadata,
+    });
+    return subscription;
+  }
+
+  // Cancel a Subscription
+  static async cancelSubscription(
+    subscription_id: string,
+  ): Promise<stripe.Subscription> {
+    const cancelled = await Stripe.subscriptions.cancel(subscription_id);
+    return cancelled;
+  }
+
   static handleWebhook(rawBody: string, sig: string | string[]): stripe.Event {
-    const event = Stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      STRIPE_WEBHOOK_SECRET,
-    );
-    return event;
+    try {
+      const event = Stripe.webhooks.constructEvent(
+        rawBody,
+        sig,
+        STRIPE_WEBHOOK_SECRET,
+      );
+      return event;
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      throw new Error('Invalid webhook signature');
+    }
   }
 }

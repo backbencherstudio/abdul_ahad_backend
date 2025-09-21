@@ -6,10 +6,13 @@ import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
 import { Role } from '../../../common/guard/role/role.enum';
 import { Roles } from '../../../common/guard/role/roles.decorator';
 import { Request } from 'express';
+import { AbilitiesGuard } from '../../../ability/abilities.guard';
+import { CheckAbilities } from '../../../ability/abilities.decorator';
+import { Action } from '../../../ability/ability.factory';
 
 @ApiBearerAuth()
 @ApiTags('Payment transaction')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, AbilitiesGuard)
 @Roles(Role.ADMIN)
 @Controller('admin/payment-transaction')
 export class PaymentTransactionController {
@@ -19,6 +22,7 @@ export class PaymentTransactionController {
 
   @ApiOperation({ summary: 'Get all packages' })
   @Get()
+  @CheckAbilities({ action: Action.Read, subject: 'Payment' })
   async findAll(@Req() req: Request) {
     try {
       const user_id = req.user.userId;
@@ -37,6 +41,7 @@ export class PaymentTransactionController {
 
   @ApiOperation({ summary: 'Get one package' })
   @Get(':id')
+  @CheckAbilities({ action: Action.Show, subject: 'Payment' })
   async findOne(@Req() req: Request, @Param('id') id: string) {
     try {
       const user_id = req.user.userId;
@@ -56,6 +61,7 @@ export class PaymentTransactionController {
   }
 
   @Delete(':id')
+  @CheckAbilities({ action: Action.Delete, subject: 'Payment' })
   async remove(@Req() req: Request, @Param('id') id: string) {
     try {
       const user_id = req.user.userId;
