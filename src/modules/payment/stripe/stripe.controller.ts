@@ -13,7 +13,7 @@ export class StripeController {
     @Req() req: Request,
   ) {
     try {
-      const payload = req.rawBody.toString();
+      const payload = req.body.toString();
       const event = await this.stripeService.handleWebhook(payload, signature);
 
       // Handle events
@@ -76,7 +76,8 @@ export class StripeController {
 
         // ✅ NEW: Subscription Events (ADDED TO YOUR EXISTING CODE)
         case 'product.created':
-          console.log('Product created:', event.data.object);
+        case 'plan.created': // Handle both product and plan events
+          console.log('Product/Plan created:', event.data.object);
           break;
 
         case 'price.created':

@@ -738,6 +738,8 @@ model SubscriptionPlan {
   is_active                 Boolean  @default(true)
   stripe_price_id           String?
   stripe_product_id         String?
+  // minimal flag for admin visibility/filters
+  is_legacy_price           Boolean  @default(false)
 
   garage_subscriptions      GarageSubscription[]
 
@@ -766,6 +768,12 @@ model GarageSubscription {
 
   stripe_subscription_id String?
   stripe_customer_id     String?
+
+  // minimal fields for migration flow
+  is_grandfathered       Boolean   @default(false)
+  notice_sent_at         DateTime?
+  migration_scheduled_at DateTime?
+  original_price_pence   Int?
 
   @@index([garage_id])
   @@index([plan_id])

@@ -30,6 +30,8 @@ import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionPlanResponseDto } from './dto/subscription-plan-response.dto';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
+import { PriceMigrationService } from './migration/price-migration.service';
+import { SubscriptionAnalyticsService } from './subscription-analytics.service';
 
 @ApiTags('Admin Subscription Plans')
 @Controller('admin/subscription/plans')
@@ -39,6 +41,8 @@ import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 export class SubscriptionPlanController {
   constructor(
     private readonly subscriptionPlanService: SubscriptionPlanService,
+    private readonly priceMigrationService: PriceMigrationService,
+    private readonly subscriptionAnalyticsService: SubscriptionAnalyticsService,
   ) {}
 
   @ApiOperation({ summary: 'Create new subscription plan' })
@@ -171,5 +175,62 @@ export class SubscriptionPlanController {
   @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
   async syncStripe(@Param('id') id: string) {
     return this.subscriptionPlanService.syncStripePrice(id);
+  }
+
+  // ===== Minimal Migration Endpoints =====
+  @ApiOperation({ summary: 'Create and link a new Stripe price for this plan' })
+  @Post(':id/migration/price')
+  @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
+  async createNewPrice(
+    @Param('id') id: string,
+    @Body() body: { new_price_pence: number },
+  ) {
+    return this.priceMigrationService.createNewPriceVersion(
+      id,
+      Number(body.new_price_pence),
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Send notices and schedule migration (default 30 days)',
+  })
+  @Post(':id/migration/notices')
+  @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
+  async sendNotices(
+    @Param('id') id: string,
+    @Body() body: { notice_period_days?: number },
+  ) {
+    return this.priceMigrationService.sendMigrationNotices(
+      id,
+      body?.notice_period_days ?? 30,
+    );
+  }
+
+  @ApiOperation({ summary: 'Bulk migrate ready subscriptions for this plan' })
+  @Post(':id/migration/bulk')
+  @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
+  async bulkMigrate(
+    @Param('id') id: string,
+    @Body() body: { batch_size?: number },
+  ) {
+    return this.priceMigrationService.bulkMigrateReady(
+      id,
+      body?.batch_size ?? 50,
+    );
+  }
+
+  @ApiOperation({ summary: 'Get migration status snapshot for this plan' })
+  @Get(':id/migration/status')
+  @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
+  async migrationStatus(@Param('id') id: string) {
+    return this.priceMigrationService.getMigrationStatus(id);
+  }
+
+  // ===== Global Migration Analytics =====
+  @ApiOperation({ summary: 'Get global migration summary across all plans' })
+  @Get('migration/summary')
+  @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
+  async getGlobalMigrationSummary() {
+    return this.subscriptionAnalyticsService.getGlobalMigrationSummary();
   }
 }

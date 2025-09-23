@@ -19,6 +19,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 import { CheckAbilities } from 'src/ability/abilities.decorator';
 import { Action } from 'src/ability/ability.factory';
 import { SubscriptionService } from './subscription.service';
+import { PriceMigrationService } from './migration/price-migration.service';
 
 @ApiTags('Admin Subscription Management')
 @Controller('admin/subscriptions')
@@ -26,7 +27,10 @@ import { SubscriptionService } from './subscription.service';
 @Roles(Role.ADMIN)
 @ApiBearerAuth()
 export class SubscriptionController {
-  constructor(private readonly subscriptionService: SubscriptionService) {}
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+    private readonly priceMigrationService: PriceMigrationService,
+  ) {}
 
   @ApiOperation({ summary: 'List subscription plans' })
   @Get('plans')
@@ -106,5 +110,16 @@ export class SubscriptionController {
   @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
   async getGarageSubscriptionHistory(@Param('garageId') garageId: string) {
     return this.subscriptionService.getGarageSubscriptionHistory(garageId);
+  }
+
+  // ===== Minimal manual migration endpoint (single subscription) =====
+  @ApiOperation({
+    summary:
+      "Manually migrate a single subscription to the plan's current price",
+  })
+  @Post(':subscriptionId/migration')
+  @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
+  async migrateSingle(@Param('subscriptionId') subscriptionId: string) {
+    return this.priceMigrationService.migrateCustomer(subscriptionId);
   }
 }

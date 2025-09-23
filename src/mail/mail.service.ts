@@ -78,4 +78,73 @@ export class MailService {
       console.log(error);
     }
   }
+
+  // Enqueue subscription price notice email (30-day notice)
+  async sendSubscriptionPriceNoticeEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    old_price: string; // formatted e.g. £30.00
+    new_price: string; // formatted e.g. £49.00
+    effective_date: string; // formatted date
+    billing_portal_url: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Upcoming subscription price update';
+
+      await this.queue.add('sendSubscriptionPriceNoticeEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'subscription-price-notice',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          old_price: params.old_price,
+          new_price: params.new_price,
+          effective_date: params.effective_date,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  // Enqueue subscription migration confirmation email
+  async sendSubscriptionMigrationConfirmationEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    new_price: string; // formatted e.g. £49.00
+    effective_date: string;
+    next_billing_date: string;
+    billing_portal_url: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Your subscription has been updated';
+
+      await this.queue.add('sendSubscriptionMigrationConfirmationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'subscription-migration-confirmation',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          new_price: params.new_price,
+          effective_date: params.effective_date,
+          next_billing_date: params.next_billing_date,
+          billing_portal_url: params.billing_portal_url,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }

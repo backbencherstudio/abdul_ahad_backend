@@ -220,7 +220,7 @@ export class GarageSubscriptionService {
 
     if (!subscription) {
       throw new NotFoundException(
-        `Garage subscription with ID '${id}' not found`,
+        `Garage subscription with ID '${id}' not found. Note: This endpoint expects a subscription ID, not a garage user ID or plan ID.`,
       );
     }
 

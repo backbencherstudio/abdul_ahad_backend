@@ -520,6 +520,33 @@ export class StripePayment {
     return cancelled;
   }
 
+  // Update an existing subscription to use a new price
+  static async updateSubscriptionPrice(
+    subscription_id: string,
+    new_price_id: string,
+  ): Promise<stripe.Subscription> {
+    // Retrieve current subscription to get item ids
+    const current = await Stripe.subscriptions.retrieve(subscription_id, {
+      expand: ['items.data.price'],
+    });
+
+    const primaryItem = (current as any).items?.data?.[0];
+    if (!primaryItem?.id) {
+      throw new Error('Subscription has no items to update');
+    }
+
+    return await Stripe.subscriptions.update(subscription_id, {
+      items: [
+        {
+          id: primaryItem.id,
+          price: new_price_id,
+        },
+      ],
+      expand: ['latest_invoice.payment_intent'],
+      proration_behavior: 'create_prorations',
+    });
+  }
+
   static handleWebhook(rawBody: string, sig: string | string[]): stripe.Event {
     try {
       const event = Stripe.webhooks.constructEvent(

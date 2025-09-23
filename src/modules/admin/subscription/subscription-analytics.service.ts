@@ -178,4 +178,103 @@ export class SubscriptionAnalyticsService {
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
   }
+
+  /**
+   * Global migration summary (minimal) across all plans
+   */
+  async getGlobalMigrationSummary(): Promise<{
+    plans_total: number;
+    subs_total: number;
+    grandfathered: number;
+    notice_sent: number;
+    ready_to_migrate: number;
+    migrated: number;
+    top_plans_by_ready: Array<{
+      plan_id: string;
+      plan_name: string;
+      ready_to_migrate: number;
+      total: number;
+    }>;
+  }> {
+    const now = new Date();
+
+    const [
+      plans_total,
+      subs_total,
+      grandfathered,
+      notice_sent,
+      ready_to_migrate,
+      migrated,
+    ] = await Promise.all([
+      this.prisma.subscriptionPlan.count(),
+      this.prisma.garageSubscription.count(),
+      this.prisma.garageSubscription.count({
+        where: { is_grandfathered: true },
+      }),
+      this.prisma.garageSubscription.count({
+        where: { is_grandfathered: true, notice_sent_at: { not: null } },
+      }),
+      this.prisma.garageSubscription.count({
+        where: {
+          is_grandfathered: true,
+          notice_sent_at: { not: null },
+          migration_scheduled_at: { lte: now },
+          status: 'ACTIVE',
+        },
+      }),
+      this.prisma.garageSubscription.count({
+        where: { is_grandfathered: false },
+      }),
+    ]);
+
+    // Top plans by `ready_to_migrate`
+    const readyGroup = await this.prisma.garageSubscription.groupBy({
+      by: ['plan_id'],
+      where: {
+        is_grandfathered: true,
+        notice_sent_at: { not: null },
+        migration_scheduled_at: { lte: now },
+        status: 'ACTIVE',
+      },
+      _count: { plan_id: true },
+      orderBy: { _count: { plan_id: 'desc' } },
+      take: 5,
+    });
+
+    const planIds = readyGroup.map((g) => g.plan_id);
+    const plans = planIds.length
+      ? await this.prisma.subscriptionPlan.findMany({
+          where: { id: { in: planIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const planNameMap = new Map(plans.map((p) => [p.id, p.name]));
+
+    // Also compute total per plan for context
+    const totalsGroup = await this.prisma.garageSubscription.groupBy({
+      by: ['plan_id'],
+      _count: { plan_id: true },
+      where: { plan_id: { in: planIds } },
+    });
+    const totalsMap = new Map(
+      totalsGroup.map((t) => [t.plan_id, t._count.plan_id]),
+    );
+
+    const top_plans_by_ready = readyGroup.map((g) => ({
+      plan_id: g.plan_id,
+      plan_name: planNameMap.get(g.plan_id) || 'Unknown',
+      ready_to_migrate: g._count.plan_id,
+      total: totalsMap.get(g.plan_id) || 0,
+    }));
+
+    return {
+      plans_total,
+      subs_total,
+      grandfathered,
+      notice_sent,
+      ready_to_migrate,
+      migrated,
+      top_plans_by_ready,
+    };
+  }
 }

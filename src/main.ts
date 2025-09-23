@@ -20,13 +20,16 @@ async function bootstrap() {
   });
 
   // Handle raw body for webhooks
-  // app.use('/payment/stripe/webhook', express.raw({ type: 'application/json' }));
+  app.use(
+    '/api/payment/stripe/webhook',
+    bodyParser.raw({ type: 'application/json' }),
+  );
 
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],    
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.use(helmet());
   // Enable it, if special charactrers not encoding perfectly

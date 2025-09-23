@@ -6,7 +6,8 @@ import { GarageSubscriptionController } from './garage-subscription.controller';
 import { GarageSubscriptionService } from './garage-subscription.service';
 import { SubscriptionStatusService } from './subscription-status.service';
 import { SubscriptionAnalyticsService } from './subscription-analytics.service';
-
+import { PriceMigrationService } from './migration/price-migration.service';
+import { PriceMigrationCron } from './migration/price-migration.cron';
 
 @Module({
   imports: [PrismaModule],
@@ -16,12 +17,16 @@ import { SubscriptionAnalyticsService } from './subscription-analytics.service';
     GarageSubscriptionService,
     SubscriptionStatusService,
     SubscriptionAnalyticsService,
+    PriceMigrationService,
+    PriceMigrationCron,
   ],
   exports: [
     SubscriptionPlanService,
     GarageSubscriptionService,
     SubscriptionStatusService,
     SubscriptionAnalyticsService,
+    PriceMigrationService,
+    PriceMigrationCron,
   ],
 })
 export class SubscriptionModule {}
