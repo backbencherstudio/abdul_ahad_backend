@@ -8,6 +8,7 @@ import { PrismaModule } from '../../../prisma/prisma.module';
 import { GarageBookingService } from './services/garage-booking.service';
 import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
+import { GarageSubscriptionService } from './services/garage-subscription.service';
 
 @Module({
   imports: [PrismaModule],
@@ -19,6 +20,7 @@ import { GarageInvoiceService } from './services/garage-invoice.service';
     GarageBookingService,
     GaragePaymentService,
     GarageInvoiceService,
+    GarageSubscriptionService,
   ],
   exports: [
     GarageProfileService,
@@ -27,6 +29,7 @@ import { GarageInvoiceService } from './services/garage-invoice.service';
     GarageBookingService,
     GaragePaymentService,
     GarageInvoiceService,
+    GarageSubscriptionService,
   ],
 })
 export class GarageDashboardModule {}

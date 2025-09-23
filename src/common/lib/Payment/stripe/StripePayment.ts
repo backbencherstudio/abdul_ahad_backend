@@ -113,6 +113,23 @@ export class StripePayment {
   }
 
   /**
+   * Validate if customer exists in Stripe
+   * @param customerId
+   * @returns
+   */
+  static async validateCustomer(customerId: string): Promise<boolean> {
+    try {
+      await Stripe.customers.retrieve(customerId);
+      return true;
+    } catch (error) {
+      if (error.code === 'resource_missing') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Create billing portal session
    * @param customer
    * @returns
@@ -210,6 +227,53 @@ export class StripePayment {
       success_url: success_url,
       cancel_url: cancel_url,
       // automatic_tax: { enabled: true },
+    });
+    return session;
+  }
+
+  /**
+   * Create stripe hosted checkout session with metadata for garage subscriptions
+   * @param customer
+   * @param price
+   * @param metadata
+   * @param success_url
+   * @param cancel_url
+   * @returns
+   */
+  static async createCheckoutSessionSubscriptionWithMetadata({
+    customer,
+    price,
+    metadata,
+    success_url,
+    cancel_url,
+  }: {
+    customer: string;
+    price: string;
+    metadata: stripe.MetadataParam;
+    success_url?: string;
+    cancel_url?: string;
+  }) {
+    const defaultSuccessUrl = `${
+      appConfig().app.url
+    }/success?session_id={CHECKOUT_SESSION_ID}`;
+    const defaultCancelUrl = `${appConfig().app.url}/failed`;
+
+    const session = await Stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      customer: customer,
+      line_items: [
+        {
+          price: price,
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        trial_period_days: 14,
+        metadata: metadata,
+      },
+      success_url: success_url || defaultSuccessUrl,
+      cancel_url: cancel_url || defaultCancelUrl,
     });
     return session;
   }

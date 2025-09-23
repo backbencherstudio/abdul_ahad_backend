@@ -17,7 +17,13 @@ import {
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guard/role/roles.guard';
 import { Roles } from '../../../common/guard/role/roles.decorator';
@@ -35,6 +41,18 @@ import { ScheduleDto, SetWeeklyPatternDto } from './dto/schedule.dto';
 import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
 import { SlotModificationDto } from './dto/slot-modification.dto';
 import { ModifySlotTimeDto } from './dto/modify-slot-time.dto';
+import { GarageSubscriptionService } from './services/garage-subscription.service';
+import { SubscriptionPlansResponseDto } from './dto/subscription-plan-response.dto';
+import { CurrentSubscriptionResponseDto } from './dto/current-subscription-response.dto';
+import {
+  SubscriptionCheckoutDto,
+  SubscriptionCheckoutResponseDto,
+} from './dto/subscription-checkout.dto';
+import {
+  BillingPortalResponseDto,
+  CancelSubscriptionDto,
+  CancelSubscriptionResponseDto,
+} from './dto/billing-portal.dto';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -48,6 +66,7 @@ export class GarageDashboardController {
     private readonly garageBookingService: GarageBookingService,
     private readonly garagePaymentService: GaragePaymentService,
     private readonly garageInvoiceService: GarageInvoiceService,
+    private readonly garageSubscriptionService: GarageSubscriptionService,
   ) {}
 
   // ==================== PROFILE MANAGEMENT ====================
@@ -388,5 +407,106 @@ export class GarageDashboardController {
   @Post('invoices/:id/download')
   async downloadInvoice(@Req() req, @Param('id') id: string) {
     return this.garageInvoiceService.downloadInvoice(req.user.userId, id);
+  }
+
+  // ==================== SUBSCRIPTION MANAGEMENT ====================
+
+  @ApiOperation({
+    summary: 'Get available subscription plans',
+    description:
+      'Returns all active subscription plans available for garages to subscribe to',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Available subscription plans retrieved successfully',
+    type: SubscriptionPlansResponseDto,
+  })
+  @Get('subscription/plans')
+  async getAvailablePlans(
+    @Req() req,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+      throw new BadRequestException('Invalid page or limit parameters');
+    }
+
+    return this.garageSubscriptionService.getAvailablePlans(pageNum, limitNum);
+  }
+
+  @ApiOperation({
+    summary: 'Get current subscription status',
+    description:
+      "Returns the garage's current subscription information or null if no active subscription",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current subscription status retrieved successfully',
+    type: CurrentSubscriptionResponseDto,
+  })
+  @Get('subscription/me')
+  async getCurrentSubscription(@Req() req) {
+    return this.garageSubscriptionService.getCurrentSubscription(
+      req.user.userId,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Start subscription checkout',
+    description:
+      'Creates a Stripe checkout session for the selected subscription plan',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Checkout session created successfully',
+    type: SubscriptionCheckoutResponseDto,
+  })
+  @Post('subscription/checkout')
+  async createCheckoutSession(
+    @Req() req,
+    @Body() dto: SubscriptionCheckoutDto,
+  ) {
+    return this.garageSubscriptionService.createCheckoutSession(
+      req.user.userId,
+      dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Access billing portal',
+    description:
+      'Creates a Stripe billing portal session for managing subscription and payment methods',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Billing portal session created successfully',
+    type: BillingPortalResponseDto,
+  })
+  @Post('subscription/billing-portal')
+  async createBillingPortalSession(@Req() req) {
+    return this.garageSubscriptionService.createBillingPortalSession(
+      req.user.userId,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Cancel subscription',
+    description:
+      'Cancel the current active subscription immediately or at period end',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Subscription cancelled successfully',
+    type: CancelSubscriptionResponseDto,
+  })
+  @Post('subscription/cancel')
+  async cancelSubscription(@Req() req, @Body() dto: CancelSubscriptionDto) {
+    return this.garageSubscriptionService.cancelSubscription(
+      req.user.userId,
+      dto,
+    );
   }
 }

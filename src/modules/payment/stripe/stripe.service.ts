@@ -16,6 +16,13 @@ export class StripeService {
   // Handle subscription created
   async handleSubscriptionCreated(subscription: any) {
     try {
+      // Check if this is a garage subscription (has garage metadata)
+      if (subscription.metadata?.source === 'garage_dashboard') {
+        await this.handleGarageSubscriptionCreated(subscription);
+        return;
+      }
+
+      // Handle admin subscriptions (existing logic)
       const garageSubscription = await this.prisma.garageSubscription.findFirst(
         {
           where: { stripe_subscription_id: subscription.id },
@@ -44,6 +51,57 @@ export class StripeService {
       }
     } catch (error) {
       console.error('Error handling subscription created:', error);
+    }
+  }
+
+  // Handle garage subscription created (new method)
+  async handleGarageSubscriptionCreated(subscription: any) {
+    try {
+      const metadata = subscription.metadata;
+
+      if (!metadata?.garage_subscription_id) {
+        console.error(
+          'No garage_subscription_id in metadata for subscription:',
+          subscription.id,
+        );
+        return;
+      }
+
+      // Find the pending garage subscription record
+      const garageSubscription =
+        await this.prisma.garageSubscription.findUnique({
+          where: { id: metadata.garage_subscription_id },
+          include: { garage: true, plan: true },
+        });
+
+      if (!garageSubscription) {
+        console.error(
+          'No garage subscription found with ID:',
+          metadata.garage_subscription_id,
+        );
+        return;
+      }
+
+      // Update the subscription record with Stripe data
+      await this.prisma.garageSubscription.update({
+        where: { id: garageSubscription.id },
+        data: {
+          status: 'ACTIVE',
+          stripe_subscription_id: subscription.id,
+          current_period_start: new Date(
+            subscription.current_period_start * 1000,
+          ),
+          current_period_end: new Date(subscription.current_period_end * 1000),
+          next_billing_date: new Date(subscription.current_period_end * 1000),
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(
+        `✅ Garage subscription activated: ${garageSubscription.garage.email} (Plan: ${garageSubscription.plan.name})`,
+      );
+    } catch (error) {
+      console.error('Error handling garage subscription created:', error);
     }
   }
 
