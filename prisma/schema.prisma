@@ -108,14 +108,19 @@ model User {
   TimeSlot                    TimeSlot[]
 
   // For TimeSlot relation (as garage)
-  garageTimeSlots TimeSlot[] @relation("GarageTimeSlots")
-  schedule        Schedule?
+  garageTimeSlots      TimeSlot[]           @relation("GarageTimeSlots")
+  schedule             Schedule?
   garage_subscriptions GarageSubscription[]
+
+  // Subscription visibility fields for driver garage filtering
+  has_subscription        Boolean   @default(false)
+  subscription_expires_at DateTime?
 
   // Add this field for reset state tracking
   is_reset Boolean @default(false)
 
   @@index([type])
+  @@index([has_subscription])
   @@map("users")
 }
 
@@ -655,9 +660,10 @@ enum InvoiceStatus {
   OVERDUE
   CANCELLED
 }
+
 enum ModificationType {
-  MANUAL_BLOCK  // When garage manually blocks a slot
-  BOOKED       // When a customer books a slot
+  MANUAL_BLOCK // When garage manually blocks a slot
+  BOOKED // When a customer books a slot
   TIME_MODIFIED
 }
 
@@ -672,7 +678,7 @@ model Schedule {
   end_time      String // "HH:mm" format
   slot_duration Int     @default(60) // minutes
   restrictions  Json    @default("[]") // Array of restriction objects
-  daily_hours   Json?   // Optional per-day hours config: { "0": { is_closed?: boolean, intervals?: [{ start_time, end_time }], slot_duration?: number }, ... }
+  daily_hours   Json? // Optional per-day hours config: { "0": { is_closed?: boolean, intervals?: [{ start_time, end_time }], slot_duration?: number }, ... }
   is_active     Boolean @default(true)
 
   // Relations
@@ -691,7 +697,6 @@ model TimeSlot {
   start_datetime DateTime
   end_datetime   DateTime
 
-
   is_available Boolean @default(true)
   is_blocked   Boolean @default(false)
 
@@ -705,14 +710,13 @@ model TimeSlot {
   schedule   Schedule? @relation(fields: [scheduleId], references: [id])
   scheduleId String?
 
-  modified_by         String?          // Who modified
-  modification_reason String?          // Why modified
+  modified_by         String? // Who modified
+  modification_reason String? // Why modified
   modification_type   ModificationType? // How modified
 
   @@unique([garage_id, start_datetime])
   @@index([garage_id, start_datetime, end_datetime])
 }
-
 
 enum SubscriptionStatus {
   ACTIVE
@@ -723,48 +727,53 @@ enum SubscriptionStatus {
 }
 
 model SubscriptionPlan {
-  id                        String   @id @default(cuid())
-  created_at                DateTime @default(now())
-  updated_at                DateTime @updatedAt
-  name                      String   @unique
-  description               String?
-  price_pence               Int
-  currency                  String   @default("GBP")
-  max_bookings_per_month    Int
-  max_vehicles              Int
-  priority_support          Boolean  @default(false)
-  advanced_analytics        Boolean  @default(false)
-  custom_branding           Boolean  @default(false)
-  is_active                 Boolean  @default(true)
-  stripe_price_id           String?
-  stripe_product_id         String?
+  id                     String   @id @default(cuid())
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+  name                   String   @unique
+  description            String?
+  price_pence            Int
+  currency               String   @default("GBP")
+  max_bookings_per_month Int
+  max_vehicles           Int
+  priority_support       Boolean  @default(false)
+  advanced_analytics     Boolean  @default(false)
+  custom_branding        Boolean  @default(false)
+  is_active              Boolean  @default(true)
+  stripe_price_id        String?
+  stripe_product_id      String?
   // minimal flag for admin visibility/filters
-  is_legacy_price           Boolean  @default(false)
+  is_legacy_price        Boolean  @default(false)
 
-  garage_subscriptions      GarageSubscription[]
+  garage_subscriptions GarageSubscription[]
 
   @@map("subscription_plans")
 }
 
 model GarageSubscription {
-  id                     String             @id @default(cuid())
-  created_at             DateTime           @default(now())
-  updated_at             DateTime           @updatedAt
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  garage_id              String
-  garage                 User               @relation(fields: [garage_id], references: [id], onDelete: Cascade)
+  garage_id String
+  garage    User   @relation(fields: [garage_id], references: [id], onDelete: Cascade)
 
-  plan_id                String
-  plan                   SubscriptionPlan   @relation(fields: [plan_id], references: [id], onDelete: Restrict)
+  plan_id String
+  plan    SubscriptionPlan @relation(fields: [plan_id], references: [id], onDelete: Restrict)
 
-  status                 SubscriptionStatus @default(ACTIVE)
+  status SubscriptionStatus @default(ACTIVE)
 
-  current_period_start   DateTime?
-  current_period_end     DateTime?
-  next_billing_date      DateTime?
+  current_period_start DateTime?
+  current_period_end   DateTime?
+  next_billing_date    DateTime?
 
-  price_pence            Int
-  currency               String             @default("GBP")
+  // Cancellation scheduling (from Stripe)
+  cancel_at            DateTime?
+  cancel_at_period_end Boolean?  @default(false)
+  cancellation_reason  String?
+
+  price_pence Int
+  currency    String @default("GBP")
 
   stripe_subscription_id String?
   stripe_customer_id     String?

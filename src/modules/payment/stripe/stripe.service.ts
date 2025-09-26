@@ -6,6 +6,96 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class StripeService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Helper method to update user subscription visibility status
+   * This method ensures the has_subscription field is properly maintained
+   * based on the garage's current subscription status
+   *
+   * @param garageId - The ID of the garage user
+   * @throws Error if database operations fail
+   */
+  private async updateUserSubscriptionStatus(garageId: string): Promise<void> {
+    try {
+      // Validate garage ID
+      if (!garageId || typeof garageId !== 'string') {
+        throw new Error(`Invalid garage ID provided: ${garageId}`);
+      }
+
+      console.log(`🔄 Updating subscription status for garage: ${garageId}`);
+
+      // Find the most recent active subscription for this garage
+      const activeSubscription = await this.prisma.garageSubscription.findFirst(
+        {
+          where: {
+            garage_id: garageId,
+            status: {
+              in: ['ACTIVE'], // Only ACTIVE subscriptions are visible to drivers
+            },
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          include: {
+            plan: true,
+            garage: {
+              select: {
+                email: true,
+                garage_name: true,
+              },
+            },
+          },
+        },
+      );
+
+      // Determine subscription status and expiration
+      const hasSubscription = !!activeSubscription;
+      const subscriptionExpiresAt =
+        activeSubscription?.current_period_end || null;
+      const garageInfo = activeSubscription?.garage || {
+        email: 'Unknown',
+        garage_name: 'Unknown',
+      };
+      const planName = activeSubscription?.plan?.name || 'None';
+
+      // Update user record with subscription status
+      await this.prisma.user.update({
+        where: { id: garageId },
+        data: {
+          has_subscription: hasSubscription,
+          subscription_expires_at: subscriptionExpiresAt,
+        },
+      });
+
+      console.log(
+        `✅ Updated subscription status for garage ${garageId} (${garageInfo.garage_name || garageInfo.email}): ` +
+          `has_subscription=${hasSubscription}, expires_at=${subscriptionExpiresAt}, ` +
+          `plan=${planName}`,
+      );
+
+      // Log driver visibility impact
+      if (hasSubscription) {
+        console.log(`👁️ Garage ${garageId} is now VISIBLE to drivers`);
+      } else {
+        console.log(`🚫 Garage ${garageId} is now HIDDEN from drivers`);
+      }
+    } catch (error) {
+      console.error(
+        `❌ Critical error updating subscription status for garage ${garageId}:`,
+        {
+          error: error.message,
+          stack: error.stack,
+          garageId,
+        },
+      );
+
+      // Don't re-throw for webhook handlers to prevent webhook failures
+      // Log the error and continue processing
+      console.error(
+        `⚠️ Continuing webhook processing despite subscription status update failure`,
+      );
+    }
+  }
+
   // ✅ EXISTING: Your existing webhook handler (KEEP THIS)
   async handleWebhook(rawBody: string, sig: string | string[]) {
     return StripePayment.handleWebhook(rawBody, sig);
@@ -97,6 +187,9 @@ export class StripeService {
         },
       });
 
+      // Update user subscription visibility status
+      await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
       console.log(
         `✅ Garage subscription activated: ${garageSubscription.garage.email} (Plan: ${garageSubscription.plan.name})`,
       );
@@ -116,10 +209,24 @@ export class StripeService {
       );
 
       if (garageSubscription) {
+        // Update subscription status based on Stripe status
+        const statusMapping = {
+          active: 'ACTIVE',
+          trialing: 'ACTIVE', // Treat trialing as active for visibility
+          past_due: 'PAST_DUE',
+          canceled: 'CANCELLED',
+          unpaid: 'PAST_DUE',
+          incomplete: 'INACTIVE',
+          incomplete_expired: 'CANCELLED',
+          paused: 'SUSPENDED',
+        };
+
+        const newStatus = statusMapping[subscription.status] || 'INACTIVE';
+
         await this.prisma.garageSubscription.update({
           where: { id: garageSubscription.id },
           data: {
-            status: subscription.status.toUpperCase(),
+            status: newStatus,
             current_period_start: new Date(
               subscription.current_period_start * 1000,
             ),
@@ -127,11 +234,21 @@ export class StripeService {
               subscription.current_period_end * 1000,
             ),
             next_billing_date: new Date(subscription.current_period_end * 1000),
+            cancel_at: subscription.cancel_at
+              ? new Date(subscription.cancel_at * 1000)
+              : null,
+            cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+            cancellation_reason:
+              subscription.cancellation_details?.feedback || null,
+            updated_at: new Date(),
           },
         });
 
+        // Update user subscription visibility status
+        await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
         console.log(
-          `Subscription updated for garage: ${garageSubscription.garage.email}`,
+          `✅ Subscription updated for garage: ${garageSubscription.garage.email} (Status: ${newStatus})`,
         );
       }
     } catch (error) {
@@ -154,11 +271,16 @@ export class StripeService {
           where: { id: garageSubscription.id },
           data: {
             status: 'CANCELLED',
+            updated_at: new Date(),
           },
         });
 
+        // Update user subscription visibility status
+        // This will set has_subscription to false since subscription is cancelled
+        await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
         console.log(
-          `Subscription cancelled for garage: ${garageSubscription.garage.email}`,
+          `✅ Subscription cancelled for garage: ${garageSubscription.garage.email}`,
         );
       }
     } catch (error) {
@@ -177,6 +299,15 @@ export class StripeService {
           });
 
         if (garageSubscription) {
+          // Update subscription status to ACTIVE if payment succeeded
+          await this.prisma.garageSubscription.update({
+            where: { id: garageSubscription.id },
+            data: {
+              status: 'ACTIVE',
+              updated_at: new Date(),
+            },
+          });
+
           // Create payment transaction record
           await this.prisma.paymentTransaction.create({
             data: {
@@ -192,8 +323,12 @@ export class StripeService {
             },
           });
 
+          // Update user subscription visibility status
+          // This will ensure has_subscription is true after successful payment
+          await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
           console.log(
-            `Payment succeeded for garage: ${garageSubscription.garage.email}`,
+            `✅ Payment succeeded for garage: ${garageSubscription.garage.email} (Amount: ${invoice.amount_paid / 100} ${invoice.currency})`,
           );
         }
       }
@@ -213,15 +348,21 @@ export class StripeService {
           });
 
         if (garageSubscription) {
+          // Update subscription status to PAST_DUE
           await this.prisma.garageSubscription.update({
             where: { id: garageSubscription.id },
             data: {
               status: 'PAST_DUE',
+              updated_at: new Date(),
             },
           });
 
+          // Update user subscription visibility status
+          // This will set has_subscription to false since payment failed
+          await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
           console.log(
-            `Payment failed for garage: ${garageSubscription.garage.email}`,
+            `❌ Payment failed for garage: ${garageSubscription.garage.email} (Amount: ${invoice.amount_due / 100} ${invoice.currency})`,
           );
         }
       }

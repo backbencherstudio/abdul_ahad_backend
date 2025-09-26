@@ -3,6 +3,28 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class TransactionRepository {
+  private static mapStatus(input?: string): string {
+    const s = (input || '').toLowerCase();
+    switch (s) {
+      case 'succeeded':
+      case 'paid':
+        return 'PAID';
+      case 'failed':
+        return 'FAILED';
+      case 'canceled':
+      case 'cancelled':
+        return 'FAILED';
+      case 'requires_action':
+      case 'processing':
+      case 'pending':
+        return 'PENDING';
+      case 'refunded':
+      case 'refund':
+        return 'REFUNDED';
+      default:
+        return 'PENDING';
+    }
+  }
   /**
    * Create transaction
    * @returns
@@ -34,7 +56,7 @@ export class TransactionRepository {
       data['reference_number'] = reference_number;
     }
     if (status) {
-      data['status'] = status;
+      data['status'] = this.mapStatus(status);
     }
     return await prisma.paymentTransaction.create({
       data: {
@@ -63,8 +85,9 @@ export class TransactionRepository {
     const data: any = {};
     const order_data: any = {};
     if (status) {
-      data['status'] = status;
-      order_data['payment_status'] = status;
+      const mapped = this.mapStatus(status);
+      data['status'] = mapped;
+      order_data['payment_status'] = mapped;
     }
     if (paid_amount) {
       data['paid_amount'] = Number(paid_amount);

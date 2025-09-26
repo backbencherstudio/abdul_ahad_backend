@@ -9,9 +9,10 @@ import { GarageBookingService } from './services/garage-booking.service';
 import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
 import { GarageSubscriptionService } from './services/garage-subscription.service';
+import { SubscriptionVisibilityModule } from '../../../common/lib/subscription/subscription-visibility.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SubscriptionVisibilityModule],
   controllers: [GarageDashboardController],
   providers: [
     GarageProfileService,

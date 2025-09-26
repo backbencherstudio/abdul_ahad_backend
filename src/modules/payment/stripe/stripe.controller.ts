@@ -111,6 +111,11 @@ export class StripeController {
           await this.stripeService.handlePaymentFailed(event.data.object);
           break;
 
+        case 'billing_portal.session.created':
+          console.log('Billing portal session created:', event.data.object);
+          // No action needed - this is just informational
+          break;
+
         default:
           console.log(`Unhandled event type ${event.type}`);
       }

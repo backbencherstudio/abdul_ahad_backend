@@ -8,9 +8,10 @@ import { SubscriptionStatusService } from './subscription-status.service';
 import { SubscriptionAnalyticsService } from './subscription-analytics.service';
 import { PriceMigrationService } from './migration/price-migration.service';
 import { PriceMigrationCron } from './migration/price-migration.cron';
+import { SubscriptionVisibilityModule } from '../../../common/lib/subscription/subscription-visibility.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SubscriptionVisibilityModule],
   controllers: [SubscriptionPlanController, GarageSubscriptionController],
   providers: [
     SubscriptionPlanService,

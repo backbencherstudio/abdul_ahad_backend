@@ -9,12 +9,29 @@ import { PrismaService } from '../../../../prisma/prisma.service';
 import { StripePayment } from '../../../../common/lib/Payment/stripe/StripePayment';
 import { SubscriptionCheckoutDto } from '../dto/subscription-checkout.dto';
 import { CancelSubscriptionDto } from '../dto/billing-portal.dto';
+import { SubscriptionVisibilityService } from '../../../../common/lib/subscription/subscription-visibility.service';
 
 @Injectable()
 export class GarageSubscriptionService {
   private readonly logger = new Logger(GarageSubscriptionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionVisibilityService: SubscriptionVisibilityService,
+  ) {}
+
+  /**
+   * Helper method to update user subscription visibility status
+   * Delegates to the shared SubscriptionVisibilityService
+   *
+   * @param garageId - The ID of the garage user
+   */
+  private async updateUserSubscriptionStatus(garageId: string): Promise<void> {
+    await this.subscriptionVisibilityService.updateUserSubscriptionStatus(
+      garageId,
+      'garage-dashboard',
+    );
+  }
 
   /**
    * Get all active subscription plans available for garages
@@ -116,11 +133,27 @@ export class GarageSubscriptionService {
         };
       }
 
+      // Get user subscription visibility status
+      const visibilityStatus =
+        await this.subscriptionVisibilityService.getSubscriptionVisibilityStatus(
+          garageId,
+        );
+
+      // Determine subscription type and trial information
+      const isTrial =
+        subscription.status === 'ACTIVE' && subscription.stripe_subscription_id;
+      const isScheduledForCancellation =
+        subscription.status === 'CANCELLED' && subscription.current_period_end;
+      const isActiveTrial = isTrial && !isScheduledForCancellation;
+      const isTrialWithCancellation = isTrial && isScheduledForCancellation;
+
       const formattedSubscription = {
         id: subscription.id,
         plan: {
           id: subscription.plan.id,
           name: subscription.plan.name,
+          currency: subscription.plan.currency,
+          price_pence: subscription.price_pence,
           price_formatted: this.formatPrice(
             subscription.price_pence,
             subscription.currency,
@@ -130,13 +163,17 @@ export class GarageSubscriptionService {
         current_period_start: subscription.current_period_start,
         current_period_end: subscription.current_period_end,
         next_billing_date: subscription.next_billing_date,
-        price_pence: subscription.price_pence,
-        price_formatted: this.formatPrice(
-          subscription.price_pence,
-          subscription.currency,
-        ),
         can_cancel: subscription.status === 'ACTIVE',
         created_at: subscription.created_at,
+
+        // Enhanced trial information
+        subscription_type: this.determineSubscriptionType(subscription),
+        trial_information: this.getTrialInformation(subscription),
+        cancellation_information: this.getCancellationInformation(subscription),
+        visibility: {
+          is_visible_to_drivers: visibilityStatus.hasSubscription,
+          visible_until: visibilityStatus.expiresAt,
+        },
       };
 
       return {
@@ -168,6 +205,99 @@ export class GarageSubscriptionService {
       default:
         return `${amount.toFixed(2)} ${currency}`;
     }
+  }
+
+  /**
+   * Determine subscription type based on status and Stripe data
+   */
+  private determineSubscriptionType(subscription: any): string {
+    if (
+      subscription.status === 'CANCELLED' &&
+      subscription.current_period_end
+    ) {
+      return 'trial_with_cancellation';
+    }
+    if (
+      subscription.status === 'ACTIVE' &&
+      subscription.stripe_subscription_id
+    ) {
+      return 'active_trial';
+    }
+    if (subscription.status === 'ACTIVE') {
+      return 'active_subscription';
+    }
+    if (subscription.status === 'PAST_DUE') {
+      return 'past_due';
+    }
+    if (subscription.status === 'SUSPENDED') {
+      return 'suspended';
+    }
+    return 'inactive';
+  }
+
+  /**
+   * Get trial information for the subscription
+   */
+  private getTrialInformation(subscription: any): any {
+    const now = new Date();
+    const periodEnd = subscription.current_period_end;
+
+    if (!periodEnd) {
+      return null;
+    }
+
+    const isInTrial =
+      subscription.status === 'ACTIVE' &&
+      Boolean(subscription.stripe_subscription_id);
+    const trialEndDate = new Date(periodEnd);
+    const daysRemaining = Math.ceil(
+      (trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    return {
+      is_trial: isInTrial,
+      trial_end: periodEnd,
+      days_remaining: Math.max(0, daysRemaining),
+      is_trial_active: isInTrial && daysRemaining > 0,
+      trial_status: isInTrial
+        ? daysRemaining > 0
+          ? 'active'
+          : 'expired'
+        : null,
+    };
+  }
+
+  /**
+   * Get cancellation information for the subscription
+   */
+  private getCancellationInformation(subscription: any): any {
+    const willCancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
+    const hasExplicitCancelAt = Boolean(subscription.cancel_at);
+
+    if (!willCancelAtPeriodEnd && !hasExplicitCancelAt) {
+      return null;
+    }
+
+    const now = new Date();
+    const effectiveCancellationDate =
+      subscription.cancel_at || subscription.current_period_end || null;
+
+    if (!effectiveCancellationDate) {
+      return null;
+    }
+
+    const cancellationDate = new Date(effectiveCancellationDate);
+    const daysUntilCancellation = Math.ceil(
+      (cancellationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    return {
+      is_scheduled_for_cancellation: true,
+      cancellation_date: effectiveCancellationDate,
+      days_until_cancellation: Math.max(0, daysUntilCancellation),
+      will_cancel_at_period_end: willCancelAtPeriodEnd,
+      cancellation_reason: subscription.cancellation_reason || null,
+    };
   }
 
   /**
@@ -499,6 +629,9 @@ export class GarageSubscriptionService {
           },
         });
 
+        // Update user subscription visibility status
+        await this.updateUserSubscriptionStatus(garageId);
+
         effectiveDate = new Date();
         cancelledImmediately = true;
       } else {
@@ -517,6 +650,9 @@ export class GarageSubscriptionService {
             updated_at: new Date(),
           },
         });
+
+        // Update user subscription visibility status
+        await this.updateUserSubscriptionStatus(garageId);
 
         effectiveDate = subscription.current_period_end || new Date();
         cancelledImmediately = false;

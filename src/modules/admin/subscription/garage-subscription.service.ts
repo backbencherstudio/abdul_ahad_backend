@@ -15,10 +15,27 @@ import {
   GarageSubscriptionAction,
 } from './dto/update-garage-subscription.dto';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
+import { SubscriptionVisibilityService } from '../../../common/lib/subscription/subscription-visibility.service';
 
 @Injectable()
 export class GarageSubscriptionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionVisibilityService: SubscriptionVisibilityService,
+  ) {}
+
+  /**
+   * Helper method to update user subscription visibility status
+   * Delegates to the shared SubscriptionVisibilityService
+   *
+   * @param garageId - The ID of the garage user
+   */
+  private async updateUserSubscriptionStatus(garageId: string): Promise<void> {
+    await this.subscriptionVisibilityService.updateUserSubscriptionStatus(
+      garageId,
+      'admin',
+    );
+  }
 
   async attachStripeSubscription(id: string) {
     const sub = await this.prisma.garageSubscription.findUnique({
@@ -360,6 +377,9 @@ export class GarageSubscriptionService {
         },
       },
     });
+
+    // Update user subscription visibility status
+    await this.updateUserSubscriptionStatus(subscription.garage.id);
 
     return this.formatSubscriptionResponse(updatedSubscription);
   }
