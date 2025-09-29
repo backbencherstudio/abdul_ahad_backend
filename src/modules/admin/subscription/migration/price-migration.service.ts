@@ -58,6 +58,21 @@ export class PriceMigrationService {
       },
     });
 
+    // ✅ FIXED: Mark existing active subscriptions as grandfathered
+    const grandfatheredCount = await this.prisma.garageSubscription.updateMany({
+      where: {
+        plan_id: planId,
+        status: 'ACTIVE',
+        is_grandfathered: false, // Only update non-grandfathered subscriptions
+      },
+      data: {
+        is_grandfathered: true,
+        original_price_pence: plan.price_pence, // Store the old price
+        // Keep their current price_pence unchanged (they pay old price)
+        updated_at: new Date(),
+      },
+    });
+
     return {
       success: true,
       plan_id: updated.id,
@@ -65,8 +80,8 @@ export class PriceMigrationService {
       new_price_pence: updated.price_pence,
       stripe_price_id: price.id,
       is_legacy_price: updated.is_legacy_price,
-      message:
-        'New price version created successfully. Existing subscribers remain grandfathered.',
+      grandfathered_subscriptions: grandfatheredCount.count,
+      message: `New price version created successfully. ${grandfatheredCount.count} existing subscribers marked as grandfathered.`,
     };
   }
 

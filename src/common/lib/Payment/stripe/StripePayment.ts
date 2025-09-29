@@ -584,6 +584,16 @@ export class StripePayment {
     return cancelled;
   }
 
+  // Cancel subscription at period end
+  static async cancelSubscriptionAtPeriodEnd(
+    subscription_id: string,
+  ): Promise<stripe.Subscription> {
+    const cancelled = await Stripe.subscriptions.update(subscription_id, {
+      cancel_at_period_end: true,
+    });
+    return cancelled;
+  }
+
   // Update an existing subscription to use a new price
   static async updateSubscriptionPrice(
     subscription_id: string,

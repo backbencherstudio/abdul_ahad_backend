@@ -611,62 +611,51 @@ export class GarageSubscriptionService {
         );
       }
 
-      let effectiveDate: Date;
-      let cancelledImmediately = false;
-
       if (dto.cancel_type === 'immediate') {
-        // Cancel immediately
+        // ✅ FIXED: Cancel immediately in Stripe only - let webhook handle the rest
         await StripePayment.cancelSubscription(
           subscription.stripe_subscription_id,
         );
 
-        // Update local subscription status
-        await this.prisma.garageSubscription.update({
-          where: { id: subscription.id },
-          data: {
-            status: 'CANCELLED',
-            updated_at: new Date(),
-          },
-        });
+        this.logger.log(
+          `Subscription cancellation initiated in Stripe for garage ${garageId}. Webhook will process the changes.`,
+        );
 
-        // Update user subscription visibility status
-        await this.updateUserSubscriptionStatus(garageId);
-
-        effectiveDate = new Date();
-        cancelledImmediately = true;
+        return {
+          success: true,
+          message:
+            'Subscription cancelled immediately. Webhook will process the changes.',
+          effective_date: new Date(),
+          cancelled_immediately: true,
+        };
       } else {
-        // Cancel at period end
-        // Note: For immediate cancellation at period end, we still use cancelSubscription
-        // Stripe will handle the timing automatically
-        await StripePayment.cancelSubscription(
+        // ✅ FIXED: Proper end-of-period cancellation
+        await StripePayment.cancelSubscriptionAtPeriodEnd(
           subscription.stripe_subscription_id,
         );
 
-        // Update local subscription status to indicate pending cancellation
+        // Update local database to show pending cancellation (not cancelled yet)
         await this.prisma.garageSubscription.update({
           where: { id: subscription.id },
           data: {
-            status: 'CANCELLED', // Will be effective at period end
+            cancel_at_period_end: true,
+            // Keep status as ACTIVE until period ends
             updated_at: new Date(),
           },
         });
 
-        // Update user subscription visibility status
-        await this.updateUserSubscriptionStatus(garageId);
+        this.logger.log(
+          `Subscription scheduled for end-of-period cancellation for garage ${garageId}`,
+        );
 
-        effectiveDate = subscription.current_period_end || new Date();
-        cancelledImmediately = false;
+        return {
+          success: true,
+          message:
+            'Subscription will be cancelled at the end of current billing period',
+          effective_date: subscription.current_period_end || new Date(),
+          cancelled_immediately: false,
+        };
       }
-
-      return {
-        success: true,
-        message:
-          dto.cancel_type === 'immediate'
-            ? 'Subscription cancelled immediately'
-            : 'Subscription will be cancelled at the end of current billing period',
-        effective_date: effectiveDate,
-        cancelled_immediately: cancelledImmediately,
-      };
     } catch (error) {
       this.logger.error(
         `Failed to cancel subscription for garage ${garageId}:`,
