@@ -10,6 +10,10 @@ import {
   UseGuards,
   ParseIntPipe,
   DefaultValuePipe,
+  Req,
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,7 +35,9 @@ import { SubscriptionPlanResponseDto } from './dto/subscription-plan-response.dt
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 import { PriceMigrationService } from './migration/price-migration.service';
+import { PriceMigrationCron } from './migration/price-migration.cron';
 import { SubscriptionAnalyticsService } from './subscription-analytics.service';
+import appConfig from '../../../config/app.config';
 
 @ApiTags('Admin Subscription Plans')
 @Controller('admin/subscription/plans')
@@ -39,9 +45,12 @@ import { SubscriptionAnalyticsService } from './subscription-analytics.service';
 @Roles(Role.ADMIN)
 @ApiBearerAuth()
 export class SubscriptionPlanController {
+  private readonly logger = new Logger(SubscriptionPlanController.name);
+
   constructor(
     private readonly subscriptionPlanService: SubscriptionPlanService,
     private readonly priceMigrationService: PriceMigrationService,
+    private readonly priceMigrationCron: PriceMigrationCron,
     private readonly subscriptionAnalyticsService: SubscriptionAnalyticsService,
   ) {}
 
@@ -216,6 +225,7 @@ export class SubscriptionPlanController {
     return this.priceMigrationService.bulkMigrateReady(
       id,
       body?.batch_size ?? 50,
+      false, // Default to normal behavior (respect date check)
     );
   }
 
@@ -232,5 +242,99 @@ export class SubscriptionPlanController {
   @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
   async getGlobalMigrationSummary() {
     return this.subscriptionAnalyticsService.getGlobalMigrationSummary();
+  }
+
+  // ===== Development Testing Endpoint =====
+  @ApiOperation({
+    summary: 'Manually trigger price migration cron (Development Only)',
+    description:
+      'This endpoint is only available in development environment. Triggers the price migration cron job immediately for testing purposes. Optionally bypass date check to process all grandfathered subscriptions regardless of scheduled date.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Migration cron executed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example: 'Price migration cron executed manually',
+        },
+        environment: { type: 'string', example: 'development' },
+        triggered_by: { type: 'string', example: 'admin@example.com' },
+        timestamp: { type: 'string', example: '2025-10-02T06:30:00.000Z' },
+        bypassed_date_check: { type: 'boolean', example: false },
+        note: {
+          type: 'string',
+          example:
+            'This is a development-only endpoint. Production uses automatic cron scheduling.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Endpoint not available in production environment',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: {
+          type: 'string',
+          example: 'This endpoint is only available in development environment',
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @Post('trigger-price-migration')
+  @CheckAbilities({ action: Action.Update, subject: 'Subscription' })
+  async triggerPriceMigration(
+    @Req() req,
+    @Body() body?: { bypass_date_check?: boolean },
+  ) {
+    // Environment check using app.config.ts
+    const config = appConfig();
+    const isDevelopment = config.app.node_env?.toLowerCase() === 'development';
+
+    if (!isDevelopment) {
+      throw new BadRequestException(
+        'This endpoint is only available in development environment. ' +
+          'Production migrations run automatically via cron job at 2:00 AM daily.',
+      );
+    }
+
+    try {
+      const bypassDateCheck = body?.bypass_date_check || false;
+
+      this.logger.log(
+        `🚀 MANUAL MIGRATION TRIGGERED by ${req.user?.email || 'unknown'} at ${new Date().toISOString()} (bypass date check: ${bypassDateCheck})`,
+      );
+
+      // Execute the cron job manually with bypass option
+      await this.priceMigrationCron.handleDailyBulkMigrate({
+        bypassDateCheck: bypassDateCheck,
+      });
+
+      this.logger.log('✅ Manual migration execution completed successfully');
+
+      return {
+        success: true,
+        message: 'Price migration cron executed manually',
+        environment: config.app.node_env,
+        triggered_by: req.user?.email || 'unknown',
+        timestamp: new Date().toISOString(),
+        bypassed_date_check: bypassDateCheck,
+        note: bypassDateCheck
+          ? 'Date check bypassed for testing. All grandfathered subscriptions processed regardless of scheduled date.'
+          : 'This is a development-only endpoint. Production uses automatic cron scheduling.',
+      };
+    } catch (error) {
+      this.logger.error('❌ Manual migration trigger failed:', error);
+      throw new InternalServerErrorException(
+        'Migration execution failed: ' + error.message,
+      );
+    }
   }
 }

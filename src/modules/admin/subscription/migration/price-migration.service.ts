@@ -153,7 +153,10 @@ export class PriceMigrationService {
   }
 
   // Manual migrate a single subscription – switches Stripe price then updates DB
-  async migrateCustomer(subscriptionId: string) {
+  async migrateCustomer(
+    subscriptionId: string,
+    bypassDateCheck: boolean = false,
+  ) {
     const sub = await this.prisma.garageSubscription.findUnique({
       where: { id: subscriptionId },
       include: { plan: true },
@@ -172,9 +175,11 @@ export class PriceMigrationService {
         subscription_id: sub.id,
       };
     }
+
+    // Only check migration date if bypass is not enabled
     if (
-      !sub.migration_scheduled_at ||
-      sub.migration_scheduled_at > new Date()
+      !bypassDateCheck &&
+      (!sub.migration_scheduled_at || sub.migration_scheduled_at > new Date())
     ) {
       throw new BadRequestException(
         'Migration is not yet due (notice period not completed)',
@@ -289,16 +294,27 @@ export class PriceMigrationService {
   }
 
   // Bulk migrate a batch of subscriptions that are ready
-  async bulkMigrateReady(planId: string, batchSize: number = 50) {
+  async bulkMigrateReady(
+    planId: string,
+    batchSize: number = 50,
+    bypassDateCheck: boolean = false,
+  ) {
     const now = new Date();
+
+    // Build where condition dynamically based on bypass parameter
+    const baseCondition = {
+      plan_id: planId,
+      is_grandfathered: true,
+      notice_sent_at: { not: null },
+      status: 'ACTIVE' as const,
+    };
+
+    const whereCondition = bypassDateCheck
+      ? baseCondition // No date restriction for testing
+      : { ...baseCondition, migration_scheduled_at: { lte: now } }; // Normal behavior
+
     const ready = await this.prisma.garageSubscription.findMany({
-      where: {
-        plan_id: planId,
-        is_grandfathered: true,
-        notice_sent_at: { not: null },
-        migration_scheduled_at: { lte: now },
-        status: 'ACTIVE',
-      },
+      where: whereCondition,
       orderBy: { created_at: 'asc' },
       take: batchSize,
       select: { id: true },
@@ -309,11 +325,25 @@ export class PriceMigrationService {
 
     for (const s of ready) {
       try {
-        const res = await this.migrateCustomer(s.id);
-        if (res?.success) migrated_ids.push(s.id);
-        else failed.push({ id: s.id, reason: 'unknown' });
+        console.log(
+          `🔄 Attempting to migrate subscription: ${s.id} (bypass: ${bypassDateCheck})`,
+        );
+        const res = await this.migrateCustomer(s.id, bypassDateCheck);
+        if (res?.success) {
+          console.log(`✅ Successfully migrated subscription: ${s.id}`);
+          migrated_ids.push(s.id);
+        } else {
+          console.log(
+            `❌ Migration returned non-success for subscription: ${s.id}`,
+          );
+          failed.push({ id: s.id, reason: 'unknown' });
+        }
       } catch (e) {
-        failed.push({ id: s.id, reason: (e as Error)?.message || 'error' });
+        const errorMessage = (e as Error)?.message || 'error';
+        console.log(
+          `❌ Migration failed for subscription: ${s.id}, reason: ${errorMessage}`,
+        );
+        failed.push({ id: s.id, reason: errorMessage });
       }
     }
 

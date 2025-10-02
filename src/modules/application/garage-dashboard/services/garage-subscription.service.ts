@@ -48,7 +48,8 @@ export class GarageSubscriptionService {
         this.prisma.subscriptionPlan.findMany({
           where: {
             is_active: true,
-            is_legacy_price: false, // Only show current pricing
+            // ✅ FIXED: Show all active plans regardless of legacy status
+            // New users will get the current price_pence value
           },
           skip,
           take: limit,
@@ -70,7 +71,7 @@ export class GarageSubscriptionService {
         this.prisma.subscriptionPlan.count({
           where: {
             is_active: true,
-            is_legacy_price: false,
+            // ✅ FIXED: Count all active plans
           },
         }),
       ]);
