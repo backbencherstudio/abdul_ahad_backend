@@ -75,6 +75,46 @@ export class MailProcessor extends WorkerHost {
             context: job.data.context,
           });
           break;
+        case 'sendUserBannedNotification':
+          this.logger.log('Sending user ban notification');
+          await this.mailerService.sendMail({
+            to: job.data.to,
+            from: job.data.from,
+            subject: job.data.subject,
+            template: job.data.template,
+            context: job.data.context,
+          });
+          break;
+        case 'sendUserUnbannedNotification':
+          this.logger.log('Sending user unban notification');
+          await this.mailerService.sendMail({
+            to: job.data.to,
+            from: job.data.from,
+            subject: job.data.subject,
+            template: job.data.template,
+            context: job.data.context,
+          });
+          break;
+        case 'sendAdminBannedNotification':
+          this.logger.log('Sending admin ban notification');
+          await this.mailerService.sendMail({
+            to: job.data.to,
+            from: job.data.from,
+            subject: job.data.subject,
+            template: job.data.template,
+            context: job.data.context,
+          });
+          break;
+        case 'sendAdminUnbannedNotification':
+          this.logger.log('Sending admin unban notification');
+          await this.mailerService.sendMail({
+            to: job.data.to,
+            from: job.data.from,
+            subject: job.data.subject,
+            template: job.data.template,
+            context: job.data.context,
+          });
+          break;
         default:
           this.logger.log('Unknown job name');
           return;

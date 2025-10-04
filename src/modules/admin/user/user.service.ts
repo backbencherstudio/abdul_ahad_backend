@@ -8,10 +8,14 @@ import { SojebStorage } from '../../../common/lib/Disk/SojebStorage';
 import { DateHelper } from '../../../common/helper/date.helper';
 import { Role } from 'src/common/guard/role/role.enum';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
+import { MailService } from '../../../mail/mail.service';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
   async create(createUserDto: CreateUserDto) {
     try {
@@ -274,60 +278,6 @@ export class UserService {
     }
   }
 
-  async approve(id: string) {
-    try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: id },
-      });
-      if (!user) {
-        return {
-          success: false,
-          message: 'User not found',
-        };
-      }
-      await this.prisma.user.update({
-        where: { id: id },
-        data: { approved_at: DateHelper.now() },
-      });
-      return {
-        success: true,
-        message: 'User approved successfully',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
-  async reject(id: string) {
-    try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: id },
-      });
-      if (!user) {
-        return {
-          success: false,
-          message: 'User not found',
-        };
-      }
-      await this.prisma.user.update({
-        where: { id: id },
-        data: { approved_at: null },
-      });
-      return {
-        success: true,
-        message: 'User rejected successfully',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
   async update(id: string, updateUserDto: UpdateUserDto) {
     try {
       const user = await UserRepository.updateUser(id, updateUserDto);
@@ -353,13 +303,324 @@ export class UserService {
 
   async remove(id: string) {
     try {
-      const user = await UserRepository.deleteUser(id);
-      return user;
+      // Validate user exists before attempting to ban
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          approved_at: true,
+          billing_id: true,
+          type: true,
+        },
+      });
+
+      if (!existingUser) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // Check if user is already banned
+      if (existingUser.approved_at === null) {
+        return {
+          success: false,
+          message: 'User is already banned',
+        };
+      }
+
+      // Ban user by setting approved_at to null (soft delete)
+      const bannedUser = await this.prisma.user.update({
+        where: { id },
+        data: {
+          approved_at: null,
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          approved_at: true,
+          billing_id: true,
+          type: true,
+        },
+      });
+
+      // Handle role-based actions
+      if (bannedUser.type === 'ADMIN') {
+        // Admin users: No Stripe actions needed (no subscriptions)
+        console.log(
+          `Admin user ${bannedUser.email} banned - skipping Stripe actions`,
+        );
+
+        // Send admin-specific ban notification email
+        await this.mailService.sendAdminBannedNotification({
+          user: {
+            name: bannedUser.name,
+            email: bannedUser.email,
+          },
+          reason: 'Administrative action',
+        });
+      } else {
+        // GARAGE/DRIVER users: Handle Stripe actions and send user notifications
+        await this.handleUserBanStripeActions(bannedUser);
+
+        // Send user ban notification email
+        await this.mailService.sendUserBannedNotification({
+          user: {
+            name: bannedUser.name,
+            email: bannedUser.email,
+          },
+          reason: 'Administrative action',
+        });
+      }
+
+      return {
+        success: true,
+        message: 'User banned successfully',
+        data: {
+          user_id: bannedUser.id,
+          email: bannedUser.email,
+          name: bannedUser.name,
+          banned_at: new Date(),
+        },
+      };
     } catch (error) {
+      console.error('Error banning user:', error);
       return {
         success: false,
-        message: error.message,
+        message: 'Failed to ban user: ' + error.message,
       };
+    }
+  }
+
+  /**
+   * Unban user by restoring approved_at status
+   * @param id - User ID to unban
+   * @returns Success response with user details
+   */
+  async unbanUser(id: string) {
+    try {
+      // Validate user exists before attempting to unban
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          approved_at: true,
+          billing_id: true,
+          type: true,
+        },
+      });
+
+      if (!existingUser) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // Check if user is not banned (already active)
+      if (existingUser.approved_at !== null) {
+        return {
+          success: false,
+          message: 'User is not banned (already active)',
+        };
+      }
+
+      // Unban user by setting approved_at to current date
+      const unbannedUser = await this.prisma.user.update({
+        where: { id },
+        data: {
+          approved_at: new Date(),
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          approved_at: true,
+          billing_id: true,
+          type: true,
+        },
+      });
+
+      // Handle role-based actions
+      if (unbannedUser.type === 'ADMIN') {
+        // Admin users: No Stripe actions needed (no subscriptions)
+        console.log(
+          `Admin user ${unbannedUser.email} unbanned - skipping Stripe actions`,
+        );
+
+        // Send admin-specific unban notification email
+        await this.mailService.sendAdminUnbannedNotification({
+          user: {
+            name: unbannedUser.name,
+            email: unbannedUser.email,
+          },
+        });
+      } else {
+        // GARAGE/DRIVER users: Handle Stripe actions and send user notifications
+        await this.handleUserUnbanStripeActions(unbannedUser);
+
+        // Check if user had active subscriptions before ban (for email context)
+        let hadSubscription = false;
+        if (unbannedUser.billing_id) {
+          try {
+            const activeSubscriptions =
+              await StripePayment.getActiveSubscriptions(
+                unbannedUser.billing_id,
+              );
+            hadSubscription = activeSubscriptions.length > 0;
+          } catch (error) {
+            console.error('Error checking subscription history:', error);
+            // Default to false if we can't check
+          }
+        }
+
+        // Send user unban notification email
+        await this.mailService.sendUserUnbannedNotification({
+          user: {
+            name: unbannedUser.name,
+            email: unbannedUser.email,
+          },
+          hadSubscription: hadSubscription,
+        });
+      }
+
+      return {
+        success: true,
+        message: 'User unbanned successfully',
+        data: {
+          user_id: unbannedUser.id,
+          email: unbannedUser.email,
+          name: unbannedUser.name,
+          unbanned_at: new Date(),
+        },
+      };
+    } catch (error) {
+      console.error('Error unbanning user:', error);
+      return {
+        success: false,
+        message: 'Failed to unban user: ' + error.message,
+      };
+    }
+  }
+
+  /**
+   * Handle Stripe actions when user is banned
+   * @param user - User object with billing_id
+   */
+  private async handleUserBanStripeActions(user: any) {
+    try {
+      // Skip if user doesn't have billing_id
+      if (!user.billing_id) {
+        console.log(
+          `User ${user.email} has no billing_id, skipping Stripe actions`,
+        );
+        return;
+      }
+
+      console.log(`Handling Stripe actions for banned user: ${user.email}`);
+
+      // Get active subscriptions for the customer
+      const activeSubscriptions = await StripePayment.getActiveSubscriptions(
+        user.billing_id,
+      );
+
+      if (activeSubscriptions.length > 0) {
+        console.log(
+          `Found ${activeSubscriptions.length} active subscriptions for user ${user.email}`,
+        );
+
+        // Cancel subscriptions at period end (graceful cancellation)
+        for (const subscription of activeSubscriptions) {
+          try {
+            await StripePayment.cancelSubscriptionAtPeriodEnd(subscription.id);
+            console.log(
+              `Subscription ${subscription.id} will be cancelled at period end`,
+            );
+          } catch (error) {
+            console.error(
+              `Error cancelling subscription ${subscription.id}:`,
+              error,
+            );
+            // Continue with other subscriptions even if one fails
+          }
+        }
+      } else {
+        console.log(`No active subscriptions found for user ${user.email}`);
+      }
+
+      // Update customer metadata to mark as banned
+      await StripePayment.updateCustomerMetadata({
+        customer_id: user.billing_id,
+        metadata: {
+          status: 'banned',
+          banned_at: new Date().toISOString(),
+          user_id: user.id,
+        },
+      });
+
+      console.log(
+        `Successfully updated Stripe customer metadata for banned user: ${user.email}`,
+      );
+    } catch (error) {
+      console.error(
+        `Error handling Stripe actions for banned user ${user.email}:`,
+        error,
+      );
+      // Don't throw error to prevent ban operation from failing
+      // Log the error and continue with the ban process
+    }
+  }
+
+  /**
+   * Handle Stripe actions when user is unbanned
+   * @param user - User object with billing_id
+   */
+  private async handleUserUnbanStripeActions(user: any) {
+    try {
+      // Skip if user doesn't have billing_id
+      if (!user.billing_id) {
+        console.log(
+          `User ${user.email} has no billing_id, skipping Stripe actions`,
+        );
+        return;
+      }
+
+      console.log(`Handling Stripe actions for unbanned user: ${user.email}`);
+
+      // Update customer metadata to mark as active
+      await StripePayment.updateCustomerMetadata({
+        customer_id: user.billing_id,
+        metadata: {
+          status: 'active',
+          unbanned_at: new Date().toISOString(),
+          user_id: user.id,
+          previous_status: 'banned',
+        },
+      });
+
+      console.log(
+        `Successfully updated Stripe customer metadata for unbanned user: ${user.email}`,
+      );
+
+      // Note: We don't automatically reactivate subscriptions
+      // User must manually resubscribe if they want paid features
+      console.log(
+        `User ${user.email} can manually resubscribe for paid features`,
+      );
+    } catch (error) {
+      console.error(
+        `Error handling Stripe actions for unbanned user ${user.email}:`,
+        error,
+      );
+      // Don't throw error to prevent unban operation from failing
+      // Log the error and continue with the unban process
     }
   }
 

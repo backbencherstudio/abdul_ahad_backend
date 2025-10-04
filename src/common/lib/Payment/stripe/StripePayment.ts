@@ -103,6 +103,30 @@ export class StripePayment {
   }
 
   /**
+   * Update customer metadata for ban/unban status management
+   * @param customer_id - Stripe customer ID
+   * @param metadata - Metadata to update
+   * @returns Updated customer object
+   */
+  static async updateCustomerMetadata({
+    customer_id,
+    metadata,
+  }: {
+    customer_id: string;
+    metadata: stripe.MetadataParam;
+  }): Promise<stripe.Customer> {
+    try {
+      const customer = await Stripe.customers.update(customer_id, {
+        metadata: metadata,
+      });
+      return customer;
+    } catch (error) {
+      console.error('Error updating customer metadata:', error);
+      throw new Error('Failed to update customer metadata: ' + error.message);
+    }
+  }
+
+  /**
    * Get customer using id
    * @param id
    * @returns
@@ -110,6 +134,27 @@ export class StripePayment {
   static async getCustomerByID(id: string): Promise<stripe.Customer> {
     const customer = await Stripe.customers.retrieve(id);
     return customer as stripe.Customer;
+  }
+
+  /**
+   * Get active subscriptions for a customer
+   * @param customer_id - Stripe customer ID
+   * @returns Array of active subscriptions
+   */
+  static async getActiveSubscriptions(
+    customer_id: string,
+  ): Promise<stripe.Subscription[]> {
+    try {
+      const subscriptions = await Stripe.subscriptions.list({
+        customer: customer_id,
+        status: 'active',
+        limit: 100, // Get up to 100 active subscriptions
+      });
+      return subscriptions.data;
+    } catch (error) {
+      console.error('Error fetching active subscriptions:', error);
+      throw new Error('Failed to fetch active subscriptions: ' + error.message);
+    }
   }
 
   /**

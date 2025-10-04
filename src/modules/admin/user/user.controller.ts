@@ -12,7 +12,12 @@ import {
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Role } from '../../../common/guard/role/role.enum';
 import { Roles } from '../../../common/guard/role/roles.decorator';
 import { RolesGuard } from '../../../common/guard/role/roles.guard';
@@ -65,40 +70,6 @@ export class UserController {
     }
   }
 
-  // approve user
-  @Roles(Role.ADMIN)
-  @ApiResponse({ description: 'Approve a user' })
-  @Post(':id/approve')
-  @CheckAbilities({ action: Action.Update, subject: 'User' })
-  async approve(@Param('id') id: string) {
-    try {
-      const user = await this.userService.approve(id);
-      return user;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
-  // reject user
-  @Roles(Role.ADMIN)
-  @ApiResponse({ description: 'Reject a user' })
-  @Post(':id/reject')
-  @CheckAbilities({ action: Action.Update, subject: 'User' })
-  async reject(@Param('id') id: string) {
-    try {
-      const user = await this.userService.reject(id);
-      return user;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
   @ApiResponse({ description: 'Get a user by id' })
   @Get(':id')
   @CheckAbilities({ action: Action.Show, subject: 'User' })
@@ -128,16 +99,124 @@ export class UserController {
     }
   }
 
-  @Delete(':id')
-  @CheckAbilities({ action: Action.Delete, subject: 'User' })
-  async remove(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Ban user - Role-based actions' })
+  @ApiResponse({
+    status: 200,
+    description: 'User banned successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'User banned successfully' },
+        data: {
+          type: 'object',
+          properties: {
+            user_id: { type: 'string', example: 'user_id' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            banned_at: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found or already banned',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'User not found' },
+      },
+    },
+  })
+  @Post(':id/ban')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
+  async banUser(@Param('id') id: string) {
     try {
-      const user = await this.userService.remove(id);
-      return user;
+      const result = await this.userService.remove(id);
+
+      if (!result.success) {
+        return {
+          statusCode: 400,
+          success: false,
+          message: result.message,
+        };
+      }
+
+      return {
+        statusCode: 200,
+        success: true,
+        message: result.message,
+        data: result.data,
+      };
     } catch (error) {
       return {
+        statusCode: 500,
         success: false,
-        message: error.message,
+        message: 'Internal server error: ' + error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Unban user - Role-based actions' })
+  @ApiResponse({
+    status: 200,
+    description: 'User unbanned successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'User unbanned successfully' },
+        data: {
+          type: 'object',
+          properties: {
+            user_id: { type: 'string', example: 'user_id' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            unbanned_at: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found or not banned',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'User not found' },
+      },
+    },
+  })
+  @Post(':id/unban')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
+  async unbanUser(@Param('id') id: string) {
+    try {
+      const result = await this.userService.unbanUser(id);
+
+      if (!result.success) {
+        return {
+          statusCode: 400,
+          success: false,
+          message: result.message,
+        };
+      }
+
+      return {
+        statusCode: 200,
+        success: true,
+        message: result.message,
+        data: result.data,
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        success: false,
+        message: 'Internal server error: ' + error.message,
       };
     }
   }

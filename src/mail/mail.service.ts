@@ -147,4 +147,130 @@ export class MailService {
       console.log(error);
     }
   }
+
+  /**
+   * Send user ban notification email
+   * @param user - User object with email and name
+   * @param reason - Reason for ban (optional)
+   */
+  async sendUserBannedNotification({ user, reason }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Account Banned - Simply MOT';
+
+      // add to queue
+      await this.queue.add('sendUserBannedNotification', {
+        to: user.email,
+        from: from,
+        subject: subject,
+        template: 'user-banned',
+        context: {
+          user: {
+            name: user.name,
+            email: user.email,
+          },
+          reason: reason || 'No reason provided',
+        },
+      });
+
+      console.log(`Ban notification email queued for user: ${user.email}`);
+    } catch (error) {
+      console.error('Error queuing ban notification email:', error);
+    }
+  }
+
+  /**
+   * Send user unban notification email
+   * @param user - User object with email and name
+   * @param hadSubscription - Whether user had active subscription before ban
+   */
+  async sendUserUnbannedNotification({ user, hadSubscription = false }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Account Restored - Simply MOT';
+
+      // add to queue
+      await this.queue.add('sendUserUnbannedNotification', {
+        to: user.email,
+        from: from,
+        subject: subject,
+        template: 'user-unbanned',
+        context: {
+          user: {
+            name: user.name,
+            email: user.email,
+          },
+          hadSubscription: hadSubscription,
+        },
+      });
+
+      console.log(`Unban notification email queued for user: ${user.email}`);
+    } catch (error) {
+      console.error('Error queuing unban notification email:', error);
+    }
+  }
+
+  /**
+   * Send admin ban notification email
+   * @param user - User object with email and name
+   * @param reason - Reason for ban (optional)
+   */
+  async sendAdminBannedNotification({ user, reason }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Administrative Access Revoked - Simply MOT';
+
+      // add to queue
+      await this.queue.add('sendAdminBannedNotification', {
+        to: user.email,
+        from: from,
+        subject: subject,
+        template: 'admin-banned',
+        context: {
+          user: {
+            name: user.name,
+            email: user.email,
+          },
+          reason: reason || 'Administrative action',
+        },
+      });
+
+      console.log(
+        `Admin ban notification email queued for user: ${user.email}`,
+      );
+    } catch (error) {
+      console.error('Error queuing admin ban notification email:', error);
+    }
+  }
+
+  /**
+   * Send admin unban notification email
+   * @param user - User object with email and name
+   */
+  async sendAdminUnbannedNotification({ user }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = 'Administrative Access Restored - Simply MOT';
+
+      // add to queue
+      await this.queue.add('sendAdminUnbannedNotification', {
+        to: user.email,
+        from: from,
+        subject: subject,
+        template: 'admin-unbanned',
+        context: {
+          user: {
+            name: user.name,
+            email: user.email,
+          },
+        },
+      });
+
+      console.log(
+        `Admin unban notification email queued for user: ${user.email}`,
+      );
+    } catch (error) {
+      console.error('Error queuing admin unban notification email:', error);
+    }
+  }
 }

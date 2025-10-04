@@ -75,6 +75,18 @@ export class LocalAuthGuard extends AuthGuard('local') {
       );
     }
 
+    // ✅ NEW: Add account approval status check
+    if (!user.approved_at) {
+      throw new HttpException(
+        {
+          message: 'Your account is not approved or has been banned',
+          code: 'ACCOUNT_NOT_APPROVED',
+          email: user.email,
+        },
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
     return user;
   }
 }

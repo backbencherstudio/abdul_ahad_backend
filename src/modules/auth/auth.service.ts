@@ -306,6 +306,12 @@ export class AuthService {
             // };
           }
         }
+
+        // ✅ NEW: Check if user account is approved (not banned)
+        if (!user.approved_at) {
+          throw new UnauthorizedException('Account not approved or banned');
+        }
+
         return result;
       } else {
         throw new UnauthorizedException('Password not matched');
@@ -586,6 +592,7 @@ export class AuthService {
             },
             data: {
               email_verified_at: new Date(Date.now()),
+              approved_at: new Date(Date.now()), // ✅ NEW: Set approved_at when email is verified
             },
           });
 
