@@ -19,10 +19,29 @@ export class UserService {
       if (createUserDto.role_ids && createUserDto.role_ids.length > 0) {
         const validRoles = await this.prisma.role.findMany({
           where: { id: { in: createUserDto.role_ids } },
+          select: { id: true, name: true, title: true },
         });
 
         if (validRoles.length !== createUserDto.role_ids.length) {
           throw new BadRequestException('One or more role IDs are invalid');
+        }
+
+        // Validate that user type matches role requirements
+        if (createUserDto.type === 'ADMIN') {
+          const systemRoles = validRoles.filter((role) =>
+            [
+              'super_admin',
+              'system_admin',
+              'financial_admin',
+              'operations_admin',
+              'support_admin',
+            ].includes(role.name),
+          );
+          if (systemRoles.length === 0) {
+            throw new BadRequestException(
+              'Admin users must be assigned at least one admin role',
+            );
+          }
         }
       }
 
@@ -336,6 +355,178 @@ export class UserService {
     try {
       const user = await UserRepository.deleteUser(id);
       return user;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  async assignRoles(userId: string, roleIds: string[]) {
+    try {
+      // Validate user exists
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, type: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Validate roles exist
+      const validRoles = await this.prisma.role.findMany({
+        where: { id: { in: roleIds } },
+        select: { id: true, name: true, title: true },
+      });
+
+      if (validRoles.length !== roleIds.length) {
+        throw new BadRequestException('One or more role IDs are invalid');
+      }
+
+      // Validate that admin users get admin roles
+      if (user.type === 'ADMIN') {
+        const systemRoles = validRoles.filter((role) =>
+          [
+            'super_admin',
+            'system_admin',
+            'financial_admin',
+            'operations_admin',
+            'support_admin',
+          ].includes(role.name),
+        );
+        if (systemRoles.length === 0) {
+          throw new BadRequestException(
+            'Admin users must be assigned at least one admin role',
+          );
+        }
+      }
+
+      // Remove existing role assignments
+      await this.prisma.roleUser.deleteMany({
+        where: { user_id: userId },
+      });
+
+      // Create new role assignments
+      await this.prisma.roleUser.createMany({
+        data: roleIds.map((roleId) => ({
+          user_id: userId,
+          role_id: roleId,
+        })),
+      });
+
+      // Return updated user with roles
+      const updatedUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          type: true,
+          role_users: {
+            include: {
+              role: {
+                select: {
+                  id: true,
+                  title: true,
+                  name: true,
+                  created_at: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const formattedRoles = updatedUser.role_users.map((ru) => ({
+        id: ru.role.id,
+        title: ru.role.title,
+        name: ru.role.name,
+        created_at: ru.role.created_at,
+      }));
+
+      return {
+        success: true,
+        message: 'User roles updated successfully',
+        data: {
+          ...updatedUser,
+          roles: formattedRoles,
+          role_users: undefined,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  async removeRole(userId: string, roleId: string) {
+    try {
+      // Validate user and role exist
+      const [user, role] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, type: true },
+        }),
+        this.prisma.role.findUnique({
+          where: { id: roleId },
+          select: { id: true, name: true },
+        }),
+      ]);
+
+      if (!user) throw new BadRequestException('User not found');
+      if (!role) throw new BadRequestException('Role not found');
+
+      // Prevent removing last admin role from admin users
+      if (user.type === 'ADMIN') {
+        const remainingRoles = await this.prisma.roleUser.findMany({
+          where: { user_id: userId },
+          include: {
+            role: {
+              select: { name: true },
+            },
+          },
+        });
+
+        const adminRoles = remainingRoles.filter((ru) =>
+          [
+            'super_admin',
+            'system_admin',
+            'financial_admin',
+            'operations_admin',
+            'support_admin',
+          ].includes(ru.role.name),
+        );
+
+        const removingAdminRole = [
+          'super_admin',
+          'system_admin',
+          'financial_admin',
+          'operations_admin',
+          'support_admin',
+        ].includes(role.name);
+
+        if (removingAdminRole && adminRoles.length <= 1) {
+          throw new BadRequestException(
+            'Cannot remove the last admin role from an admin user',
+          );
+        }
+      }
+
+      await this.prisma.roleUser.deleteMany({
+        where: {
+          user_id: userId,
+          role_id: roleId,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Role removed successfully',
+      };
     } catch (error) {
       return {
         success: false,

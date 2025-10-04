@@ -36,6 +36,7 @@ import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 import { PriceMigrationService } from './migration/price-migration.service';
 import { PriceMigrationCron } from './migration/price-migration.cron';
+import { MigrationJobService } from './migration/migration-job.service';
 import { SubscriptionAnalyticsService } from './subscription-analytics.service';
 import appConfig from '../../../config/app.config';
 
@@ -51,6 +52,7 @@ export class SubscriptionPlanController {
     private readonly subscriptionPlanService: SubscriptionPlanService,
     private readonly priceMigrationService: PriceMigrationService,
     private readonly priceMigrationCron: PriceMigrationCron,
+    private readonly migrationJobService: MigrationJobService,
     private readonly subscriptionAnalyticsService: SubscriptionAnalyticsService,
   ) {}
 
@@ -335,6 +337,156 @@ export class SubscriptionPlanController {
       throw new InternalServerErrorException(
         'Migration execution failed: ' + error.message,
       );
+    }
+  }
+
+  /**
+   * Get migration job history for a specific plan
+   */
+  @Get(':id/migration/jobs')
+  @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
+  @ApiOperation({
+    summary: 'Get migration job history for plan',
+    description:
+      'Returns all migration jobs associated with a specific subscription plan',
+  })
+  @ApiParam({ name: 'id', description: 'Subscription plan ID' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Maximum number of jobs to return (default: 20)',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved migration job history',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        plan_id: { type: 'string' },
+        plan_name: { type: 'string' },
+        jobs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              job_type: { type: 'string' },
+              status: { type: 'string' },
+              created_at: { type: 'string', format: 'date-time' },
+              started_at: { type: 'string', format: 'date-time' },
+              completed_at: { type: 'string', format: 'date-time' },
+              total_count: { type: 'number' },
+              success_count: { type: 'number' },
+              failed_count: { type: 'number' },
+              progress_percentage: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getPlanMigrationJobs(
+    @Param('id') planId: string,
+    @Query('limit') limit?: number,
+    @Req() req?: any,
+  ) {
+    try {
+      const jobLimit = limit ? Math.min(limit, 100) : 20; // Cap at 100
+
+      this.logger.log(
+        `Admin ${req?.user?.email || 'unknown'} requested migration jobs for plan ${planId} (limit: ${jobLimit})`,
+      );
+
+      const result = await this.migrationJobService.getJobsByPlan(
+        planId,
+        jobLimit,
+      );
+
+      this.logger.log(
+        `Retrieved ${result.jobs.length} migration jobs for plan ${planId} (${result.plan_name})`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get migration jobs for plan ${planId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get migration job statistics for a specific plan
+   */
+  @Get(':id/migration/statistics')
+  @CheckAbilities({ action: Action.Read, subject: 'Subscription' })
+  @ApiOperation({
+    summary: 'Get migration job statistics for plan',
+    description:
+      'Returns comprehensive statistics about migration jobs for a specific subscription plan',
+  })
+  @ApiParam({ name: 'id', description: 'Subscription plan ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved migration job statistics',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        statistics: {
+          type: 'object',
+          properties: {
+            total_jobs: { type: 'number' },
+            completed_jobs: { type: 'number' },
+            failed_jobs: { type: 'number' },
+            running_jobs: { type: 'number' },
+            pending_jobs: { type: 'number' },
+            success_rate: { type: 'number' },
+          },
+        },
+        recent_jobs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              plan_id: { type: 'string' },
+              job_type: { type: 'string' },
+              status: { type: 'string' },
+              created_at: { type: 'string', format: 'date-time' },
+              completed_at: { type: 'string', format: 'date-time' },
+              success_count: { type: 'number' },
+              failed_count: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getPlanMigrationStatistics(
+    @Param('id') planId: string,
+    @Req() req?: any,
+  ) {
+    try {
+      this.logger.log(
+        `Admin ${req?.user?.email || 'unknown'} requested migration statistics for plan ${planId}`,
+      );
+
+      const result = await this.migrationJobService.getJobStatistics(planId);
+
+      this.logger.log(
+        `Retrieved migration statistics for plan ${planId}: ${result.statistics.total_jobs} total jobs, ` +
+          `${result.statistics.success_rate}% success rate`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get migration statistics for plan ${planId}:`,
+        error,
+      );
+      throw error;
     }
   }
 }

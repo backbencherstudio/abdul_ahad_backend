@@ -57,6 +57,17 @@ export class RoleController {
     return this.roleService.listPermissions();
   }
 
+  @ApiOperation({ summary: 'Get role statistics and usage information' })
+  @ApiResponse({
+    status: 200,
+    description: 'Role statistics retrieved successfully',
+  })
+  @Get('statistics')
+  @CheckAbilities({ action: Action.Read, subject: 'Role' })
+  async getRoleStatistics() {
+    return this.roleService.getRoleStatistics();
+  }
+
   @ApiOperation({ summary: 'Get role by id (with permissions)' })
   @ApiResponse({ status: 200, description: 'Role retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Role not found' })

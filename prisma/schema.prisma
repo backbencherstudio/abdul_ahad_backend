@@ -789,3 +789,80 @@ model GarageSubscription {
   @@index([status])
   @@map("garage_subscriptions")
 }
+
+// --- MIGRATION JOB MANAGEMENT ---
+
+// Enum for job status tracking
+enum MigrationJobStatus {
+  PENDING // Job created, not yet started
+  RUNNING // Job is currently processing
+  COMPLETED // Job finished successfully
+  FAILED // Job failed with errors
+  CANCELLED // Job was cancelled by admin
+}
+
+// Model: MigrationJob
+// Purpose: Tracks bulk migration operations for subscription plan price changes
+// Created: When admin sends notice or triggers bulk migration for a plan
+model MigrationJob {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Job identification and metadata
+  plan_id  String // The subscription plan being migrated
+  job_type String // "NOTICE" or "MIGRATION"
+  status   MigrationJobStatus @default(PENDING)
+
+  // Job execution tracking
+  started_at   DateTime? // When job execution started
+  completed_at DateTime? // When job finished (success or failure)
+
+  // Job statistics
+  total_count   Int @default(0) // Total subscriptions to process
+  success_count Int @default(0) // Successfully processed
+  failed_count  Int @default(0) // Failed attempts
+
+  // Error tracking
+  error_message String? @db.Text // Overall job error if failed
+
+  // Relations
+  attempts JobAttempt[] // Individual subscription attempts
+
+  @@index([plan_id])
+  @@index([status])
+  @@index([job_type])
+  @@index([created_at])
+  @@map("migration_jobs")
+}
+
+// Model: JobAttempt
+// Purpose: Tracks individual subscription migration attempts within a job
+// Created: For each subscription processed in a migration job
+model JobAttempt {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt 
+
+  // Link to parent job
+  job_id String
+  job    MigrationJob @relation(fields: [job_id], references: [id], onDelete: Cascade)
+
+  // Subscription being processed
+  subscription_id String // GarageSubscription ID
+  garage_id       String // For quick filtering
+
+  // Attempt result
+  success       Boolean
+  error_message String? @db.Text
+
+  // Retry tracking
+  attempt_number Int       @default(1) // Which attempt this is (1, 2, 3...)
+  retry_after    DateTime? // When to retry if failed
+
+  @@index([job_id])
+  @@index([subscription_id])
+  @@index([garage_id])
+  @@index([success])
+  @@map("job_attempts")
+}

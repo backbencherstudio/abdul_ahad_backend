@@ -141,4 +141,37 @@ export class UserController {
       };
     }
   }
+
+  @ApiResponse({ description: 'Assign roles to user' })
+  @Post(':id/roles')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
+  async assignRoles(
+    @Param('id') id: string,
+    @Body() body: { role_ids: string[] },
+  ) {
+    try {
+      const result = await this.userService.assignRoles(id, body.role_ids);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiResponse({ description: 'Remove role from user' })
+  @Delete(':id/roles/:roleId')
+  @CheckAbilities({ action: Action.Update, subject: 'User' })
+  async removeRole(@Param('id') id: string, @Param('roleId') roleId: string) {
+    try {
+      const result = await this.userService.removeRole(id, roleId);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
 }

@@ -2,16 +2,23 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { StripePayment } from '../../../../common/lib/Payment/stripe/StripePayment';
 import { MailService } from '../../../../mail/mail.service';
+import { MigrationJobService } from './migration-job.service';
+import { JobAttemptService } from './job-attempt.service';
 
 @Injectable()
 export class PriceMigrationService {
+  private readonly logger = new Logger(PriceMigrationService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly migrationJobService: MigrationJobService,
+    private readonly jobAttemptService: JobAttemptService,
   ) {}
 
   // Create a new Stripe Price for the plan product and link it
@@ -85,10 +92,13 @@ export class PriceMigrationService {
     };
   }
 
-  // Mark grandfathered subs and schedule migration window (no email here; that’s Chapter 5)
+  // Mark grandfathered subs and schedule migration window with job tracking
   async sendMigrationNotices(planId: string, noticePeriodDays = 30) {
-    if (noticePeriodDays < 1) {
-      throw new BadRequestException('noticePeriodDays must be >= 1');
+    if (noticePeriodDays < 0.000694) {
+      // 1 minute minimum for testing
+      throw new BadRequestException(
+        'noticePeriodDays must be >= 1 minute (0.000694 days)',
+      );
     }
 
     const plan = await this.prisma.subscriptionPlan.findUnique({
@@ -96,60 +106,151 @@ export class PriceMigrationService {
     });
     if (!plan) throw new NotFoundException('Plan not found');
 
-    const now = new Date();
-    const scheduledAt = new Date(
-      now.getTime() + noticePeriodDays * 24 * 60 * 60 * 1000,
+    this.logger.log(
+      `🚀 Starting migration notice campaign for plan ${planId} (${plan.name})`,
     );
 
-    const { count } = await this.prisma.garageSubscription.updateMany({
-      where: {
-        plan_id: planId,
-        status: 'ACTIVE',
-        is_grandfathered: true,
-        notice_sent_at: null,
-      },
-      data: {
-        notice_sent_at: now,
-        migration_scheduled_at: scheduledAt,
-        updated_at: now,
-      },
+    // Create a migration job for tracking
+    const job = await this.migrationJobService.createJob({
+      plan_id: planId,
+      job_type: 'NOTICE',
     });
 
-    // Enqueue notice emails for affected subscriptions (just marked)
-    const affected = await this.prisma.garageSubscription.findMany({
-      where: {
-        plan_id: planId,
-        status: 'ACTIVE',
-        is_grandfathered: true,
-        notice_sent_at: now,
-      },
-      include: {
-        garage: { select: { email: true, garage_name: true } },
-      },
-      take: 200,
-    });
+    try {
+      // Start the job
+      await this.migrationJobService.startJob(job.job_id);
 
-    const formatGBP = (p: number) => `£${(p / 100).toFixed(2)}`;
-    for (const sub of affected) {
-      const to = sub.garage?.email;
-      if (!to) continue;
-      await this.mailService.sendSubscriptionPriceNoticeEmail({
-        to,
-        garage_name: sub.garage?.garage_name || 'Customer',
-        plan_name: plan.name,
-        old_price: formatGBP(sub.original_price_pence ?? sub.price_pence),
-        new_price: formatGBP(plan.price_pence),
-        effective_date: scheduledAt.toDateString(),
-        billing_portal_url: `${process.env.APP_URL || 'https://app.local'}/billing`,
+      const now = new Date();
+      const scheduledAt = new Date(
+        now.getTime() + noticePeriodDays * 24 * 60 * 60 * 1000,
+      );
+
+      // Get subscriptions to process
+      const subscriptionsToProcess =
+        await this.prisma.garageSubscription.findMany({
+          where: {
+            plan_id: planId,
+            status: 'ACTIVE',
+            is_grandfathered: true,
+            notice_sent_at: null,
+          },
+          include: {
+            garage: { select: { email: true, garage_name: true } },
+          },
+        });
+
+      let processed = 0;
+      let succeeded = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      // Process each subscription with attempt tracking
+      for (const sub of subscriptionsToProcess) {
+        const attempt = await this.jobAttemptService.createAttempt({
+          job_id: job.job_id,
+          subscription_id: sub.id,
+          garage_id: sub.garage_id,
+        });
+
+        try {
+          // Update subscription with notice information
+          await this.prisma.garageSubscription.update({
+            where: { id: sub.id },
+            data: {
+              notice_sent_at: now,
+              migration_scheduled_at: scheduledAt,
+              updated_at: now,
+            },
+          });
+
+          // Send email notification
+          const to = sub.garage?.email;
+          if (to) {
+            const formatGBP = (p: number) => `£${(p / 100).toFixed(2)}`;
+            await this.mailService.sendSubscriptionPriceNoticeEmail({
+              to,
+              garage_name: sub.garage?.garage_name || 'Customer',
+              plan_name: plan.name,
+              old_price: formatGBP(sub.original_price_pence ?? sub.price_pence),
+              new_price: formatGBP(plan.price_pence),
+              effective_date: scheduledAt.toDateString(),
+              billing_portal_url: `${process.env.APP_URL || 'https://app.local'}/billing`,
+            });
+          }
+
+          // Mark attempt as successful
+          await this.jobAttemptService.updateAttempt(attempt.attempt_id, {
+            success: true,
+          });
+
+          succeeded++;
+          this.logger.log(
+            `✅ Notice sent to ${sub.garage?.email} for subscription ${sub.id}`,
+          );
+        } catch (error) {
+          const errorMessage = (error as Error)?.message || 'Unknown error';
+          errors.push(`Subscription ${sub.id}: ${errorMessage}`);
+
+          // Mark attempt as failed
+          await this.jobAttemptService.updateAttempt(attempt.attempt_id, {
+            success: false,
+            error_message: errorMessage,
+          });
+
+          failed++;
+          this.logger.error(
+            `❌ Failed to send notice for subscription ${sub.id}:`,
+            error,
+          );
+        }
+
+        processed++;
+      }
+
+      // Complete the job
+      await this.migrationJobService.completeJob(job.job_id, {
+        success: failed === 0,
+        processed,
+        succeeded,
+        failed,
+        error_message: errors.length > 0 ? errors.join('; ') : undefined,
       });
-    }
 
-    return {
-      success: true,
-      affected: count,
-      scheduled_for: scheduledAt,
-      message: `Migration notices sent to ${count} grandfathered subscribers. They will be ready for migration on ${scheduledAt.toISOString()}.`,
-    };
+      this.logger.log(
+        `🏁 Migration notice campaign completed for plan ${planId}: ` +
+          `processed=${processed}, succeeded=${succeeded}, failed=${failed}`,
+      );
+
+      return {
+        success: true,
+        job_id: job.job_id,
+        affected: succeeded,
+        scheduled_for: scheduledAt,
+        statistics: {
+          total_processed: processed,
+          succeeded,
+          failed,
+          success_rate:
+            processed > 0 ? Math.round((succeeded / processed) * 100) : 0,
+        },
+        message: `Migration notices sent to ${succeeded} grandfathered subscribers. They will be ready for migration on ${scheduledAt.toISOString()}.`,
+      };
+    } catch (error) {
+      // Mark job as failed
+      await this.migrationJobService.completeJob(job.job_id, {
+        success: false,
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        error_message: (error as Error)?.message || 'Unknown error',
+      });
+
+      this.logger.error(
+        `❌ Migration notice campaign failed for plan ${planId}:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   // Manual migrate a single subscription – switches Stripe price then updates DB
@@ -293,7 +394,7 @@ export class PriceMigrationService {
     };
   }
 
-  // Bulk migrate a batch of subscriptions that are ready
+  // Bulk migrate a batch of subscriptions that are ready with job tracking
   async bulkMigrateReady(
     planId: string,
     batchSize: number = 50,
@@ -301,59 +402,153 @@ export class PriceMigrationService {
   ) {
     const now = new Date();
 
-    // Build where condition dynamically based on bypass parameter
-    const baseCondition = {
+    this.logger.log(
+      `🚀 Starting bulk migration for plan ${planId} (batch size: ${batchSize}, bypass: ${bypassDateCheck})`,
+    );
+
+    // Create a migration job for tracking
+    const job = await this.migrationJobService.createJob({
       plan_id: planId,
-      is_grandfathered: true,
-      notice_sent_at: { not: null },
-      status: 'ACTIVE' as const,
-    };
-
-    const whereCondition = bypassDateCheck
-      ? baseCondition // No date restriction for testing
-      : { ...baseCondition, migration_scheduled_at: { lte: now } }; // Normal behavior
-
-    const ready = await this.prisma.garageSubscription.findMany({
-      where: whereCondition,
-      orderBy: { created_at: 'asc' },
-      take: batchSize,
-      select: { id: true },
+      job_type: 'MIGRATION',
     });
 
-    const migrated_ids: string[] = [];
-    const failed: { id: string; reason: string }[] = [];
+    try {
+      // Start the job
+      await this.migrationJobService.startJob(job.job_id);
 
-    for (const s of ready) {
-      try {
-        console.log(
-          `🔄 Attempting to migrate subscription: ${s.id} (bypass: ${bypassDateCheck})`,
-        );
-        const res = await this.migrateCustomer(s.id, bypassDateCheck);
-        if (res?.success) {
-          console.log(`✅ Successfully migrated subscription: ${s.id}`);
-          migrated_ids.push(s.id);
-        } else {
-          console.log(
-            `❌ Migration returned non-success for subscription: ${s.id}`,
+      // Build where condition dynamically based on bypass parameter
+      const baseCondition = {
+        plan_id: planId,
+        is_grandfathered: true,
+        notice_sent_at: { not: null },
+        status: 'ACTIVE' as const,
+      };
+
+      const whereCondition = bypassDateCheck
+        ? baseCondition // No date restriction for testing
+        : { ...baseCondition, migration_scheduled_at: { lte: now } }; // Normal behavior
+
+      const ready = await this.prisma.garageSubscription.findMany({
+        where: whereCondition,
+        orderBy: { created_at: 'asc' },
+        take: batchSize,
+        select: { id: true, garage_id: true },
+      });
+
+      this.logger.log(
+        `📋 Found ${ready.length} subscriptions ready for migration`,
+      );
+
+      let processed = 0;
+      let succeeded = 0;
+      let failed = 0;
+      const errors: string[] = [];
+      const migrated_ids: string[] = [];
+
+      // Process each subscription with attempt tracking
+      for (const subscription of ready) {
+        const attempt = await this.jobAttemptService.createAttempt({
+          job_id: job.job_id,
+          subscription_id: subscription.id,
+          garage_id: subscription.garage_id,
+        });
+
+        try {
+          this.logger.log(
+            `🔄 Attempting to migrate subscription: ${subscription.id} (bypass: ${bypassDateCheck})`,
           );
-          failed.push({ id: s.id, reason: 'unknown' });
-        }
-      } catch (e) {
-        const errorMessage = (e as Error)?.message || 'error';
-        console.log(
-          `❌ Migration failed for subscription: ${s.id}, reason: ${errorMessage}`,
-        );
-        failed.push({ id: s.id, reason: errorMessage });
-      }
-    }
 
-    return {
-      success: true,
-      attempted: ready.length,
-      migrated: migrated_ids.length,
-      failed: failed.length,
-      migrated_ids,
-      failed_items: failed,
-    };
+          const res = await this.migrateCustomer(
+            subscription.id,
+            bypassDateCheck,
+          );
+
+          if (res?.success) {
+            // Mark attempt as successful
+            await this.jobAttemptService.updateAttempt(attempt.attempt_id, {
+              success: true,
+            });
+
+            migrated_ids.push(subscription.id);
+            succeeded++;
+            this.logger.log(
+              `✅ Successfully migrated subscription: ${subscription.id}`,
+            );
+          } else {
+            const errorMessage = 'Migration returned non-success';
+            errors.push(`Subscription ${subscription.id}: ${errorMessage}`);
+
+            // Mark attempt as failed
+            await this.jobAttemptService.updateAttempt(attempt.attempt_id, {
+              success: false,
+              error_message: errorMessage,
+            });
+
+            failed++;
+            this.logger.log(
+              `❌ Migration returned non-success for subscription: ${subscription.id}`,
+            );
+          }
+        } catch (error) {
+          const errorMessage = (error as Error)?.message || 'Unknown error';
+          errors.push(`Subscription ${subscription.id}: ${errorMessage}`);
+
+          // Mark attempt as failed
+          await this.jobAttemptService.updateAttempt(attempt.attempt_id, {
+            success: false,
+            error_message: errorMessage,
+          });
+
+          failed++;
+          this.logger.error(
+            `❌ Migration failed for subscription: ${subscription.id}, reason: ${errorMessage}`,
+          );
+        }
+
+        processed++;
+      }
+
+      // Complete the job
+      await this.migrationJobService.completeJob(job.job_id, {
+        success: failed === 0,
+        processed,
+        succeeded,
+        failed,
+        error_message: errors.length > 0 ? errors.join('; ') : undefined,
+      });
+
+      this.logger.log(
+        `🏁 Bulk migration completed for plan ${planId}: ` +
+          `processed=${processed}, succeeded=${succeeded}, failed=${failed}`,
+      );
+
+      return {
+        success: true,
+        job_id: job.job_id,
+        attempted: processed,
+        migrated: succeeded,
+        failed: failed,
+        migrated_ids,
+        statistics: {
+          total_processed: processed,
+          succeeded,
+          failed,
+          success_rate:
+            processed > 0 ? Math.round((succeeded / processed) * 100) : 0,
+        },
+      };
+    } catch (error) {
+      // Mark job as failed
+      await this.migrationJobService.completeJob(job.job_id, {
+        success: false,
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        error_message: (error as Error)?.message || 'Unknown error',
+      });
+
+      this.logger.error(`❌ Bulk migration failed for plan ${planId}:`, error);
+      throw error;
+    }
   }
 }

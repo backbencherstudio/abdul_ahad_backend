@@ -1,0 +1,907 @@
+{
+  "info": {
+    "name": "Subscription Management API",
+    "description": "Complete API collection for Subscription Management system including Plans, Garage Subscriptions, Price Migration, Job Management, and Error Recovery",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "your-jwt-token-here",
+      "type": "string"
+    },
+    {
+      "key": "sample_plan_id",
+      "value": "cmfw1m6ni0000uaj4coeonlgs",
+      "type": "string"
+    },
+    {
+      "key": "sample_garage_id",
+      "value": "cmdy1s7e70003uap4oamvoyw8",
+      "type": "string"
+    },
+    {
+      "key": "sample_subscription_id",
+      "value": "cmfwf6j1y0001uar0gp0iaipc",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Subscription Plans CRUD",
+      "item": [
+        {
+          "name": "GET Get All Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans?page=1&limit=20&search=gold",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "search", "value": "gold"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Get Active Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/active",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "active"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Plan Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}"]
+            }
+          }
+        },
+        {
+          "name": "POST Create New Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium Plan\",\n  \"description\": \"Advanced features for growing businesses\",\n  \"price_pence\": 9999,\n  \"currency\": \"GBP\",\n  \"max_bookings_per_month\": 500,\n  \"max_vehicles\": 200,\n  \"priority_support\": true,\n  \"advanced_analytics\": true,\n  \"custom_branding\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans"]
+            }
+          }
+        },
+        {
+          "name": "PUT Update Plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium Plan Updated\",\n  \"description\": \"Updated description\",\n  \"price_pence\": 11999,\n  \"max_bookings_per_month\": 600,\n  \"max_vehicles\": 250\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Delete Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}"]
+            }
+          }
+        },
+        {
+          "name": "POST Sync Plan with Stripe",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/stripe/sync",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "stripe", "sync"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Garage Subscriptions Management",
+      "item": [
+        {
+          "name": "GET Get All Garage Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions?status=ACTIVE&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions"],
+              "query": [
+                {"key": "status", "value": "ACTIVE"},
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Get Subscription Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/analytics",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "analytics"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Specific Subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/{{sample_subscription_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "{{sample_subscription_id}}"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Garage Subscription History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/garage/{{sample_garage_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "garage", "{{sample_garage_id}}", "history"]
+            }
+          }
+        },
+        {
+          "name": "PUT Update Subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"notes\": \"Updated subscription status\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/{{sample_subscription_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "{{sample_subscription_id}}"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Subscription Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/health",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "health"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Status Breakdown Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/analytics/status-breakdown",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "analytics", "status-breakdown"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Recent Activity Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/analytics/recent-activity",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "analytics", "recent-activity"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Revenue Trend Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garage-subscriptions/analytics/revenue-trend",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garage-subscriptions", "analytics", "revenue-trend"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Price Migration Operations",
+      "item": [
+        {
+          "name": "POST Create Price Migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_price_pence\": 7999,\n  \"notice_period_days\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/price",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "price"]
+            }
+          }
+        },
+        {
+          "name": "POST Send Migration Notices",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notice_period_days\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/notices",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "notices"]
+            }
+          }
+        },
+        {
+          "name": "POST Bulk Migrate Ready Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batch_size\": 50,\n  \"bypass_date_check\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "bulk"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Migration Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/status",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "status"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Migration Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/migration/summary",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "migration", "summary"]
+            }
+          }
+        },
+        {
+          "name": "POST Trigger Manual Migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bypass_date_check\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/trigger-price-migration",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "trigger-price-migration"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Plan Migration Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/jobs?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "jobs"],
+              "query": [
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Get Plan Migration Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/{{sample_plan_id}}/migration/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", "{{sample_plan_id}}", "migration", "statistics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Migration Jobs Management",
+      "item": [
+        {
+          "name": "GET Get All Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs?status=RUNNING&job_type=MIGRATION&limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs"],
+              "query": [
+                {"key": "status", "value": "RUNNING"},
+                {"key": "job_type", "value": "MIGRATION"},
+                {"key": "limit", "value": "10"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Get Active Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/active",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", "active"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Job Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", "statistics"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Specific Job",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", ":jobId"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Jobs by Plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/plan/{{sample_plan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", "plan", "{{sample_plan_id}}"]
+            }
+          }
+        },
+        {
+          "name": "POST Create Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"{{sample_plan_id}}\",\n  \"job_type\": \"NOTICE\",\n  \"total_count\": 100\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs"]
+            }
+          }
+        },
+        {
+          "name": "PUT Cancel Job",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Admin requested cancellation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/:jobId/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", ":jobId", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "POST Retry Failed Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_retries\": 3,\n  \"batch_size\": 25,\n  \"bypass_date_check\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/jobs/:jobId/retry",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "jobs", ":jobId", "retry"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Job Attempts & Monitoring",
+      "item": [
+        {
+          "name": "GET Get Attempt Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/job-attempts/:attemptId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "job-attempts", ":attemptId"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Attempts by Job",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/job-attempts/job/:jobId?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "job-attempts", "job", ":jobId"],
+              "query": [
+                {"key": "limit", "value": "50"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Get Retryable Failed Attempts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/job-attempts/job/:jobId/retryable",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "job-attempts", "job", ":jobId", "retryable"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Attempt Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/job-attempts/job/:jobId/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "job-attempts", "job", ":jobId", "statistics"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Cleanup Old Attempts",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/job-attempts/job/:jobId/cleanup",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "job-attempts", "job", ":jobId", "cleanup"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Migration Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/monitoring/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "monitoring", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Job Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/monitoring/progress/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "monitoring", "progress", ":jobId"]
+            }
+          }
+        },
+        {
+          "name": "GET Get System Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/monitoring/alerts",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "monitoring", "alerts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Error Recovery & Retry",
+      "item": [
+        {
+          "name": "GET Get Failed Jobs for Retry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/error-recovery/failed-jobs",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "error-recovery", "failed-jobs"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Job Error Analysis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/error-recovery/analysis/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "error-recovery", "analysis", ":jobId"]
+            }
+          }
+        },
+        {
+          "name": "POST Retry Failed Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/error-recovery/retry/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "error-recovery", "retry", ":jobId"]
+            }
+          }
+        },
+        {
+          "name": "GET Get System Error Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/error-recovery/system-summary",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "error-recovery", "system-summary"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Error Recovery Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/error-recovery/recommendations",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "error-recovery", "recommendations"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. System Health & Alerts",
+      "item": [
+        {
+          "name": "PUT Emergency Stop All Jobs",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/recovery/emergency-stop",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "recovery", "emergency-stop"]
+            }
+          }
+        },
+        {
+          "name": "POST Bulk Retry Failed Attempts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"job_ids\": [\"job_1\", \"job_2\"],\n  \"max_retries\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/recovery/bulk-retry",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "recovery", "bulk-retry"]
+            }
+          }
+        },
+        {
+          "name": "POST Schedule Job Retry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/recovery/schedule-retry/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "recovery", "schedule-retry", ":jobId"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Recovery Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/migration/recovery/recommendations/:jobId",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "migration", "recovery", "recommendations", ":jobId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Manual Operations & Testing",
+      "item": [
+        {
+          "name": "GET Get Subscription Plans (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans"]
+            }
+          }
+        },
+        {
+          "name": "POST Create Subscription Plan (Legacy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Plan\",\n  \"description\": \"Test plan for development\",\n  \"price_pence\": 5000,\n  \"currency\": \"GBP\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans"]
+            }
+          }
+        },
+        {
+          "name": "PUT Update Subscription Plan (Legacy)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test Plan\",\n  \"price_pence\": 6000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", ":id"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Delete Subscription Plan (Legacy)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/plans/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "plans", ":id"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Garage Subscriptions (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garages",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garages"]
+            }
+          }
+        },
+        {
+          "name": "GET Get Garage Subscription History (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/garages/{{sample_garage_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "garages", "{{sample_garage_id}}", "history"]
+            }
+          }
+        },
+        {
+          "name": "POST Manual Subscription Migration (Legacy)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscription/{{sample_subscription_id}}/migration",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "subscription", "{{sample_subscription_id}}", "migration"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
