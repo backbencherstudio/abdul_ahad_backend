@@ -61,24 +61,27 @@ export class UserService {
           throw new BadRequestException(user.message);
         }
 
-        // ✅ NEW: Auto-verify and approve admin users
-        if (createUserDto.type === 'ADMIN') {
-          await tx.user.update({
-            where: { id: user.data.id },
-            data: {
-              email_verified_at: new Date(), // Auto-verify admin email
-              approved_at: new Date(), // Auto-approve admin
-            },
-          });
-        }
+        // ✅ NEW: Auto-verify and approve ALL admin-created users
+        // Admin takes responsibility for user data validation
+        await tx.user.update({
+          where: { id: user.data.id },
+          data: {
+            email_verified_at: new Date(), // Auto-verify all admin-created users
+            approved_at: new Date(), // Auto-approve all admin-created users
+          },
+        });
 
-        // ✅ NEW: Create Stripe customer for admin users
-        if (createUserDto.type === 'ADMIN') {
+        // ✅ NEW: Create Stripe customer only for DRIVER and GARAGE users
+        // ADMIN users don't need Stripe integration (internal users)
+        if (
+          createUserDto.type === 'DRIVER' ||
+          createUserDto.type === 'GARAGE'
+        ) {
           try {
             const stripeCustomer = await StripePayment.createCustomer({
               user_id: user.data.id,
               email: createUserDto.email,
-              name: createUserDto.name,
+              name: createUserDto.name || createUserDto.primary_contact,
             });
 
             if (stripeCustomer) {
@@ -158,14 +161,42 @@ export class UserService {
         created_at: ru.role.created_at,
       }));
 
+      // ✅ NEW: Generate user-type-specific response
+      const userType = createUserDto.type.toLowerCase();
+      const actionsPerformed = [
+        'Account auto-verified',
+        'Account auto-approved',
+        'User can login immediately',
+      ];
+
+      // Add Stripe-specific actions for DRIVER/GARAGE users
+      if (createUserDto.type === 'DRIVER' || createUserDto.type === 'GARAGE') {
+        if (result.billing_id) {
+          actionsPerformed.push('Stripe customer created');
+        } else {
+          actionsPerformed.push('Stripe customer creation attempted');
+        }
+      }
+
+      // Add role-specific actions for ADMIN users
+      if (createUserDto.type === 'ADMIN' && formattedRoles.length > 0) {
+        actionsPerformed.push('Admin roles assigned');
+      }
+
       return {
         success: true,
-        message: 'User created successfully',
+        message: `${createUserDto.type} user created successfully`,
         data: {
-          ...result,
+          user_id: result.id,
+          email: result.email,
+          name: result.name,
+          type: result.type,
+          email_verified_at: result.email_verified_at,
+          approved_at: result.approved_at,
+          billing_id: result.billing_id,
           roles: formattedRoles,
-          // ✅ NEW: Remove the role_users field from response
-          role_users: undefined,
+          created_at: result.created_at,
+          actions_performed: actionsPerformed,
         },
       };
     } catch (error) {

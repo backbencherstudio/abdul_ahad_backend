@@ -21,7 +21,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "cmd": "cross-env PRISMA_ENV=1 ts-node src/cmd.ts",
     "seed": "cross-env PRISMA_ENV=1 ts-node src/cmd.ts seed",
-    "reset:seed": "cross-env PRISMA_ENV=1 ts-node src/cmd.ts reset && cross-env PRISMA_ENV=1 ts-node src/cmd.ts seed"
+    "reset": "cross-env PRISMA_ENV=1 ts-node src/cmd.ts reset",
+    "reset:force": "cross-env PRISMA_ENV=1 FORCE_RESET=true ts-node src/cmd.ts reset",
+    "reset:seed": "cross-env PRISMA_ENV=1 FORCE_RESET=true ts-node src/cmd.ts reset && cross-env PRISMA_ENV=1 ts-node src/cmd.ts seed"
   },
   "dependencies": {
     "@casl/ability": "6.7.3",

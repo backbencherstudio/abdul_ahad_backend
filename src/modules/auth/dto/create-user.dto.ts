@@ -12,11 +12,12 @@ import { Role } from 'src/common/guard/role/role.enum';
 
 export class CreateUserDto {
   @IsNotEmpty()
-  @IsEnum(Role, { message: 'type must be DRIVER, GARAGE, or ADMIN' })
+  @IsEnum(['DRIVER', 'GARAGE'], { message: 'type must be DRIVER or GARAGE' })
   @ApiProperty({
-    description: 'User type: DRIVER, GARAGE, or ADMIN',
-    enum: Role,
-    example: Role.DRIVER,
+    description:
+      'User type: DRIVER or GARAGE only (Admin users must be created by administrators)',
+    enum: ['DRIVER', 'GARAGE'],
+    example: 'DRIVER',
   })
   type: Role;
 

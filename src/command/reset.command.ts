@@ -13,7 +13,31 @@ export class ResetCommand extends CommandRunner {
 
   async reset(param: string[]) {
     try {
+      // 🚨 PRODUCTION SAFETY GUARD: Prevent reset in production
+      if (process.env.NODE_ENV === 'production') {
+        console.error(
+          '❌ CRITICAL ERROR: Database reset is FORBIDDEN in production environment!',
+        );
+        console.error('   This command would DESTROY ALL PRODUCTION DATA!');
+        console.error(
+          '   If you need to reset production data, do it manually through database tools.',
+        );
+        throw new Error('Database reset forbidden in production environment');
+      }
+
+      // 🚨 ADDITIONAL SAFETY: Require explicit confirmation
+      const forceReset =
+        param.includes('--force') || process.env.FORCE_RESET === 'true';
+      if (!forceReset) {
+        console.error(
+          '❌ SAFETY WARNING: This will DESTROY ALL DATABASE DATA!',
+        );
+        console.error('   To proceed, run: yarn reset:force');
+        console.error('   Environment:', process.env.NODE_ENV || 'development');
+        throw new Error('Reset command requires force flag for safety');
+      }
       console.log(`Prisma Env: ${process.env.PRISMA_ENV}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('�� Database reset started...');
 
       // Begin transaction for safety

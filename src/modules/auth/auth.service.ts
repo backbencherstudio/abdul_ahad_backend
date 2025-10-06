@@ -586,15 +586,33 @@ export class AuthService {
         });
 
         if (existToken) {
+          // 🔒 SECURITY FIX: Check if user was previously banned
+          // A user is considered banned if they have verified email but no approval
+          const wasBanned =
+            user.approved_at === null && user.email_verified_at !== null;
+
+          // 🔒 SECURITY FIX: Only auto-approve if user was never banned
+          const shouldAutoApprove = !wasBanned;
+
           await this.prisma.user.update({
             where: {
               id: user.id,
             },
             data: {
               email_verified_at: new Date(Date.now()),
-              approved_at: new Date(Date.now()), // ✅ NEW: Set approved_at when email is verified
+              approved_at: shouldAutoApprove
+                ? new Date(Date.now())
+                : user.approved_at,
             },
           });
+
+          // 🔒 SECURITY LOGGING: Track security events for audit trail
+          if (wasBanned) {
+            console.log(
+              `🚨 SECURITY ALERT: Banned user ${user.email} attempted email verification bypass at ${new Date().toISOString()}`,
+            );
+            // TODO: Add to security audit log database table if needed
+          }
 
           // delete otp code
           await UcodeRepository.deleteToken({
@@ -604,7 +622,9 @@ export class AuthService {
 
           return {
             success: true,
-            message: 'Email verified successfully',
+            message: wasBanned
+              ? 'Email verified successfully, but account remains banned. Contact administrator for assistance.'
+              : 'Email verified successfully, account approved',
           };
         } else {
           return {

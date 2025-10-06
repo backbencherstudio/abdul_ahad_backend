@@ -90,15 +90,15 @@ export class SeedCommand extends CommandRunner {
       } else {
         // Create new system admin user
         systemUser = await UserRepository.createSuAdminUser({
-          username: appConfig().defaultUser.system.username,
-          email: appConfig().defaultUser.system.email,
-          password: appConfig().defaultUser.system.password,
-        });
+      username: appConfig().defaultUser.system.username,
+      email: appConfig().defaultUser.system.email,
+      password: appConfig().defaultUser.system.password,
+    });
 
         // Auto-verify and approve admin user
         systemUser = await this.prisma.user.update({
-          where: { id: systemUser.id },
-          data: {
+      where: { id: systemUser.id },
+      data: {
             email_verified_at: new Date(),
             approved_at: new Date(),
           },
@@ -118,16 +118,16 @@ export class SeedCommand extends CommandRunner {
         where: {
           role_id: superAdminRole.id,
           user_id: systemUser.id,
-        },
-      });
+      },
+    });
 
       if (!existingRoleAssignment) {
-        await this.prisma.roleUser.create({
-          data: {
-            user_id: systemUser.id,
+    await this.prisma.roleUser.create({
+      data: {
+        user_id: systemUser.id,
             role_id: superAdminRole.id,
-          },
-        });
+      },
+    });
         console.log(`   ✅ Super admin role assigned to user`);
       } else {
         console.log(`   🔄 Super admin role already assigned to user`);
@@ -174,11 +174,11 @@ export class SeedCommand extends CommandRunner {
     // Generate permissions dynamically
     for (const permissionGroup of permissionGroups) {
       const scope = permissionGroup.scope || [
-        'read',
-        'create',
-        'update',
-        'show',
-        'delete',
+          'read',
+          'create',
+          'update',
+          'show',
+          'delete',
       ];
 
       for (const action of scope) {
@@ -206,7 +206,7 @@ export class SeedCommand extends CommandRunner {
               data: {
                 title: permissionTitle,
                 action: StringHelper.cfirst(action),
-                subject: permissionGroup.subject,
+            subject: permissionGroup.subject,
               },
             });
             console.log(`   ✅ Permission created: ${permissionTitle}`);

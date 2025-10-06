@@ -48,7 +48,7 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Register a user (Driver, Garage, or Admin)' })
+  @ApiOperation({ summary: 'Register a user (Driver or Garage only)' })
   @Post('register')
   async create(@Body() data: CreateUserDto) {
     try {
@@ -80,12 +80,14 @@ export class AuthController {
           );
         }
       } else if (data.type === 'ADMIN') {
-        // For admin, we might want to validate specific fields
-        // You can add admin-specific validation here if needed
-        // For now, admin registration will proceed with basic validation
+        // 🚨 SECURITY FIX: Block admin registration from public route
+        throw new HttpException(
+          'Admin registration is not allowed through public route. Admin users must be created by existing administrators.',
+          HttpStatus.FORBIDDEN,
+        );
       } else {
         throw new HttpException(
-          'Invalid user type. Must be DRIVER, GARAGE, or ADMIN',
+          'Invalid user type. Must be DRIVER or GARAGE',
           HttpStatus.BAD_REQUEST,
         );
       }
