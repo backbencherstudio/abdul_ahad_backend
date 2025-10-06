@@ -283,13 +283,6 @@ export class UserService {
         },
       });
 
-      // add avatar url to user
-      if (user.avatar) {
-        user['avatar_url'] = SojebStorage.url(
-          appConfig().storageUrl.avatar + user.avatar,
-        );
-      }
-
       if (!user) {
         return {
           success: false,
@@ -297,9 +290,114 @@ export class UserService {
         };
       }
 
+      // add avatar url to user
+      if (user.avatar) {
+        user['avatar_url'] = SojebStorage.url(
+          appConfig().storageUrl.avatar + user.avatar,
+        );
+      }
+
+      // ✅ ENHANCED: Get roles and permissions for admin users
+      let userRoles = [];
+      let userPermissions = [];
+      let permissionSummary = {};
+
+      if (user.type === 'ADMIN') {
+        // Fetch user roles with role details
+        const roleUsers = await this.prisma.roleUser.findMany({
+          where: { user_id: id },
+          include: {
+            role: {
+              include: {
+                permission_roles: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Extract role titles
+        userRoles = roleUsers.map((ru) => ({
+          id: ru.role.id,
+          title: ru.role.title,
+          name: ru.role.name,
+          assigned_at: ru.created_at,
+        }));
+
+        // Extract all permissions from all roles
+        const allPermissions = new Set();
+        roleUsers.forEach((ru) => {
+          ru.role.permission_roles.forEach((pr) => {
+            allPermissions.add(
+              JSON.stringify({
+                id: pr.permission.id,
+                title: pr.permission.title,
+                action: pr.permission.action,
+                subject: pr.permission.subject,
+                conditions: pr.permission.conditions,
+                fields: pr.permission.fields,
+              }),
+            );
+          });
+        });
+
+        // Convert Set back to array of objects
+        userPermissions = Array.from(allPermissions).map((permStr) =>
+          JSON.parse(permStr as string),
+        );
+
+        // Create permission summary for easy frontend use
+        permissionSummary = {
+          can_manage_dashboard: userPermissions.some(
+            (p) => p.subject === 'Dashboard',
+          ),
+          can_manage_garages: userPermissions.some(
+            (p) => p.subject === 'Garage',
+          ),
+          can_manage_drivers: userPermissions.some(
+            (p) => p.subject === 'Driver',
+          ),
+          can_manage_bookings: userPermissions.some(
+            (p) => p.subject === 'Booking',
+          ),
+          can_manage_subscriptions: userPermissions.some(
+            (p) => p.subject === 'Subscription',
+          ),
+          can_manage_payments: userPermissions.some(
+            (p) => p.subject === 'Payment',
+          ),
+          can_manage_roles: userPermissions.some((p) => p.subject === 'Role'),
+          can_manage_users: userPermissions.some((p) => p.subject === 'User'),
+          can_view_analytics: userPermissions.some(
+            (p) => p.subject === 'Analytics',
+          ),
+          can_generate_reports: userPermissions.some(
+            (p) => p.subject === 'Reports',
+          ),
+          can_manage_system_tenant: userPermissions.some(
+            (p) => p.subject === 'SystemTenant',
+          ),
+        };
+      }
+
+      // ✅ ENHANCED: Include roles and permissions in response
+      const enhancedUserData = {
+        ...user,
+        ...(user.type === 'ADMIN' && {
+          roles: userRoles,
+          permissions: userPermissions,
+          permission_summary: permissionSummary,
+          role_count: userRoles.length,
+          permission_count: userPermissions.length,
+        }),
+      };
+
       return {
         success: true,
-        data: user,
+        data: enhancedUserData,
       };
     } catch (error) {
       return {
@@ -695,18 +793,26 @@ export class UserService {
         }
       }
 
-      // Remove existing role assignments
-      await this.prisma.roleUser.deleteMany({
+      // Get existing role assignments to avoid duplicates
+      const existingRoles = await this.prisma.roleUser.findMany({
         where: { user_id: userId },
+        select: { role_id: true },
       });
 
-      // Create new role assignments
-      await this.prisma.roleUser.createMany({
-        data: roleIds.map((roleId) => ({
-          user_id: userId,
-          role_id: roleId,
-        })),
-      });
+      const existingRoleIds = existingRoles.map((ru) => ru.role_id);
+      const newRoleIds = roleIds.filter(
+        (roleId) => !existingRoleIds.includes(roleId),
+      );
+
+      // Create only new role assignments (additive approach)
+      if (newRoleIds.length > 0) {
+        await this.prisma.roleUser.createMany({
+          data: newRoleIds.map((roleId) => ({
+            user_id: userId,
+            role_id: roleId,
+          })),
+        });
+      }
 
       // Return updated user with roles
       const updatedUser = await this.prisma.user.findUnique({
@@ -738,13 +844,85 @@ export class UserService {
         created_at: ru.role.created_at,
       }));
 
+      const addedRoles = newRoleIds.length;
+      const skippedRoles = roleIds.length - newRoleIds.length;
+
+      let message = 'Roles assigned successfully';
+      if (addedRoles > 0 && skippedRoles > 0) {
+        message = `${addedRoles} role(s) added, ${skippedRoles} role(s) already assigned`;
+      } else if (addedRoles > 0) {
+        message = `${addedRoles} role(s) assigned successfully`;
+      } else {
+        message = 'All provided roles were already assigned to the user';
+      }
+
       return {
         success: true,
-        message: 'User roles updated successfully',
+        message,
         data: {
           ...updatedUser,
           roles: formattedRoles,
           role_users: undefined,
+          roles_added: addedRoles,
+          roles_skipped: skippedRoles,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get all roles assigned to a user
+   * @param userId - The user ID
+   * @returns Array of roles with id and title
+   */
+  async getUserRoles(userId: string) {
+    try {
+      // Validate user exists
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Get user's roles
+      const userRoles = await this.prisma.roleUser.findMany({
+        where: { user_id: userId },
+        include: {
+          role: {
+            select: {
+              id: true,
+              title: true,
+              name: true,
+              created_at: true,
+            },
+          },
+        },
+        orderBy: { role: { title: 'asc' } },
+      });
+
+      const formattedRoles = userRoles.map((ru) => ({
+        id: ru.role.id,
+        title: ru.role.title,
+        name: ru.role.name,
+        assigned_at: ru.created_at,
+      }));
+
+      return {
+        success: true,
+        data: formattedRoles,
+        meta: {
+          user_id: userId,
+          user_name: user.name,
+          user_email: user.email,
+          total_roles: formattedRoles.length,
         },
       };
     } catch (error) {

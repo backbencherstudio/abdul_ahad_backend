@@ -70,7 +70,76 @@ export class UserController {
     }
   }
 
-  @ApiResponse({ description: 'Get a user by id' })
+  @ApiOperation({ summary: 'Get user details with roles and permissions' })
+  @ApiResponse({
+    status: 200,
+    description: 'User details retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'user_id' },
+            name: { type: 'string', example: 'John Doe' },
+            email: { type: 'string', example: 'john@example.com' },
+            type: { type: 'string', example: 'ADMIN' },
+            phone_number: { type: 'string', example: '+1234567890' },
+            approved_at: { type: 'string', format: 'date-time' },
+            created_at: { type: 'string', format: 'date-time' },
+            updated_at: { type: 'string', format: 'date-time' },
+            avatar: { type: 'string', nullable: true },
+            avatar_url: { type: 'string', nullable: true },
+            billing_id: { type: 'string', nullable: true },
+            // Admin-specific fields
+            roles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  name: { type: 'string' },
+                  assigned_at: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+            permissions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  action: { type: 'string' },
+                  subject: { type: 'string' },
+                },
+              },
+            },
+            permission_summary: {
+              type: 'object',
+              properties: {
+                can_manage_dashboard: { type: 'boolean' },
+                can_manage_garages: { type: 'boolean' },
+                can_manage_drivers: { type: 'boolean' },
+                can_manage_bookings: { type: 'boolean' },
+                can_manage_subscriptions: { type: 'boolean' },
+                can_manage_payments: { type: 'boolean' },
+                can_manage_roles: { type: 'boolean' },
+                can_manage_users: { type: 'boolean' },
+                can_view_analytics: { type: 'boolean' },
+                can_generate_reports: { type: 'boolean' },
+                can_manage_system_tenant: { type: 'boolean' },
+              },
+            },
+            role_count: { type: 'number', example: 2 },
+            permission_count: { type: 'number', example: 15 },
+          },
+        },
+      },
+    },
+  })
   @Get(':id')
   @CheckAbilities({ action: Action.Show, subject: 'User' })
   async findOne(@Param('id') id: string) {
@@ -221,7 +290,82 @@ export class UserController {
     }
   }
 
-  @ApiResponse({ description: 'Assign roles to user' })
+  @ApiOperation({ summary: 'Get user roles' })
+  @ApiResponse({
+    status: 200,
+    description: 'User roles retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'role_id' },
+              title: { type: 'string', example: 'Super Admin' },
+              name: { type: 'string', example: 'super_admin' },
+              assigned_at: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            user_id: { type: 'string' },
+            user_name: { type: 'string' },
+            user_email: { type: 'string' },
+            total_roles: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @Get(':id/roles')
+  @CheckAbilities({ action: Action.Read, subject: 'User' })
+  async getUserRoles(@Param('id') id: string) {
+    try {
+      const result = await this.userService.getUserRoles(id);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Assign roles to user (additive)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Roles assigned successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: '2 role(s) assigned successfully' },
+        data: {
+          type: 'object',
+          properties: {
+            roles_added: { type: 'number', example: 2 },
+            roles_skipped: { type: 'number', example: 0 },
+            roles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  name: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
   @Post(':id/roles')
   @CheckAbilities({ action: Action.Update, subject: 'User' })
   async assignRoles(
