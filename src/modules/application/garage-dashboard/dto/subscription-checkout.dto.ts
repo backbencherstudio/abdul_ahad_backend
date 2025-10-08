@@ -1,30 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsNotEmpty,
-  IsString,
-  IsOptional,
-  IsNumber,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class SubscriptionCheckoutDto {
   @ApiProperty({
-    description: 'Plan ID to subscribe to',
+    description:
+      'Plan ID to subscribe to (trial period is controlled by the plan)',
     example: 'cmfw1m6ni0000uaj4coeonlgs',
   })
   @IsNotEmpty()
   @IsString()
   plan_id: string;
 
-  @ApiProperty({
-    description: 'Trial period in days (0 = no trial, defaults to 14 days)',
-    example: 14,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  trial_period_days?: number;
+  // Removed trial_period_days - now controlled by subscription plan
+  // Business controls trial length per plan for better strategy and consistency
 }
 
 export class SubscriptionCheckoutResponseDto {

@@ -744,6 +744,8 @@ model SubscriptionPlan {
   stripe_product_id      String?
   // minimal flag for admin visibility/filters
   is_legacy_price        Boolean  @default(false)
+  // trial period in days (0 = no trial, business controls trial length)
+  trial_period_days      Int      @default(14)
 
   garage_subscriptions GarageSubscription[]
 
@@ -842,7 +844,7 @@ model MigrationJob {
 model JobAttempt {
   id         String   @id @default(cuid())
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt 
+  updated_at DateTime @updatedAt
 
   // Link to parent job
   job_id String

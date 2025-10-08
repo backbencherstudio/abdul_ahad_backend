@@ -258,13 +258,8 @@ export class StripePayment {
     }/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancel_url = `${appConfig().app.url}/failed`;
 
-    // Get default trial period from environment or use 14 days
-    const defaultTrialDays = parseInt(
-      process.env.DEFAULT_TRIAL_PERIOD_DAYS || '14',
-      10,
-    );
-    const trialDays =
-      trial_period_days !== undefined ? trial_period_days : defaultTrialDays;
+    // Use provided trial period or default to 14 days (no environment fallback)
+    const trialDays = trial_period_days || 14;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -293,6 +288,7 @@ export class StripePayment {
    * @param metadata
    * @param success_url
    * @param cancel_url
+   * @param trial_period_days - Optional trial period in days (0 = no trial)
    * @returns
    */
   static async createCheckoutSessionSubscriptionWithMetadata({
@@ -315,13 +311,8 @@ export class StripePayment {
     }/success?session_id={CHECKOUT_SESSION_ID}`;
     const defaultCancelUrl = `${appConfig().app.url}/failed`;
 
-    // Get default trial period from environment or use 14 days
-    const defaultTrialDays = parseInt(
-      process.env.DEFAULT_TRIAL_PERIOD_DAYS || '14',
-      10,
-    );
-    const trialDays =
-      trial_period_days !== undefined ? trial_period_days : defaultTrialDays;
+    // Use provided trial period or default to 14 days (no environment fallback)
+    const trialDays = trial_period_days || 14;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -697,6 +688,43 @@ export class StripePayment {
     } catch (err) {
       console.error('Webhook signature verification failed:', err.message);
       throw new Error('Invalid webhook signature');
+    }
+  }
+
+  /**
+   * Retrieve a checkout session from Stripe
+   * @param sessionId - The checkout session ID
+   * @returns The checkout session object
+   */
+  static async retrieveCheckoutSession(
+    sessionId: string,
+  ): Promise<stripe.Checkout.Session> {
+    try {
+      const session = await Stripe.checkout.sessions.retrieve(sessionId);
+      return session;
+    } catch (error) {
+      console.error(`Failed to retrieve checkout session ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieve a subscription from Stripe
+   * @param subscriptionId - The subscription ID
+   * @returns The subscription object
+   */
+  static async retrieveSubscription(
+    subscriptionId: string,
+  ): Promise<stripe.Subscription> {
+    try {
+      const subscription = await Stripe.subscriptions.retrieve(subscriptionId);
+      return subscription;
+    } catch (error) {
+      console.error(
+        `Failed to retrieve subscription ${subscriptionId}:`,
+        error,
+      );
+      throw error;
     }
   }
 }

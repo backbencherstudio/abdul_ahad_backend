@@ -460,22 +460,30 @@ export class GarageDashboardController {
       Creates a Stripe checkout session for the selected subscription plan.
       
       **Features:**
-      - Configurable trial period (0 = no trial, any number = trial days)
+      - Plan-based trial period (business controls trial length per plan)
       - Automatic Stripe customer creation if needed
       - Invalid customer ID recovery and recreation
       - Comprehensive error handling and validation
       
       **Trial Period Configuration:**
-      - Default: 14 days (from environment variable DEFAULT_TRIAL_PERIOD_DAYS)
-      - Custom: Set trial_period_days parameter (0-365 days)
-      - No trial: Set trial_period_days to 0
+      - Controlled by subscription plan (trial_period_days column)
+      - Business strategy: Different plans can have different trial lengths
+      - Default: 14 days if plan doesn't specify trial period
+      - No trial: Set plan's trial_period_days to 0
+      
+      **Business Benefits:**
+      - Strategic control over trial length per plan
+      - Consistent user experience per plan type
+      - Easy A/B testing of different trial strategies
+      - Revenue optimization through trial length control
       
       **Process:**
       1. Validates subscription plan exists and is active
-      2. Creates/validates Stripe customer account
-      3. Creates garage subscription record (INACTIVE status)
-      4. Creates Stripe checkout session with metadata
-      5. Returns checkout URL for user to complete payment
+      2. Uses plan's trial_period_days for trial configuration
+      3. Creates/validates Stripe customer account
+      4. Creates garage subscription record (INACTIVE status)
+      5. Creates Stripe checkout session with plan-based trial
+      6. Returns checkout URL for user to complete payment
     `,
   })
   @ApiResponse({
@@ -550,5 +558,111 @@ export class GarageDashboardController {
       req.user.userId,
       dto,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Handle subscription checkout success',
+    description: `
+      Validates Stripe checkout session and returns subscription details after successful payment.
+      
+      **Purpose:**
+      This endpoint handles the redirect from Stripe after successful checkout completion.
+      It validates the session, confirms subscription activation, and provides subscription details.
+      
+      **Flow:**
+      1. User completes payment on Stripe checkout
+      2. Stripe redirects to: /garage-dashboard/subscription/success?session_id=cs_test_...
+      3. This endpoint validates the session with Stripe
+      4. Returns subscription status and details
+      5. Frontend displays success confirmation
+      
+      **Security:**
+      - Validates session_id with Stripe API
+      - Ensures session is completed and payment succeeded
+      - Returns subscription details for confirmation
+      
+      **Error Handling:**
+      - Invalid session_id: Returns 400 with error message
+      - Payment failed: Returns 400 with failure details
+      - Session not found: Returns 404
+      - Stripe API errors: Returns 500 with error details
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Subscription checkout validated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example: 'Subscription activated successfully',
+        },
+        data: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              example:
+                'cs_test_a18nRxlN67f7YwgXRTJUA0lP11QdVDiUI3SbHUJ7ZWapUtakvelKdlMt9r',
+            },
+            subscription: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', example: 'sub_123' },
+                status: { type: 'string', example: 'ACTIVE' },
+                plan: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', example: 'Premium Plan' },
+                    price: { type: 'string', example: '£29.99/month' },
+                  },
+                },
+                current_period_end: {
+                  type: 'string',
+                  example: '2024-02-15T00:00:00Z',
+                },
+                trial_end: { type: 'string', example: null },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid session or payment failed',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: {
+          type: 'string',
+          example: 'Payment failed or session invalid',
+        },
+        error: { type: 'string', example: 'Session not completed' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'Checkout session not found' },
+      },
+    },
+  })
+  @Get('subscription/success')
+  async handleSubscriptionSuccess(@Query('session_id') sessionId: string) {
+    if (!sessionId) {
+      throw new BadRequestException('Session ID is required');
+    }
+
+    return this.garageSubscriptionService.validateCheckoutSession(sessionId);
   }
 }

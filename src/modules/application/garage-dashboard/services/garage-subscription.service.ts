@@ -53,6 +53,7 @@ export class GarageSubscriptionService {
             advanced_analytics: true,
             custom_branding: true,
             stripe_price_id: true,
+            trial_period_days: true,
           },
         }),
         this.prisma.subscriptionPlan.count({
@@ -234,13 +235,31 @@ export class GarageSubscriptionService {
       return null;
     }
 
-    const isInTrial =
-      subscription.status === 'ACTIVE' &&
-      Boolean(subscription.stripe_subscription_id);
+    // ✅ FIXED: Check if this is actually a trial subscription
+    // A subscription is in trial if:
+    // 1. It has a trial_period_days > 0 in the plan
+    // 2. Current period end is within trial period from start
+    // 3. OR Stripe status is 'trialing'
+
+    const plan = subscription.plan;
+    const hasTrialPeriod =
+      plan?.trial_period_days && plan.trial_period_days > 0;
+
+    if (!hasTrialPeriod) {
+      // ✅ No trial period configured - return null
+      return null;
+    }
+
     const trialEndDate = new Date(periodEnd);
     const daysRemaining = Math.ceil(
       (trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
     );
+
+    // ✅ FIXED: Proper trial detection
+    const isInTrial =
+      subscription.status === 'ACTIVE' &&
+      Boolean(subscription.stripe_subscription_id) &&
+      daysRemaining > 0;
 
     return {
       is_trial: isInTrial,
@@ -425,8 +444,11 @@ export class GarageSubscriptionService {
 
       // Create checkout session with metadata using StripePayment
       const appConfig = require('../../../../config/app.config').default;
-      const success_url = `${appConfig().app.url}/garage-dashboard/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
-      const cancel_url = `${appConfig().app.url}/garage-dashboard/subscription/cancel`;
+      const success_url = `${appConfig().app.client_app_url}/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
+      const cancel_url = `${appConfig().app.client_app_url}/subscription/cancel`;
+
+      // Use plan's trial period (business controls trial length)
+      const trialDays = plan.trial_period_days || 14; // Fallback to 14 days if not set
 
       let session;
       try {
@@ -442,7 +464,7 @@ export class GarageSubscriptionService {
             },
             success_url: success_url,
             cancel_url: cancel_url,
-            trial_period_days: dto.trial_period_days,
+            trial_period_days: trialDays,
           });
       } catch (error) {
         // If customer doesn't exist in Stripe, clear the invalid ID and create a new one
@@ -495,7 +517,7 @@ export class GarageSubscriptionService {
               },
               success_url: success_url,
               cancel_url: cancel_url,
-              trial_period_days: dto.trial_period_days,
+              trial_period_days: trialDays,
             });
         } else {
           // Re-throw other Stripe errors
@@ -695,6 +717,13 @@ export class GarageSubscriptionService {
     features.push(`${plan.max_bookings_per_month} bookings/month`);
     features.push(`${plan.max_vehicles} vehicles`);
 
+    // Trial period information
+    if (plan.trial_period_days > 0) {
+      features.push(`${plan.trial_period_days}-day free trial`);
+    } else {
+      features.push('Immediate access');
+    }
+
     // Premium features
     if (plan.priority_support) {
       features.push('Priority support');
@@ -707,5 +736,285 @@ export class GarageSubscriptionService {
     }
 
     return features;
+  }
+
+  /**
+   * Validate Stripe checkout session and return subscription details
+   * This method handles the success redirect from Stripe checkout
+   */
+  async validateCheckoutSession(sessionId: string) {
+    try {
+      this.logger.log(`Validating checkout session: ${sessionId}`);
+
+      // Retrieve session from Stripe
+      const session = await StripePayment.retrieveCheckoutSession(sessionId);
+
+      if (!session) {
+        throw new NotFoundException('Checkout session not found');
+      }
+
+      // Validate session is completed
+      if (session.payment_status !== 'paid') {
+        throw new BadRequestException(
+          `Payment not completed. Status: ${session.payment_status}`,
+        );
+      }
+
+      // Get subscription ID from session
+      const subscriptionId =
+        typeof session.subscription === 'string'
+          ? session.subscription
+          : session.subscription?.id;
+
+      if (!subscriptionId) {
+        throw new BadRequestException(
+          'No subscription found in checkout session',
+        );
+      }
+
+      // Retrieve subscription from Stripe
+      const stripeSubscription =
+        await StripePayment.retrieveSubscription(subscriptionId);
+      if (!stripeSubscription) {
+        throw new NotFoundException('Stripe subscription not found');
+      }
+
+      // Find garage subscription in database
+      const garageSubscription =
+        (await this.prisma.garageSubscription.findFirst({
+          where: {
+            stripe_subscription_id: subscriptionId,
+          },
+          include: {
+            plan: {
+              select: {
+                id: true,
+                name: true,
+                price_pence: true,
+                currency: true,
+              },
+            },
+            garage: {
+              select: {
+                id: true,
+                garage_name: true,
+                email: true,
+              },
+            },
+          },
+        })) as any; // Type assertion to handle Prisma include types
+
+      if (!garageSubscription) {
+        throw new NotFoundException(
+          'Garage subscription not found in database',
+        );
+      }
+
+      // ✅ FIXED: Determine subscription type and trial information
+      const trialInfo = this.getTrialInformation(garageSubscription);
+      const isTrial = trialInfo?.is_trial || false;
+      const isActive =
+        stripeSubscription.status === 'active' ||
+        stripeSubscription.status === 'trialing';
+
+      // ✅ ENHANCED: Generate status explanation and details for frontend clarity
+      const statusInfo =
+        this.generateSubscriptionStatusInfo(garageSubscription);
+
+      // Format response data
+      const responseData = {
+        session_id: sessionId,
+        subscription: {
+          id: garageSubscription.id,
+          stripe_subscription_id: subscriptionId,
+          status: garageSubscription.status,
+          status_explanation: statusInfo.explanation,
+          status_details: statusInfo.details,
+          plan: {
+            id: garageSubscription.plan.id,
+            name: garageSubscription.plan.name,
+            price_pence: garageSubscription.price_pence,
+            currency: garageSubscription.currency,
+            price_formatted: this.formatPrice(
+              garageSubscription.price_pence,
+              garageSubscription.currency,
+            ),
+          },
+          current_period_start: garageSubscription.current_period_start,
+          current_period_end: garageSubscription.current_period_end,
+          next_billing_date: garageSubscription.next_billing_date,
+          trial_information: trialInfo, // ✅ FIXED: Use proper trial information
+          garage: {
+            id: garageSubscription.garage.id,
+            name: garageSubscription.garage.garage_name,
+            email: garageSubscription.garage.email,
+          },
+        },
+      };
+
+      this.logger.log(
+        `Checkout session validated successfully for garage ${garageSubscription.garage_id}: ${garageSubscription.plan.name} (Trial: ${isTrial})`,
+      );
+
+      return {
+        success: true,
+        message: isTrial
+          ? 'Trial subscription activated successfully'
+          : 'Subscription activated successfully',
+        data: responseData,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to validate checkout session ${sessionId}:`,
+        error,
+      );
+
+      // Handle specific error types
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      // Handle Stripe API errors
+      if (error.message?.includes('No such session')) {
+        throw new NotFoundException('Checkout session not found');
+      }
+
+      if (error.message?.includes('No such subscription')) {
+        throw new NotFoundException('Subscription not found');
+      }
+
+      // Generic error handling
+      throw new BadRequestException(
+        `Failed to validate checkout session: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Generate comprehensive status information for frontend clarity
+   * This method provides both technical status and human-readable explanations
+   */
+  private generateSubscriptionStatusInfo(subscription: any): {
+    explanation: string;
+    details: {
+      is_active: boolean;
+      has_access: boolean;
+      access_until?: string;
+      will_renew: boolean;
+      cancellation_scheduled: boolean;
+      cancellation_date?: string;
+      days_remaining?: number;
+      urgency_level?: 'low' | 'medium' | 'high';
+    };
+  } {
+    const now = new Date();
+    const periodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end)
+      : null;
+    const daysRemaining = periodEnd
+      ? Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    let explanation: string;
+    let isActive = false;
+    let hasAccess = false;
+    let willRenew = false;
+    let cancellationScheduled = false;
+
+    switch (subscription.status) {
+      case 'ACTIVE':
+        explanation =
+          'Your subscription is active and will renew automatically on the next billing date';
+        isActive = true;
+        hasAccess = true;
+        willRenew = !subscription.cancel_at_period_end;
+        cancellationScheduled = Boolean(subscription.cancel_at_period_end);
+        break;
+
+      case 'CANCELLED':
+        if (periodEnd && periodEnd > now) {
+          explanation =
+            'Your subscription is active until the end of the current period, then will be cancelled as previously scheduled';
+          isActive = true;
+          hasAccess = true;
+          willRenew = false;
+          cancellationScheduled = true;
+        } else {
+          explanation =
+            'Your subscription has been cancelled and is no longer active';
+          isActive = false;
+          hasAccess = false;
+          willRenew = false;
+          cancellationScheduled = true;
+        }
+        break;
+
+      case 'PAST_DUE':
+        explanation =
+          'Your payment failed. You have 3 days to update your payment method before services are suspended';
+        isActive = false;
+        hasAccess = true; // Grace period active
+        willRenew = false;
+        cancellationScheduled = false;
+        break;
+
+      case 'SUSPENDED':
+        explanation =
+          'Your subscription has been suspended due to payment issues. Please update your payment method to reactivate';
+        isActive = false;
+        hasAccess = false;
+        willRenew = false;
+        cancellationScheduled = false;
+        break;
+
+      case 'INACTIVE':
+        explanation =
+          'Your subscription is inactive. Please subscribe to a plan to access services';
+        isActive = false;
+        hasAccess = false;
+        willRenew = false;
+        cancellationScheduled = false;
+        break;
+
+      default:
+        explanation =
+          'Subscription status is being processed. Please contact support if this persists';
+        isActive = false;
+        hasAccess = false;
+        willRenew = false;
+        cancellationScheduled = false;
+    }
+
+    // Determine urgency level for PAST_DUE subscriptions
+    let urgencyLevel: 'low' | 'medium' | 'high' | undefined;
+    if (subscription.status === 'PAST_DUE') {
+      if (daysRemaining <= 1) {
+        urgencyLevel = 'high';
+      } else if (daysRemaining <= 2) {
+        urgencyLevel = 'medium';
+      } else {
+        urgencyLevel = 'low';
+      }
+    }
+
+    return {
+      explanation,
+      details: {
+        is_active: isActive,
+        has_access: hasAccess,
+        access_until: periodEnd ? periodEnd.toISOString() : undefined,
+        will_renew: willRenew,
+        cancellation_scheduled: cancellationScheduled,
+        cancellation_date:
+          subscription.cancel_at ||
+          subscription.current_period_end ||
+          undefined,
+        days_remaining: daysRemaining > 0 ? daysRemaining : undefined,
+        urgency_level: urgencyLevel,
+      },
+    };
   }
 }

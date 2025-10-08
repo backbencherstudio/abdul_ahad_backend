@@ -44,6 +44,7 @@ export class SubscriptionPlanService {
         advanced_analytics: dto.advanced_analytics || false,
         custom_branding: dto.custom_branding || false,
         is_active: dto.is_active !== undefined ? dto.is_active : true,
+        trial_period_days: dto.trial_period_days || 14,
       },
     });
 
@@ -214,6 +215,9 @@ export class SubscriptionPlanService {
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
         ...(dto.stripe_price_id !== undefined && {
           stripe_price_id: dto.stripe_price_id,
+        }),
+        ...(dto.trial_period_days !== undefined && {
+          trial_period_days: dto.trial_period_days,
         }),
         updated_at: new Date(),
       },

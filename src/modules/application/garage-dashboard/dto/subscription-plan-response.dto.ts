@@ -34,6 +34,13 @@ export class SubscriptionPlanResponseDto {
   @ApiProperty({ description: 'Includes custom branding' })
   custom_branding: boolean;
 
+  @ApiProperty({
+    description: 'Trial period in days (0 = no trial)',
+    example: 14,
+    minimum: 0,
+  })
+  trial_period_days: number;
+
   @ApiProperty({ description: 'List of plan features' })
   features: string[];
 }
