@@ -456,8 +456,27 @@ export class GarageDashboardController {
 
   @ApiOperation({
     summary: 'Start subscription checkout',
-    description:
-      'Creates a Stripe checkout session for the selected subscription plan',
+    description: `
+      Creates a Stripe checkout session for the selected subscription plan.
+      
+      **Features:**
+      - Configurable trial period (0 = no trial, any number = trial days)
+      - Automatic Stripe customer creation if needed
+      - Invalid customer ID recovery and recreation
+      - Comprehensive error handling and validation
+      
+      **Trial Period Configuration:**
+      - Default: 14 days (from environment variable DEFAULT_TRIAL_PERIOD_DAYS)
+      - Custom: Set trial_period_days parameter (0-365 days)
+      - No trial: Set trial_period_days to 0
+      
+      **Process:**
+      1. Validates subscription plan exists and is active
+      2. Creates/validates Stripe customer account
+      3. Creates garage subscription record (INACTIVE status)
+      4. Creates Stripe checkout session with metadata
+      5. Returns checkout URL for user to complete payment
+    `,
   })
   @ApiResponse({
     status: 200,
@@ -477,8 +496,31 @@ export class GarageDashboardController {
 
   @ApiOperation({
     summary: 'Access billing portal',
-    description:
-      'Creates a Stripe billing portal session for managing subscription and payment methods',
+    description: `
+      Creates a Stripe billing portal session for managing subscription and payment methods.
+      
+      **Features:**
+      - Payment method updates and management
+      - Subscription cancellation and modification
+      - Invoice history and downloads
+      - Payment failure context for PAST_DUE subscriptions
+      
+      **Payment Failure Context:**
+      When subscription status is PAST_DUE, the response includes:
+      - Grace period information (3-day grace period)
+      - Days remaining in grace period
+      - Urgency level (high/medium/low based on remaining days)
+      - Grace period end date
+      
+      **Supported Subscription Statuses:**
+      - ACTIVE: Full billing portal access
+      - PAST_DUE: Enhanced context for payment failures
+      
+      **Grace Period Logic:**
+      - 3-day grace period for payment failures
+      - Garage remains visible during grace period
+      - Automatic suspension after grace period expires
+    `,
   })
   @ApiResponse({
     status: 200,

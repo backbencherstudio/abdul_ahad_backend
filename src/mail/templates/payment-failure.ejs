@@ -1,0 +1,72 @@
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
+  <h2 style="margin:0 0 12px; color: #e74c3c;">💳 Payment Failed - Action Required</h2>
+  <p>Hi <%= garage_name %>,</p>
+  <p>
+    We were unable to process your payment for your <strong><%= plan_name %></strong> subscription.
+  </p>
+  
+  <div style="background: #fdf2f2; border-left: 4px solid #e74c3c; padding: 16px; margin: 16px 0;">
+    <h3 style="margin: 0 0 8px; color: #e74c3c;">Payment Details:</h3>
+    <ul style="margin: 0; padding-left: 20px;">
+      <li><strong>Plan:</strong> <%= plan_name %></li>
+      <li><strong>Amount:</strong> <%= currency %><%= amount_due %></li>
+      <li><strong>Failure Reason:</strong> <span style="color: #e74c3c;"><%= failure_reason %></span></li>
+      <li><strong>Status:</strong> <span style="color: #e74c3c; font-weight: bold;">Payment Failed</span></li>
+    </ul>
+  </div>
+
+  <p>
+    <strong>What happened?</strong><br/>
+    <%= failure_reason %>. This is a common issue that can usually be resolved quickly.
+  </p>
+
+  <p>
+    <strong>Impact on your service:</strong><br/>
+    Your garage is temporarily hidden from driver searches until payment is resolved. You won't receive new bookings during this time.
+  </p>
+
+  <p>
+    <strong>What you need to do:</strong><br/>
+    Please update your payment method or resolve the payment issue as soon as possible.
+  </p>
+
+  <% if (billing_portal_url) { %>
+  <p>
+    <strong>Quick Fix:</strong><br/>
+    Click the button below to update your payment method in just a few clicks:
+  </p>
+  
+  <p>
+    <a href="<%= billing_portal_url %>" style="background:#e74c3c;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin:8px 0;">Update Payment Method</a>
+  </p>
+  <% } %>
+
+  <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 12px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0; font-size: 14px; color: #856404;">
+      <strong>⏰ Grace Period:</strong> You have 3 days to resolve this payment issue before your subscription is suspended. Your data remains safe during this time.
+    </p>
+  </div>
+
+  <div style="background: #e8f4fd; border: 1px solid #bee5eb; padding: 12px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0; font-size: 14px; color: #0c5460;">
+      <strong>💡 Common Solutions:</strong><br/>
+      • Update your card details if it has expired<br/>
+      • Ensure sufficient funds are available<br/>
+      • Check that your billing address is correct<br/>
+      • Contact your bank if the card was declined
+    </p>
+  </div>
+
+  <p>
+    <strong>Need help?</strong><br/>
+    Our support team is here to assist you. Contact us at 
+    <a href="mailto:<%= support_email %>"><%= support_email %></a> or reply to this email.
+  </p>
+
+  <p>
+    We'll automatically retry your payment in 24 hours. Once resolved, your service will be restored immediately.
+  </p>
+
+  <p>Best regards,<br/>
+  <strong>The <%= app_name %> Team</strong></p>
+</div>

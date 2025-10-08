@@ -24,19 +24,6 @@ export class GarageSubscriptionService {
     private readonly subscriptionVisibilityService: SubscriptionVisibilityService,
   ) {}
 
-  /**
-   * Helper method to update user subscription visibility status
-   * Delegates to the shared SubscriptionVisibilityService
-   *
-   * @param garageId - The ID of the garage user
-   */
-  private async updateUserSubscriptionStatus(garageId: string): Promise<void> {
-    await this.subscriptionVisibilityService.updateUserSubscriptionStatus(
-      garageId,
-      'admin',
-    );
-  }
-
   async attachStripeSubscription(id: string) {
     const sub = await this.prisma.garageSubscription.findUnique({
       where: { id },
@@ -379,7 +366,10 @@ export class GarageSubscriptionService {
     });
 
     // Update user subscription visibility status
-    await this.updateUserSubscriptionStatus(subscription.garage.id);
+    await this.subscriptionVisibilityService.updateUserSubscriptionStatus(
+      subscription.garage.id,
+      'admin',
+    );
 
     return this.formatSubscriptionResponse(updatedSubscription);
   }

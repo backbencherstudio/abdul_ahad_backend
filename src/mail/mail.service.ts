@@ -273,4 +273,290 @@ export class MailService {
       console.error('Error queuing admin unban notification email:', error);
     }
   }
+
+  /**
+   * Send trial warning email to garage owner
+   * This email is sent when a trial subscription is about to end
+   *
+   * @param params - Email parameters
+   */
+  async sendTrialWarningEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    price_formatted: string;
+    trial_end_date: string;
+    days_remaining: number;
+    billing_portal_url?: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Trial Ending Soon - ${params.days_remaining} day${params.days_remaining !== 1 ? 's' : ''} remaining`;
+
+      await this.queue.add('sendTrialWarningEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'trial-warning',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          price_formatted: params.price_formatted,
+          trial_end_date: params.trial_end_date,
+          days_remaining: params.days_remaining,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(`Trial warning email queued for garage: ${params.to}`);
+    } catch (error) {
+      console.error('Error queuing trial warning email:', error);
+    }
+  }
+
+  /**
+   * Send trial-to-paid confirmation email
+   * This email is sent when a trial subscription converts to paid
+   *
+   * @param params - Email parameters
+   */
+  async sendTrialToPaidConfirmationEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    price_formatted: string;
+    next_billing_date: string;
+    billing_portal_url?: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Welcome to ${params.plan_name} - Your trial has converted to paid!`;
+
+      await this.queue.add('sendTrialToPaidConfirmationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'trial-to-paid-confirmation',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          price_formatted: params.price_formatted,
+          next_billing_date: params.next_billing_date,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(
+        `Trial-to-paid confirmation email queued for garage: ${params.to}`,
+      );
+    } catch (error) {
+      console.error('Error queuing trial-to-paid confirmation email:', error);
+    }
+  }
+
+  /**
+   * Send trial expiration email
+   * This email is sent when a trial subscription expires without payment
+   *
+   * @param params - Email parameters
+   */
+  async sendTrialExpirationEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    price_formatted: string;
+    billing_portal_url?: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Your trial has ended - Resubscribe to continue`;
+
+      await this.queue.add('sendTrialExpirationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'trial-expiration',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          price_formatted: params.price_formatted,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(`Trial expiration email queued for garage: ${params.to}`);
+    } catch (error) {
+      console.error('Error queuing trial expiration email:', error);
+    }
+  }
+
+  /**
+   * Send payment failure notification email
+   * This email is sent when a subscription payment fails
+   *
+   * @param params - Email parameters
+   */
+  async sendPaymentFailureNotification(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    price_formatted: string;
+    failure_reason: string;
+    amount_due: string;
+    currency: string;
+    billing_portal_url?: string;
+    isFirstFailure?: boolean;
+    isGracePeriodExpired?: boolean;
+    gracePeriodEnd?: Date;
+    retryInfo?: any;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Payment Failed - Action Required`;
+
+      await this.queue.add('sendPaymentFailureNotification', {
+        to: params.to,
+        from,
+        subject,
+        template: 'payment-failure',
+        context: {
+          garage_name: params.garage_name,
+          plan_name: params.plan_name,
+          price_formatted: params.price_formatted,
+          failure_reason: params.failure_reason,
+          amount_due: params.amount_due,
+          currency: params.currency.toUpperCase(),
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+          isFirstFailure: params.isFirstFailure,
+          isGracePeriodExpired: params.isGracePeriodExpired,
+          gracePeriodEnd: params.gracePeriodEnd
+            ? params.gracePeriodEnd.toLocaleDateString()
+            : null,
+          gracePeriodDaysRemaining: params.gracePeriodEnd
+            ? Math.ceil(
+                (params.gracePeriodEnd.getTime() - new Date().getTime()) /
+                  (1000 * 60 * 60 * 24),
+              )
+            : 0,
+          retryInfo: params.retryInfo,
+          retryAttempt: params.retryInfo?.attempt || 1,
+          maxRetryAttempts: params.retryInfo?.max_attempts || 3,
+          nextRetryDate:
+            params.retryInfo?.next_retry_date?.toLocaleDateString() || null,
+          isMaxRetriesReached:
+            params.retryInfo?.status === 'max_retries_reached',
+        },
+      });
+
+      console.log(
+        `Payment failure notification email queued for garage: ${params.to}`,
+      );
+    } catch (error) {
+      console.error('Error queuing payment failure notification:', error);
+    }
+  }
+
+  /**
+   * Send subscription welcome email
+   * This email is sent when a user's subscription becomes active
+   *
+   * @param params - Email parameters
+   */
+  async sendSubscriptionWelcomeEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    price_formatted: string;
+    currency: string;
+    next_billing_date?: string;
+    billing_portal_url?: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Welcome to Your Subscription - ${process.env.APP_NAME}`;
+
+      await this.queue.add('sendSubscriptionWelcomeEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'subscription-welcome',
+        context: {
+          garage_name: params.garage_name,
+          garage_email: params.to,
+          plan_name: params.plan_name,
+          price_formatted: params.price_formatted,
+          currency: params.currency.toUpperCase(),
+          next_billing_date: params.next_billing_date,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(`Subscription welcome email queued for garage: ${params.to}`);
+    } catch (error) {
+      console.error('Error sending subscription welcome email:', error);
+    }
+  }
+
+  /**
+   * Send payment success email
+   * This email is sent when a payment is processed successfully
+   *
+   * @param params - Email parameters
+   */
+  async sendPaymentSuccessEmail(params: {
+    to: string;
+    garage_name: string;
+    plan_name: string;
+    amount_paid: string;
+    currency: string;
+    payment_date: string;
+    billing_period: string;
+    payment_method: string;
+    transaction_id: string;
+    next_billing_date?: string;
+    next_billing_amount?: string;
+    billing_portal_url?: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Payment Successful - ${process.env.APP_NAME}`;
+
+      await this.queue.add('sendPaymentSuccessEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'payment-success',
+        context: {
+          garage_name: params.garage_name,
+          garage_email: params.to,
+          plan_name: params.plan_name,
+          amount_paid: params.amount_paid,
+          currency: params.currency.toUpperCase(),
+          payment_date: params.payment_date,
+          billing_period: params.billing_period,
+          payment_method: params.payment_method,
+          transaction_id: params.transaction_id,
+          next_billing_date: params.next_billing_date,
+          next_billing_amount: params.next_billing_amount,
+          billing_portal_url: params.billing_portal_url,
+          support_email: appConfig().mail.from,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(`Payment success email queued for garage: ${params.to}`);
+    } catch (error) {
+      console.error('Error sending payment success email:', error);
+    }
+  }
 }

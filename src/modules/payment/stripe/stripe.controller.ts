@@ -1,13 +1,78 @@
 import { Controller, Post, Req, Headers } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { StripeService } from './stripe.service';
 import { Request } from 'express';
 import { TransactionRepository } from '../../../common/repository/transaction/transaction.repository';
 
+@ApiTags('Stripe Webhooks')
 @Controller('payment/stripe')
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
   @Post('webhook')
+  @ApiOperation({
+    summary: 'Handle Stripe webhook events',
+    description: `
+      Processes incoming Stripe webhook events for subscription management.
+      
+      **Supported Events:**
+      - \`customer.subscription.created\` - New subscription activated
+      - \`customer.subscription.updated\` - Subscription status changes
+      - \`customer.subscription.deleted\` - Subscription cancelled
+      - \`customer.subscription.trial_will_end\` - Trial ending soon
+      - \`invoice.payment_succeeded\` - Payment processed successfully
+      - \`invoice.payment_failed\` - Payment failed with retry logic
+      - \`payment_intent.succeeded\` - Direct payment succeeded
+      - \`payment_intent.payment_failed\` - Direct payment failed
+      
+      **Features:**
+      - Automatic subscription activation/deactivation
+      - Trial period management with email notifications
+      - Payment failure recovery with grace periods
+      - Smart retry logic for failed payments
+      - Professional email notifications
+      - Subscription visibility management
+    `,
+  })
+  @ApiHeader({
+    name: 'stripe-signature',
+    description: 'Stripe webhook signature for request verification',
+    required: true,
+    example: 't=1234567890,v1=signature_hash_here',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook processed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        received: {
+          type: 'boolean',
+          example: true,
+          description: 'Indicates if webhook was processed successfully',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid webhook signature or payload',
+    schema: {
+      type: 'object',
+      properties: {
+        received: {
+          type: 'boolean',
+          example: false,
+          description: 'Indicates webhook processing failed',
+        },
+        error: {
+          type: 'string',
+          example: 'Invalid signature',
+          description: 'Error message describing the failure',
+        },
+      },
+    },
+  })
   async handleWebhook(
     @Headers('stripe-signature') signature: string,
     @Req() req: Request,
@@ -109,6 +174,11 @@ export class StripeController {
         case 'invoice.payment_failed':
           console.log('Payment failed:', event.data.object);
           await this.stripeService.handlePaymentFailed(event.data.object);
+          break;
+
+        case 'customer.subscription.trial_will_end':
+          console.log('Trial will end:', event.data.object);
+          await this.stripeService.handleTrialWillEnd(event.data.object);
           break;
 
         case 'billing_portal.session.created':

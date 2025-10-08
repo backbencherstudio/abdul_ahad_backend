@@ -21,19 +21,6 @@ export class GarageSubscriptionService {
   ) {}
 
   /**
-   * Helper method to update user subscription visibility status
-   * Delegates to the shared SubscriptionVisibilityService
-   *
-   * @param garageId - The ID of the garage user
-   */
-  private async updateUserSubscriptionStatus(garageId: string): Promise<void> {
-    await this.subscriptionVisibilityService.updateUserSubscriptionStatus(
-      garageId,
-      'garage-dashboard',
-    );
-  }
-
-  /**
    * Get all active subscription plans available for garages
    */
   async getAvailablePlans(page: number = 1, limit: number = 20) {
@@ -455,6 +442,7 @@ export class GarageSubscriptionService {
             },
             success_url: success_url,
             cancel_url: cancel_url,
+            trial_period_days: dto.trial_period_days,
           });
       } catch (error) {
         // If customer doesn't exist in Stripe, clear the invalid ID and create a new one
@@ -507,6 +495,7 @@ export class GarageSubscriptionService {
               },
               success_url: success_url,
               cancel_url: cancel_url,
+              trial_period_days: dto.trial_period_days,
             });
         } else {
           // Re-throw other Stripe errors
@@ -540,16 +529,21 @@ export class GarageSubscriptionService {
         `Creating billing portal session for garage: ${garageId}`,
       );
 
-      // Get garage's current subscription
+      // Get garage's current subscription (including PAST_DUE for payment failures)
       const subscription = await this.prisma.garageSubscription.findFirst({
         where: {
           garage_id: garageId,
-          status: 'ACTIVE',
+          status: {
+            in: ['ACTIVE', 'PAST_DUE'], // Include PAST_DUE for payment failure scenarios
+          },
         },
         include: {
           garage: {
             select: { billing_id: true },
           },
+        },
+        orderBy: {
+          created_at: 'desc',
         },
       });
 
@@ -570,11 +564,36 @@ export class GarageSubscriptionService {
         subscription.garage.billing_id,
       );
 
+      // 🆕 ENHANCED: Add context for payment failure scenarios
+      const responseData: any = {
+        url: session.url,
+      };
+
+      // Add payment failure context if subscription is PAST_DUE
+      if (subscription.status === 'PAST_DUE') {
+        const gracePeriodDays = 3;
+        const now = new Date();
+        const gracePeriodEnd = new Date(
+          subscription.updated_at.getTime() +
+            gracePeriodDays * 24 * 60 * 60 * 1000,
+        );
+        const daysRemaining = Math.ceil(
+          (gracePeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        responseData.payment_failure_context = {
+          is_payment_failed: true,
+          grace_period_active: daysRemaining > 0,
+          grace_period_end: gracePeriodEnd.toISOString(),
+          grace_period_days_remaining: Math.max(0, daysRemaining),
+          urgency_level:
+            daysRemaining <= 1 ? 'high' : daysRemaining <= 2 ? 'medium' : 'low',
+        };
+      }
+
       return {
         success: true,
-        data: {
-          url: session.url,
-        },
+        data: responseData,
       };
     } catch (error) {
       this.logger.error(

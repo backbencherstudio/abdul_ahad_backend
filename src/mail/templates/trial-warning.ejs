@@ -1,0 +1,52 @@
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
+  <h2 style="margin:0 0 12px; color: #e74c3c;">⚠️ Trial Ending Soon</h2>
+  <p>Hi <%= garage_name %>,</p>
+  <p>
+    Your free trial for the <strong><%= plan_name %></strong> plan is ending soon!
+  </p>
+  
+  <div style="background: #f8f9fa; border-left: 4px solid #e74c3c; padding: 16px; margin: 16px 0;">
+    <h3 style="margin: 0 0 8px; color: #e74c3c;">Trial Details:</h3>
+    <ul style="margin: 0; padding-left: 20px;">
+      <li><strong>Plan:</strong> <%= plan_name %></li>
+      <li><strong>Price:</strong> <%= price_formatted %> per month</li>
+      <li><strong>Trial ends:</strong> <%= trial_end_date %></li>
+      <li><strong>Days remaining:</strong> <span style="color: #e74c3c; font-weight: bold;"><%= days_remaining %></span></li>
+    </ul>
+  </div>
+
+  <p>
+    <strong>What happens next?</strong><br/>
+    After your trial ends, you'll be automatically charged <strong><%= price_formatted %></strong> per month to continue using our services.
+  </p>
+
+  <p>
+    <strong>Want to continue?</strong><br/>
+    No action needed! Your subscription will automatically continue after the trial period.
+  </p>
+
+  <p>
+    <strong>Want to cancel or update payment method?</strong><br/>
+    You can manage your subscription anytime through our billing portal:
+  </p>
+  
+  <% if (billing_portal_url) { %>
+  <p>
+    <a href="<%= billing_portal_url %>" style="background:#2d6cdf;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin:8px 0;">Manage Subscription</a>
+  </p>
+  <% } %>
+
+  <div style="background: #e8f4fd; border: 1px solid #bee5eb; padding: 12px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0; font-size: 14px; color: #0c5460;">
+      <strong>💡 Pro Tip:</strong> Update your payment method now to avoid any service interruption when your trial ends.
+    </p>
+  </div>
+
+  <p>
+    If you have any questions or need assistance, don't hesitate to contact our support team at 
+    <a href="mailto:<%= support_email %>"><%= support_email %></a>.
+  </p>
+
+  <p>Thank you for trying <%= app_name %>!<br/>
+  <strong>The <%= app_name %> Team</strong></p>
+</div>

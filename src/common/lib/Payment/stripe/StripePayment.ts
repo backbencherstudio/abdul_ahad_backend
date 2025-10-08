@@ -245,16 +245,26 @@ export class StripePayment {
    * Create stripe hosted checkout session
    * @param customer
    * @param price
+   * @param trial_period_days - Optional trial period in days (0 = no trial)
    * @returns
    */
   static async createCheckoutSessionSubscription(
     customer: string,
     price: string,
+    trial_period_days?: number,
   ) {
     const success_url = `${
       appConfig().app.url
     }/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancel_url = `${appConfig().app.url}/failed`;
+
+    // Get default trial period from environment or use 14 days
+    const defaultTrialDays = parseInt(
+      process.env.DEFAULT_TRIAL_PERIOD_DAYS || '14',
+      10,
+    );
+    const trialDays =
+      trial_period_days !== undefined ? trial_period_days : defaultTrialDays;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -267,7 +277,7 @@ export class StripePayment {
         },
       ],
       subscription_data: {
-        trial_period_days: 14,
+        ...(trialDays > 0 && { trial_period_days: trialDays }),
       },
       success_url: success_url,
       cancel_url: cancel_url,
@@ -291,17 +301,27 @@ export class StripePayment {
     metadata,
     success_url,
     cancel_url,
+    trial_period_days,
   }: {
     customer: string;
     price: string;
     metadata: stripe.MetadataParam;
     success_url?: string;
     cancel_url?: string;
+    trial_period_days?: number;
   }) {
     const defaultSuccessUrl = `${
       appConfig().app.url
     }/success?session_id={CHECKOUT_SESSION_ID}`;
     const defaultCancelUrl = `${appConfig().app.url}/failed`;
+
+    // Get default trial period from environment or use 14 days
+    const defaultTrialDays = parseInt(
+      process.env.DEFAULT_TRIAL_PERIOD_DAYS || '14',
+      10,
+    );
+    const trialDays =
+      trial_period_days !== undefined ? trial_period_days : defaultTrialDays;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -314,7 +334,7 @@ export class StripePayment {
         },
       ],
       subscription_data: {
-        trial_period_days: 14,
+        ...(trialDays > 0 && { trial_period_days: trialDays }),
         metadata: metadata,
       },
       success_url: success_url || defaultSuccessUrl,
