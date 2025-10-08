@@ -448,7 +448,8 @@ export class GarageSubscriptionService {
       const cancel_url = `${appConfig().app.client_app_url}/subscription/cancel`;
 
       // Use plan's trial period (business controls trial length)
-      const trialDays = plan.trial_period_days || 14; // Fallback to 14 days if not set
+      const trialDays =
+        plan.trial_period_days !== undefined ? plan.trial_period_days : 14; // Fallback to 14 days if not set
 
       let session;
       try {

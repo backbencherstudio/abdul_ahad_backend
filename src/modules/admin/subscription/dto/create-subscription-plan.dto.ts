@@ -118,11 +118,10 @@ export class CreateSubscriptionPlanDto {
     description:
       'Trial period in days (0 = no trial, business controls trial length)',
     example: 14,
-    default: 14,
     minimum: 0,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  trial_period_days?: number = 14;
+  trial_period_days?: number;
 }

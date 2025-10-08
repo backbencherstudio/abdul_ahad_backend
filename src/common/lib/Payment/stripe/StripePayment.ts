@@ -259,7 +259,7 @@ export class StripePayment {
     const cancel_url = `${appConfig().app.url}/failed`;
 
     // Use provided trial period or default to 14 days (no environment fallback)
-    const trialDays = trial_period_days || 14;
+    const trialDays = trial_period_days !== undefined ? trial_period_days : 14;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -312,7 +312,7 @@ export class StripePayment {
     const defaultCancelUrl = `${appConfig().app.url}/failed`;
 
     // Use provided trial period or default to 14 days (no environment fallback)
-    const trialDays = trial_period_days || 14;
+    const trialDays = trial_period_days !== undefined ? trial_period_days : 14;
 
     const session = await Stripe.checkout.sessions.create({
       mode: 'subscription',
