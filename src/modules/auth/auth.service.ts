@@ -13,6 +13,7 @@ import { DateHelper } from '../../common/helper/date.helper';
 import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
 import { Role } from 'src/common/guard/role/role.enum';
+import { SubscriptionVisibilityService } from '../../common/lib/subscription/subscription-visibility.service';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
     private jwtService: JwtService,
     private prisma: PrismaService,
     private mailService: MailService,
+    private subscriptionVisibilityService: SubscriptionVisibilityService,
   ) {}
 
   async me(userId: string) {
@@ -111,6 +113,27 @@ export class AuthService {
         );
       }
 
+      // ✅ NEW: Get driver visibility status for GARAGE users
+      let driverVisibility = null;
+      if (user.type === 'GARAGE') {
+        try {
+          const visibilityStatus =
+            await this.subscriptionVisibilityService.getSubscriptionVisibilityStatus(
+              userId,
+            );
+          driverVisibility = {
+            is_visible_to_drivers: visibilityStatus.hasSubscription,
+            visible_until: visibilityStatus.expiresAt,
+          };
+        } catch (error) {
+          // If subscription service fails, default to no visibility
+          driverVisibility = {
+            is_visible_to_drivers: false,
+            visible_until: null,
+          };
+        }
+      }
+
       // Handle avatar URL
       if (user.avatar) {
         user['avatar_url'] = SojebStorage.url(
@@ -154,6 +177,11 @@ export class AuthService {
             ),
           },
         }),
+        // ✅ NEW: Add driver visibility for GARAGE users
+        ...(user.type === 'GARAGE' &&
+          driverVisibility && {
+            driver_visibility: driverVisibility,
+          }),
       };
 
       return {
