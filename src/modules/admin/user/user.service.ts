@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -12,14 +12,25 @@ import { MailService } from '../../../mail/mail.service';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  // ✅ ROLE HIERARCHY: Define role levels for smart replacement
+  private readonly roleHierarchy = {
+    super_admin: 5,
+    system_admin: 4,
+    operations_admin: 3,
+    financial_admin: 3,
+    support_admin: 2,
+  };
+
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
+  async create(createUserDto: CreateUserDto, currentUserId?: string) {
     try {
-      // ✅ NEW: Validate role_ids if provided
+      // ✅ SECURITY: Validate role_ids if provided
       if (createUserDto.role_ids && createUserDto.role_ids.length > 0) {
         const validRoles = await this.prisma.role.findMany({
           where: { id: { in: createUserDto.role_ids } },
@@ -30,11 +41,70 @@ export class UserService {
           throw new BadRequestException('One or more role IDs are invalid');
         }
 
+        // ✅ SECURITY: Prevent Super Admin role assignment via user creation
+        const superAdminRole = validRoles.find(
+          (role) => role.name === 'super_admin',
+        );
+        if (superAdminRole) {
+          this.logger.warn(
+            `Security violation prevented: Super Admin assignment attempt during user creation`,
+          );
+          throw new BadRequestException(
+            'Super Admin role cannot be assigned via user creation. Use system administrator tools.',
+          );
+        }
+
+        // ✅ SECURITY: Only Super Admin can assign critical roles
+        const criticalRoles = ['system_admin'];
+        const hasCriticalRoles = validRoles.some((role) =>
+          criticalRoles.includes(role.name),
+        );
+
+        if (hasCriticalRoles && currentUserId) {
+          const currentUserRoles = await this.prisma.roleUser.findMany({
+            where: { user_id: currentUserId },
+            include: { role: { select: { name: true } } },
+          });
+
+          const isSuperAdmin = currentUserRoles.some(
+            (ru) => ru.role.name === 'super_admin',
+          );
+
+          if (!isSuperAdmin) {
+            this.logger.warn(
+              `Security violation prevented: Non-super-admin attempted to assign critical roles during user creation`,
+            );
+            throw new BadRequestException(
+              'Insufficient permissions. Only Super Admin can assign critical roles.',
+            );
+          }
+        } else if (hasCriticalRoles && !currentUserId) {
+          throw new BadRequestException(
+            'Cannot verify permissions. Critical role assignment requires Super Admin privileges.',
+          );
+        }
+
+        // ✅ SECURITY: Prevent self-assignment of critical roles
+        if (hasCriticalRoles && currentUserId) {
+          const currentUser = await this.prisma.user.findUnique({
+            where: { id: currentUserId },
+            select: { email: true },
+          });
+
+          if (currentUser && currentUser.email === createUserDto.email) {
+            this.logger.warn(
+              `Security violation prevented: Self-assignment of critical roles attempted during user creation`,
+            );
+            throw new BadRequestException(
+              'Cannot assign critical roles to yourself. Use system administrator tools.',
+            );
+          }
+        }
+
         // Validate that user type matches role requirements
         if (createUserDto.type === 'ADMIN') {
           const systemRoles = validRoles.filter((role) =>
             [
-              'super_admin',
               'system_admin',
               'financial_admin',
               'operations_admin',
@@ -49,7 +119,36 @@ export class UserService {
         }
       }
 
-      // ✅ NEW: Create user with transaction to ensure data consistency
+      // ✅ SECURITY: Apply intelligent role assignment logic (outside transaction for variable scope)
+      let rolesToAdd: Array<{ id: string; name: string }> = [];
+      let rolesToRemove: Array<{ id: string; name: string }> = [];
+      let strategy = 'none';
+      let reasoning = 'No roles assigned';
+
+      if (createUserDto.role_ids && createUserDto.role_ids.length > 0) {
+        const validRoles = await this.prisma.role.findMany({
+          where: { id: { in: createUserDto.role_ids } },
+          select: { id: true, name: true, title: true },
+        });
+
+        // Apply intelligent role assignment logic (same as role assignment endpoint)
+        const {
+          rolesToAdd: selectedRoles,
+          rolesToRemove: removedRoles,
+          strategy: assignmentStrategy,
+          reasoning: assignmentReasoning,
+        } = this.calculateRoleChanges(
+          [], // Empty array - new user has no existing roles
+          validRoles,
+        );
+
+        rolesToAdd = selectedRoles;
+        rolesToRemove = removedRoles;
+        strategy = assignmentStrategy;
+        reasoning = assignmentReasoning;
+      }
+
+      // ✅ SECURITY: Create user with transaction to ensure data consistency
       const result = await this.prisma.$transaction(async (tx) => {
         // Create the user
         const user = await UserRepository.createUser({
@@ -99,16 +198,21 @@ export class UserService {
           }
         }
 
-        // ✅ NEW: Assign roles if provided
-        if (createUserDto.role_ids && createUserDto.role_ids.length > 0) {
-          const roleAssignments = createUserDto.role_ids.map((roleId) => ({
+        // ✅ SECURITY: Assign roles using intelligent selection
+        if (rolesToAdd.length > 0) {
+          const roleAssignments = rolesToAdd.map((role) => ({
             user_id: user.data.id,
-            role_id: roleId,
+            role_id: role.id,
           }));
 
           await tx.roleUser.createMany({
             data: roleAssignments,
           });
+
+          // ✅ AUDIT: Log intelligent role assignment
+          this.logger.log(
+            `User creation with intelligent role assignment: User ${user.data.id}, Strategy: ${strategy}, Added: ${rolesToAdd.map((r) => r.name).join(', ')}, Reasoning: ${reasoning}`,
+          );
         }
 
         // ✅ FIXED: Fetch complete user data with roles using correct relation name
@@ -183,11 +287,17 @@ export class UserService {
         actionsPerformed.push('Admin roles assigned');
       }
 
+      // ✅ ENHANCED: Generate smart response message based on role assignment
+      let message = `${createUserDto.type} user created successfully`;
+      if (rolesToAdd.length > 0) {
+        message += ` with ${rolesToAdd.length} role(s) assigned`;
+      }
+
       return {
         success: true,
-        message: `${createUserDto.type} user created successfully`,
+        message: message,
         data: {
-          user_id: result.id,
+          id: result.id,
           email: result.email,
           name: result.name,
           type: result.type,
@@ -196,6 +306,11 @@ export class UserService {
           billing_id: result.billing_id,
           roles: formattedRoles,
           created_at: result.created_at,
+          // ✅ ENHANCED: Add role assignment details (consistent with role assignment endpoint)
+          roles_added: rolesToAdd.length,
+          roles_removed: rolesToRemove.length,
+          assignment_strategy: strategy,
+          intelligent_reasoning: reasoning,
           actions_performed: actionsPerformed,
         },
       };
@@ -211,12 +326,31 @@ export class UserService {
     q,
     type,
     approved,
+    page = '1',
+    limit = '20',
   }: {
     q?: string;
     type?: string;
     approved?: string;
+    page?: string;
+    limit?: string;
   }) {
     try {
+      // ✅ ENHANCED: Parse and validate pagination parameters
+      const p = parseInt(page, 10);
+      const l = parseInt(limit, 10);
+
+      if (isNaN(p) || isNaN(l) || p < 1 || l < 1) {
+        throw new BadRequestException('Invalid page or limit parameters');
+      }
+
+      if (l > 100) {
+        throw new BadRequestException(
+          'Limit cannot exceed 100 records per page',
+        );
+      }
+
+      // ✅ ENHANCED: Build where condition
       const where_condition = {};
       if (q) {
         where_condition['OR'] = [
@@ -234,26 +368,126 @@ export class UserService {
           approved == 'approved' ? { not: null } : { equals: null };
       }
 
-      const users = await this.prisma.user.findMany({
-        where: {
-          ...where_condition,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone_number: true,
-          address: true,
-          type: true,
-          approved_at: true,
-          created_at: true,
-          updated_at: true,
-        },
+      // ✅ ENHANCED: Calculate pagination
+      const skip = (p - 1) * l;
+
+      // ✅ ENHANCED: Get paginated results, total count, and user statistics in parallel
+      const [
+        users,
+        total,
+        totalUsers,
+        totalBannedUsers,
+        totalAdminUsers,
+        totalGarageUsers,
+        totalDriverUsers,
+        totalApprovedUsers,
+      ] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            ...where_condition,
+          },
+          skip,
+          take: l,
+          orderBy: { created_at: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone_number: true,
+            address: true,
+            type: true,
+            approved_at: true,
+            created_at: true,
+            updated_at: true,
+            avatar: true,
+            // ✅ NEW: Include user roles
+            role_users: {
+              include: {
+                role: {
+                  select: {
+                    id: true,
+                    title: true,
+                    name: true,
+                    created_at: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        this.prisma.user.count({
+          where: {
+            ...where_condition,
+          },
+        }),
+        // ✅ NEW: User statistics queries
+        this.prisma.user.count(),
+        this.prisma.user.count({
+          where: { approved_at: null },
+        }),
+        this.prisma.user.count({
+          where: { type: 'ADMIN' },
+        }),
+        this.prisma.user.count({
+          where: { type: 'GARAGE' },
+        }),
+        this.prisma.user.count({
+          where: { type: 'DRIVER' },
+        }),
+        this.prisma.user.count({
+          where: { approved_at: { not: null } },
+        }),
+      ]);
+
+      // ✅ ENHANCED: Generate avatar URLs and format roles
+      const usersWithAvatarUrls = users.map((user) => {
+        const userData = { ...user };
+
+        // Generate avatar_url from avatar field
+        if (user.avatar) {
+          userData['avatar_url'] = SojebStorage.url(
+            appConfig().storageUrl.avatar + user.avatar,
+          );
+        } else {
+          userData['avatar_url'] = null;
+        }
+
+        // ✅ NEW: Format roles for response
+        if (user.role_users && user.role_users.length > 0) {
+          userData['roles'] = user.role_users.map((ru) => ({
+            id: ru.role.id,
+            title: ru.role.title,
+            name: ru.role.name,
+            created_at: ru.role.created_at,
+          }));
+        } else {
+          userData['roles'] = [];
+        }
+
+        // Remove raw fields from response
+        delete userData.avatar;
+        delete userData.role_users;
+
+        return userData;
       });
 
       return {
         success: true,
-        data: users,
+        data: usersWithAvatarUrls,
+        pagination: {
+          page: p,
+          limit: l,
+          total,
+          totalPages: Math.ceil(total / l),
+        },
+        statistics: {
+          total_users: totalUsers,
+          total_banned_users: totalBannedUsers,
+          total_admin_users: totalAdminUsers,
+          total_garage_users: totalGarageUsers,
+          total_driver_users: totalDriverUsers,
+          total_approved_users: totalApprovedUsers,
+        },
       };
     } catch (error) {
       return {
@@ -430,7 +664,7 @@ export class UserService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, reason?: string) {
     try {
       // Validate user exists before attempting to ban
       const existingUser = await this.prisma.user.findUnique({
@@ -449,6 +683,35 @@ export class UserService {
         return {
           success: false,
           message: 'User not found',
+        };
+      }
+
+      // ✅ SECURITY: Protect Super Admin from being banned
+      // Check by system email (primary protection)
+      if (existingUser.email === appConfig().defaultUser.system.email) {
+        return {
+          success: false,
+          message: 'Cannot ban system administrator',
+        };
+      }
+
+      // ✅ SECURITY: Additional protection by checking Super Admin role
+      const userRoles = await this.prisma.roleUser.findMany({
+        where: { user_id: id },
+        include: {
+          role: {
+            select: { name: true },
+          },
+        },
+      });
+
+      const isSuperAdmin = userRoles.some(
+        (ur) => ur.role.name === 'super_admin',
+      );
+      if (isSuperAdmin) {
+        return {
+          success: false,
+          message: 'Cannot ban Super Admin user',
         };
       }
 
@@ -485,24 +748,26 @@ export class UserService {
         );
 
         // Send admin-specific ban notification email
+        const adminBanReason = reason?.trim() || 'Administrative action';
         await this.mailService.sendAdminBannedNotification({
           user: {
             name: bannedUser.name,
             email: bannedUser.email,
           },
-          reason: 'Administrative action',
+          reason: adminBanReason,
         });
       } else {
         // GARAGE/DRIVER users: Handle Stripe actions and send user notifications
         await this.handleUserBanStripeActions(bannedUser);
 
         // Send user ban notification email
+        const userBanReason = reason?.trim() || 'Administrative action';
         await this.mailService.sendUserBannedNotification({
           user: {
             name: bannedUser.name,
             email: bannedUser.email,
           },
-          reason: 'Administrative action',
+          reason: userBanReason,
         });
       }
 
@@ -753,7 +1018,7 @@ export class UserService {
     }
   }
 
-  async assignRoles(userId: string, roleIds: string[]) {
+  async assignRoles(userId: string, roleIds: string[], currentUserId?: string) {
     try {
       // Validate user exists
       const user = await this.prisma.user.findUnique({
@@ -775,6 +1040,63 @@ export class UserService {
         throw new BadRequestException('One or more role IDs are invalid');
       }
 
+      // ✅ SECURITY: Prevent Super Admin role assignment via this endpoint
+      const superAdminRole = validRoles.find(
+        (role) => role.name === 'super_admin',
+      );
+      if (superAdminRole) {
+        this.logger.warn(
+          `Security violation prevented: Super Admin assignment attempt for user ${userId}`,
+        );
+        throw new BadRequestException(
+          'Super Admin role cannot be assigned via this endpoint. Use system administrator tools.',
+        );
+      }
+
+      // ✅ SECURITY: Only Super Admin can assign critical roles
+      const criticalRoles = ['system_admin'];
+      const hasCriticalRoles = validRoles.some((role) =>
+        criticalRoles.includes(role.name),
+      );
+
+      if (hasCriticalRoles && currentUserId) {
+        // Check if current user is Super Admin
+        const currentUserRoles = await this.prisma.roleUser.findMany({
+          where: { user_id: currentUserId },
+          include: { role: { select: { name: true } } },
+        });
+
+        const isSuperAdmin = currentUserRoles.some(
+          (ru) => ru.role.name === 'super_admin',
+        );
+
+        if (!isSuperAdmin) {
+          this.logger.warn(
+            `Security violation prevented: Non-super-admin attempted to assign critical roles to user ${userId}`,
+          );
+          throw new BadRequestException(
+            'Insufficient permissions. Only Super Admin can assign critical roles.',
+          );
+        }
+      } else if (hasCriticalRoles && !currentUserId) {
+        // If no current user context, fail safely
+        throw new BadRequestException(
+          'Cannot verify permissions. Critical role assignment requires Super Admin privileges.',
+        );
+      }
+
+      // ✅ SECURITY: Prevent self-assignment of critical roles
+      if (hasCriticalRoles && currentUserId) {
+        if (userId === currentUserId) {
+          this.logger.warn(
+            `Security violation prevented: Self-assignment of critical roles attempted by user ${currentUserId}`,
+          );
+          throw new BadRequestException(
+            'Cannot assign critical roles to yourself. Use system administrator tools.',
+          );
+        }
+      }
+
       // Validate that admin users get admin roles
       if (user.type === 'ADMIN') {
         const systemRoles = validRoles.filter((role) =>
@@ -793,25 +1115,41 @@ export class UserService {
         }
       }
 
-      // Get existing role assignments to avoid duplicates
+      // ✅ SMART ROLE REPLACEMENT: Get existing roles with hierarchy info
       const existingRoles = await this.prisma.roleUser.findMany({
         where: { user_id: userId },
-        select: { role_id: true },
+        include: { role: { select: { id: true, name: true } } },
       });
 
-      const existingRoleIds = existingRoles.map((ru) => ru.role_id);
-      const newRoleIds = roleIds.filter(
-        (roleId) => !existingRoleIds.includes(roleId),
-      );
+      // Apply intelligent role assignment logic
+      const { rolesToAdd, rolesToRemove, strategy, reasoning } =
+        this.calculateRoleChanges(existingRoles, validRoles);
 
-      // Create only new role assignments (additive approach)
-      if (newRoleIds.length > 0) {
-        await this.prisma.roleUser.createMany({
-          data: newRoleIds.map((roleId) => ({
+      // Remove conflicting roles
+      if (rolesToRemove.length > 0) {
+        await this.prisma.roleUser.deleteMany({
+          where: {
             user_id: userId,
-            role_id: roleId,
+            role_id: { in: rolesToRemove.map((role) => role.id) },
+          },
+        });
+      }
+
+      // Add new roles
+      if (rolesToAdd.length > 0) {
+        await this.prisma.roleUser.createMany({
+          data: rolesToAdd.map((role) => ({
+            user_id: userId,
+            role_id: role.id,
           })),
         });
+      }
+
+      // ✅ AUDIT: Log intelligent role assignment
+      if (rolesToAdd.length > 0 || rolesToRemove.length > 0) {
+        this.logger.log(
+          `Intelligent role assignment: User ${userId}, Strategy: ${strategy}, Added: ${rolesToAdd.map((r) => r.name).join(', ')}, Removed: ${rolesToRemove.map((r) => r.name).join(', ')}, Reasoning: ${reasoning}`,
+        );
       }
 
       // Return updated user with roles
@@ -844,16 +1182,35 @@ export class UserService {
         created_at: ru.role.created_at,
       }));
 
-      const addedRoles = newRoleIds.length;
-      const skippedRoles = roleIds.length - newRoleIds.length;
+      const addedRoles = rolesToAdd.length;
+      const removedRoles = rolesToRemove.length;
 
+      // ✅ INTELLIGENT FEEDBACK: Generate smart messages based on strategy
       let message = 'Roles assigned successfully';
-      if (addedRoles > 0 && skippedRoles > 0) {
-        message = `${addedRoles} role(s) added, ${skippedRoles} role(s) already assigned`;
-      } else if (addedRoles > 0) {
-        message = `${addedRoles} role(s) assigned successfully`;
-      } else {
-        message = 'All provided roles were already assigned to the user';
+
+      switch (strategy) {
+        case 'intelligent_selection':
+          message = `Smart assignment: Selected ${rolesToAdd.map((r) => r.name).join(', ')} (${reasoning})`;
+          break;
+        case 'upgrade':
+          message = `Upgraded to ${rolesToAdd.map((r) => r.name).join(', ')} (${reasoning})`;
+          break;
+        case 'downgrade':
+          message = `Downgraded to ${rolesToAdd.map((r) => r.name).join(', ')} (${reasoning})`;
+          break;
+        case 'same_level':
+          message = `Added ${rolesToAdd.map((r) => r.name).join(', ')} at same level (${reasoning})`;
+          break;
+        default:
+          if (addedRoles > 0 && removedRoles > 0) {
+            message = `${addedRoles} role(s) added, ${removedRoles} role(s) removed`;
+          } else if (addedRoles > 0) {
+            message = `${addedRoles} role(s) assigned successfully`;
+          } else if (removedRoles > 0) {
+            message = `${removedRoles} role(s) removed successfully`;
+          } else {
+            message = 'No role changes needed';
+          }
       }
 
       return {
@@ -864,7 +1221,16 @@ export class UserService {
           roles: formattedRoles,
           role_users: undefined,
           roles_added: addedRoles,
-          roles_skipped: skippedRoles,
+          roles_removed: removedRoles,
+          role_changes: {
+            added: rolesToAdd.map((role) => ({ id: role.id, name: role.name })),
+            removed: rolesToRemove.map((role) => ({
+              id: role.id,
+              name: role.name,
+            })),
+          },
+          assignment_strategy: strategy,
+          intelligent_reasoning: reasoning,
         },
       };
     } catch (error) {
@@ -939,7 +1305,7 @@ export class UserService {
       const [user, role] = await Promise.all([
         this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true, type: true },
+          select: { id: true, type: true, email: true },
         }),
         this.prisma.role.findUnique({
           where: { id: roleId },
@@ -949,6 +1315,21 @@ export class UserService {
 
       if (!user) throw new BadRequestException('User not found');
       if (!role) throw new BadRequestException('Role not found');
+
+      // ✅ SECURITY: Protect Super Admin role from being removed
+      if (role.name === 'super_admin') {
+        throw new BadRequestException('Cannot remove Super Admin role');
+      }
+
+      // ✅ SECURITY: Additional protection for system administrator email
+      if (
+        user.email === appConfig().defaultUser.system.email &&
+        role.name === 'super_admin'
+      ) {
+        throw new BadRequestException(
+          'Cannot remove Super Admin role from system administrator',
+        );
+      }
 
       // Prevent removing last admin role from admin users
       if (user.type === 'ADMIN') {
@@ -1003,5 +1384,118 @@ export class UserService {
         message: error.message,
       };
     }
+  }
+
+  // ✅ HELPER: Get current user ID from JWT context
+  // Note: This is a placeholder implementation - actual implementation depends on your JWT context setup
+  private async getCurrentUserId(): Promise<string> {
+    // TODO: Implement actual JWT context extraction
+    // For now, we'll use a placeholder that should be replaced with actual implementation
+    throw new BadRequestException(
+      'Current user context not available - please implement JWT context extraction',
+    );
+  }
+
+  // ✅ HELPER: Get current user roles
+  private async getCurrentUserRoles(): Promise<Array<{ name: string }>> {
+    try {
+      const currentUserId = await this.getCurrentUserId();
+      const roleUsers = await this.prisma.roleUser.findMany({
+        where: { user_id: currentUserId },
+        include: { role: { select: { name: true } } },
+      });
+      return roleUsers.map((ru) => ({ name: ru.role.name }));
+    } catch (error) {
+      // If we can't get current user context, return empty array
+      // This will cause authorization checks to fail safely
+      return [];
+    }
+  }
+
+  // ✅ INTELLIGENT ROLE ASSIGNMENT: Smart role selection based on hierarchy
+  private calculateRoleChanges(
+    existingRoles: Array<{ role: { id: string; name: string } }>,
+    newRoles: Array<{ id: string; name: string }>,
+  ): {
+    rolesToAdd: Array<{ id: string; name: string }>;
+    rolesToRemove: Array<{ id: string; name: string }>;
+    strategy: string;
+    reasoning: string;
+  } {
+    const existingRoleNames = existingRoles.map((er) => er.role.name);
+    const newRoleNames = newRoles.map((nr) => nr.name);
+
+    // ✅ INTELLIGENT SELECTION: Choose only the highest level role
+    const assignedLevels = newRoleNames.map(
+      (name) => this.roleHierarchy[name] || 0,
+    );
+    const targetLevel = Math.max(...assignedLevels);
+    const selectedRoles = newRoles.filter(
+      (role) => this.roleHierarchy[role.name] === targetLevel,
+    );
+
+    // ✅ DETECT MIXED LEVEL ASSIGNMENT
+    const hasMixedLevels = new Set(assignedLevels).size > 1;
+    const lowerRoles = newRoles.filter(
+      (role) => this.roleHierarchy[role.name] < targetLevel,
+    );
+
+    const rolesToAdd: Array<{ id: string; name: string }> = [];
+    const rolesToRemove: Array<{ id: string; name: string }> = [];
+    let strategy: string;
+    let reasoning: string;
+
+    if (hasMixedLevels) {
+      // ✅ MIXED LEVELS: Select only highest level role
+      strategy = 'intelligent_selection';
+      reasoning = `${selectedRoles[0].name} (Level ${targetLevel}) includes all permissions of ${lowerRoles.map((r) => r.name).join(', ')}`;
+
+      // Remove all existing roles (clean slate)
+      rolesToRemove.push(
+        ...existingRoles.map((er) => ({ id: er.role.id, name: er.role.name })),
+      );
+
+      // Add only the highest level role
+      rolesToAdd.push(...selectedRoles);
+    } else {
+      // ✅ SINGLE LEVEL: Standard replacement logic
+      const existingMaxLevel = Math.max(
+        ...existingRoleNames.map((name) => this.roleHierarchy[name] || 0),
+      );
+
+      if (targetLevel > existingMaxLevel) {
+        strategy = 'upgrade';
+        reasoning = `Upgrading to ${selectedRoles[0].name} (Level ${targetLevel})`;
+
+        // Remove lower level roles, add new roles
+        rolesToRemove.push(
+          ...existingRoles
+            .filter((er) => this.roleHierarchy[er.role.name] < targetLevel)
+            .map((er) => ({ id: er.role.id, name: er.role.name })),
+        );
+        rolesToAdd.push(...selectedRoles);
+      } else if (targetLevel < existingMaxLevel) {
+        strategy = 'downgrade';
+        reasoning = `Downgrading to ${selectedRoles[0].name} (Level ${targetLevel})`;
+
+        // Remove higher level roles, add new roles
+        rolesToRemove.push(
+          ...existingRoles
+            .filter((er) => this.roleHierarchy[er.role.name] > targetLevel)
+            .map((er) => ({ id: er.role.id, name: er.role.name })),
+        );
+        rolesToAdd.push(...selectedRoles);
+      } else {
+        strategy = 'same_level';
+        reasoning = `Adding roles at same level (Level ${targetLevel})`;
+
+        // Add only new roles not already assigned
+        rolesToAdd.push(
+          ...selectedRoles.filter((nr) => !existingRoleNames.includes(nr.name)),
+        );
+      }
+    }
+
+    return { rolesToAdd, rolesToRemove, strategy, reasoning };
   }
 }

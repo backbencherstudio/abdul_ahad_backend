@@ -24,6 +24,69 @@ export class AuthService {
     private subscriptionVisibilityService: SubscriptionVisibilityService,
   ) {}
 
+  /**
+   * Generate role-wise permission summary
+   */
+  private generateRoleWiseSummary(roles: any[]): Record<string, any> {
+    const summary = {};
+    roles.forEach((role) => {
+      summary[role.name] = {
+        can_manage_dashboard: role.permissions.some(
+          (p) => p.subject === 'Dashboard',
+        ),
+        can_manage_garages: role.permissions.some(
+          (p) => p.subject === 'Garage',
+        ),
+        can_manage_drivers: role.permissions.some(
+          (p) => p.subject === 'Driver',
+        ),
+        can_manage_bookings: role.permissions.some(
+          (p) => p.subject === 'Booking',
+        ),
+        can_manage_subscriptions: role.permissions.some(
+          (p) => p.subject === 'Subscription',
+        ),
+        can_manage_payments: role.permissions.some(
+          (p) => p.subject === 'Payment',
+        ),
+        can_manage_roles: role.permissions.some((p) => p.subject === 'Role'),
+        can_manage_users: role.permissions.some((p) => p.subject === 'User'),
+        can_view_analytics: role.permissions.some(
+          (p) => p.subject === 'Analytics',
+        ),
+        can_generate_reports: role.permissions.some(
+          (p) => p.subject === 'Reports',
+        ),
+      };
+    });
+    return summary;
+  }
+
+  /**
+   * Generate combined permission summary from all roles
+   */
+  private generateCombinedSummary(roles: any[]): Record<string, boolean> {
+    // Flatten all permissions from all roles
+    const allPermissions = roles.flatMap((role) => role.permissions);
+
+    return {
+      can_manage_dashboard: allPermissions.some(
+        (p) => p.subject === 'Dashboard',
+      ),
+      can_manage_garages: allPermissions.some((p) => p.subject === 'Garage'),
+      can_manage_drivers: allPermissions.some((p) => p.subject === 'Driver'),
+      can_manage_bookings: allPermissions.some((p) => p.subject === 'Booking'),
+      can_manage_subscriptions: allPermissions.some(
+        (p) => p.subject === 'Subscription',
+      ),
+      can_manage_payments: allPermissions.some((p) => p.subject === 'Payment'),
+      can_manage_roles: allPermissions.some((p) => p.subject === 'Role'),
+      can_manage_users: allPermissions.some((p) => p.subject === 'User'),
+      can_view_analytics: allPermissions.some((p) => p.subject === 'Analytics'),
+      can_generate_reports: allPermissions.some((p) => p.subject === 'Reports'),
+    };
+  }
+
   async me(userId: string) {
     try {
       const user = await this.prisma.user.findFirst({
@@ -82,35 +145,24 @@ export class AuthService {
           },
         });
 
-        // Extract role titles
+        // ✅ ENHANCED: Organize permissions by roles
         userRoles = roleUsers.map((ru) => ({
           id: ru.role.id,
           title: ru.role.title,
           name: ru.role.name,
           created_at: ru.role.created_at,
+          permissions: ru.role.permission_roles.map((pr) => ({
+            id: pr.permission.id,
+            title: pr.permission.title,
+            action: pr.permission.action,
+            subject: pr.permission.subject,
+            conditions: pr.permission.conditions,
+            fields: pr.permission.fields,
+          })),
         }));
 
-        // Extract all permissions from all roles
-        const allPermissions = new Set();
-        roleUsers.forEach((ru) => {
-          ru.role.permission_roles.forEach((pr) => {
-            allPermissions.add(
-              JSON.stringify({
-                id: pr.permission.id,
-                title: pr.permission.title,
-                action: pr.permission.action,
-                subject: pr.permission.subject,
-                conditions: pr.permission.conditions,
-                fields: pr.permission.fields,
-              }),
-            );
-          });
-        });
-
-        // Convert Set back to array of objects, ensuring type safety
-        userPermissions = Array.from(allPermissions).map((permStr) =>
-          JSON.parse(permStr as string),
-        );
+        // ✅ REMOVED: Flattened permissions array - no longer needed
+        userPermissions = [];
       }
 
       // ✅ NEW: Get driver visibility status for GARAGE users
@@ -146,35 +198,10 @@ export class AuthService {
         ...user,
         ...(user.type === 'ADMIN' && {
           roles: userRoles,
-          permissions: userPermissions,
-          // ✅ NEW: Add permission summary for easy frontend use
+          // ✅ ENHANCED: Role-aware permission summary
           permission_summary: {
-            can_manage_dashboard: userPermissions.some(
-              (p) => p.subject === 'Dashboard',
-            ),
-            can_manage_garages: userPermissions.some(
-              (p) => p.subject === 'Garage',
-            ),
-            can_manage_drivers: userPermissions.some(
-              (p) => p.subject === 'Driver',
-            ),
-            can_manage_bookings: userPermissions.some(
-              (p) => p.subject === 'Booking',
-            ),
-            can_manage_subscriptions: userPermissions.some(
-              (p) => p.subject === 'Subscription',
-            ),
-            can_manage_payments: userPermissions.some(
-              (p) => p.subject === 'Payment',
-            ),
-            can_manage_roles: userPermissions.some((p) => p.subject === 'Role'),
-            can_manage_users: userPermissions.some((p) => p.subject === 'User'),
-            can_view_analytics: userPermissions.some(
-              (p) => p.subject === 'Analytics',
-            ),
-            can_generate_reports: userPermissions.some(
-              (p) => p.subject === 'Reports',
-            ),
+            by_role: this.generateRoleWiseSummary(userRoles),
+            combined: this.generateCombinedSummary(userRoles),
           },
         }),
         // ✅ NEW: Add driver visibility for GARAGE users
