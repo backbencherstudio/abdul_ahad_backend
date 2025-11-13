@@ -124,6 +124,7 @@ export class ScheduleDto {
     description:
       'Per-day hours (keys: "0"-"6"). Example: {"0":{"is_closed":true},"1":{"intervals":[{"start_time":"09:00","end_time":"18:00"}]},"2":{"intervals":[{"start_time":"08:00","end_time":"12:00"},{"start_time":"13:00","end_time":"17:00"}],"slot_duration":45}}',
     type: 'object',
+    additionalProperties: true,
   })
   @IsOptional()
   daily_hours?: DailyHoursDto;

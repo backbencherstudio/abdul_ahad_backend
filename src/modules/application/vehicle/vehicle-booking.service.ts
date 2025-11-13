@@ -122,16 +122,24 @@ export class VehicleBookingService {
       }
 
       // Get available slots for the date
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const slots = await this.prisma.timeSlot.findMany({
         where: {
           garage_id: garageId,
-          date: targetDate,
+          start_datetime: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
           is_available: true,
           is_blocked: false,
           order_id: null, // Not booked
         },
         orderBy: {
-          start_time: 'asc',
+          start_datetime: 'asc',
         },
       });
 
@@ -139,12 +147,21 @@ export class VehicleBookingService {
         `Found ${slots.length} available slots for garage ${garageId}`,
       );
 
-      return slots.map((slot) => ({
-        id: slot.id,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        date: slot.date.toISOString().split('T')[0],
-      }));
+      return slots.map((slot) => {
+        const startDate = new Date(slot.start_datetime);
+        const endDate = new Date(slot.end_datetime);
+        const dateStr = startDate.toISOString().split('T')[0];
+        // Format time as HH:mm in UTC
+        const startTime = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
+        const endTime = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
+
+        return {
+          id: slot.id,
+          start_time: startTime,
+          end_time: endTime,
+          date: dateStr,
+        };
+      });
     } catch (error) {
       this.logger.error(
         `Error fetching available slots: ${error.message}`,
@@ -199,7 +216,7 @@ export class VehicleBookingService {
             driver_id: userId,
             vehicle_id: bookingData.vehicle_id,
             garage_id: bookingData.garage_id,
-            order_date: slot.date,
+            order_date: slot.start_datetime,
             status: OrderStatus.PENDING,
             total_amount: service.price,
             slot_id: bookingData.slot_id,
@@ -425,7 +442,7 @@ export class VehicleBookingService {
       email: order.garage?.email || '',
       phone_number: order.garage?.phone_number || '',
       booking_date: order.slot
-        ? `${order.slot.date.toISOString().split('T')[0]}T${order.slot.start_time}:00.000Z`
+        ? order.slot.start_datetime.toISOString()
         : order.order_date.toISOString(),
       total_amount: order.total_amount?.toString() || '',
       status: order.status,
