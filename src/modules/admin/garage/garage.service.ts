@@ -12,10 +12,32 @@ export class GarageService {
   async getGarages(page: number, limit: number, status?: string) {
     const skip = (page - 1) * limit;
 
-    const whereClause: any = { type: 'GARAGE' };
-    if (status) {
-      whereClause.status = parseInt(status, 10);
+    const whereClause: any = {
+      type: 'GARAGE',
+      deleted_at: null, // Exclude soft-deleted users
+    };
+    
+    // Handle status filter - only apply if status is a valid number, not "all" or empty
+    if (status && status !== 'all' && status !== '') {
+      const statusNum = parseInt(status, 10);
+      if (!isNaN(statusNum)) {
+        whereClause.status = statusNum;
+      }
     }
+
+    // Debug: Check what's actually in the database
+    const allGaragesCheck = await this.prisma.user.findMany({
+      where: { type: 'GARAGE' },
+      select: {
+        id: true,
+        email: true,
+        type: true,
+        garage_name: true,
+        status: true,
+        deleted_at: true,
+      },
+    });
+    
 
     const [garages, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -33,6 +55,8 @@ export class GarageService {
           approved_at: true,
           vts_number: true,
           primary_contact: true,
+          type: true, // Add type to see what's actually stored
+          deleted_at: true, // Add deleted_at to check soft delete status
         },
         orderBy: { created_at: 'desc' },
       }),

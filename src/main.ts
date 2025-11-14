@@ -11,7 +11,6 @@ import { AppModule } from './app.module';
 import appConfig from './config/app.config';
 import { CustomExceptionFilter } from './common/exception/custom-exception.filter';
 import { SojebStorage } from './common/lib/Disk/SojebStorage';
-
 import * as bodyParser from 'body-parser';
 
 async function bootstrap() {

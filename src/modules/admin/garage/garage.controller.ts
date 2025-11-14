@@ -39,7 +39,9 @@ export class GarageController {
     if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
       throw new BadRequestException('Invalid page or limit parameters');
     }
-
+    console.log('pageNum', pageNum);
+    console.log('limitNum', limitNum);
+    console.log('status', status);
     return this.garageService.getGarages(pageNum, limitNum, status);
   }
 
