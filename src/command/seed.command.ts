@@ -150,7 +150,11 @@ export class SeedCommand extends CommandRunner {
 
       // MOT-specific permissions
       { title: 'dashboard', subject: 'Dashboard' },
-      { title: 'garage_management', subject: 'Garage' },
+      {
+        title: 'garage_management',
+        subject: 'Garage',
+        scope: ['read', 'create', 'update', 'show', 'delete', 'approve'],
+      },
       { title: 'driver_management', subject: 'Driver' },
       {
         title: 'booking_management',

@@ -112,15 +112,19 @@ export class GarageService {
     const garage = await this.prisma.user.findFirst({
       where: { id, type: 'GARAGE' },
     });
+    
 
     if (!garage) {
       throw new NotFoundException('Garage not found');
     }
 
-    if (garage.status === 1) {
+    // Check if garage is already approved with a timestamp
+    if (garage.status === 1 && garage.approved_at !== null) {
       throw new BadRequestException('Garage is already approved');
     }
 
+    // Always set both status and approved_at when approving
+    // This handles cases where status is 1 but approved_at is null
     const updatedGarage = await this.prisma.user.update({
       where: { id },
       data: {
