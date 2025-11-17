@@ -6,6 +6,7 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -62,5 +63,12 @@ export class DriverController {
   @CheckAbilities({ action: Action.Update, subject: 'Driver' })
   async rejectDriver(@Param('id') id: string) {
     return this.driverService.rejectDriver(id);
+  }
+  
+  @ApiOperation({ summary: 'Delete driver' })
+  @Delete(':id/delete')
+  @CheckAbilities({ action: Action.Update, subject: 'Driver' })
+  async deleteDriver(@Param('id') id: string) {
+    return this.driverService.deleteDriver(id);
   }
 }

@@ -12,29 +12,23 @@ export class DriverService {
   async getDrivers(page: number, limit: number, status?: string) {
     const skip = (page - 1) * limit;
 
-    const whereClause: any = { type: 'DRIVER' };
-    if (status) {
-      whereClause.status = parseInt(status, 10);
+    const whereClause: any = {
+      type: 'DRIVER',
+      deleted_at: null, // Exclude soft-deleted users
+    };
+    
+    // Handle status filter - only apply if status is a valid number, not "all" or empty
+    if (status && status !== 'all' && status !== '') {
+      const statusNum = parseInt(status, 10);
+      if (!isNaN(statusNum)) {
+        whereClause.status = statusNum;
+      }
     }
-
     const [drivers, total] = await Promise.all([
       this.prisma.user.findMany({
         where: whereClause,
         skip,
         take: limit,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone_number: true,
-          status: true,
-          created_at: true,
-          approved_at: true,
-          address: true,
-          city: true,
-          state: true,
-          country: true,
-        },
         orderBy: { created_at: 'desc' },
       }),
       this.prisma.user.count({ where: whereClause }),
@@ -56,7 +50,7 @@ export class DriverService {
 
   async getDriverById(id: string) {
     const driver = await this.prisma.user.findFirst({
-      where: { id, type: 'DRIVER' },
+      where: { id, type: 'DRIVER', deleted_at: null },
       select: {
         id: true,
         name: true,
@@ -97,7 +91,7 @@ export class DriverService {
 
   async approveDriver(id: string) {
     const driver = await this.prisma.user.findFirst({
-      where: { id, type: 'DRIVER' },
+      where: { id, type: 'DRIVER', deleted_at: null },
     });
 
     if (!driver) {
@@ -132,7 +126,7 @@ export class DriverService {
 
   async rejectDriver(id: string) {
     const driver = await this.prisma.user.findFirst({
-      where: { id, type: 'DRIVER' },
+      where: { id, type: 'DRIVER', deleted_at: null },
     });
 
     if (!driver) {
@@ -161,6 +155,30 @@ export class DriverService {
     return {
       success: true,
       message: 'Driver rejected successfully',
+      data: updatedDriver,
+    };
+  }
+  
+  async deleteDriver(id: string) {
+    const driver = await this.prisma.user.findFirst({
+      where: { id, type: 'DRIVER', deleted_at: null },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (driver.status === 0) {
+      throw new BadRequestException('Driver is already rejected');
+    }
+
+    const updatedDriver = await this.prisma.user.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      message: 'Driver deleted successfully',
       data: updatedDriver,
     };
   }
