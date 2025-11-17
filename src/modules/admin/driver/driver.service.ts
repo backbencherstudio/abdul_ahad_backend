@@ -9,13 +9,27 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class DriverService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDrivers(page: number, limit: number, status?: string) {
+  async getDrivers(page: number, limit: number, status?: string, search?: string, startdate?: string, enddate?: string) {
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
       type: 'DRIVER',
       deleted_at: null, // Exclude soft-deleted users
     };
+
+    if (search && search.trim() !== ''){
+      whereClause.OR = [
+        { name: {contains: search, mode: 'insensitive'}},
+        { email: { contains: search, mode: 'insensitive'}}
+      ]
+    }
+
+    if(startdate && enddate){
+      whereClause.created_at = {
+        gte: new Date(startdate),
+        lte: new Date(enddate + "T23:59:59.999Z"),
+      }
+    }
     
     // Handle status filter - only apply if status is a valid number, not "all" or empty
     if (status && status !== 'all' && status !== '') {

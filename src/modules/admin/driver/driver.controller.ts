@@ -33,6 +33,9 @@ export class DriverController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('startdate') startdate?: string,
+    @Query('enddate') enddate?: string,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -41,7 +44,7 @@ export class DriverController {
       throw new BadRequestException('Invalid page or limit parameters');
     }
 
-    return this.driverService.getDrivers(pageNum, limitNum, status);
+    return this.driverService.getDrivers(pageNum, limitNum, status, search, startdate, enddate);
   }
 
   @ApiOperation({ summary: 'Get driver details by ID' })
