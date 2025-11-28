@@ -259,7 +259,7 @@ export class VehicleService {
   }
 
   /**
-   * Delete a vehicle (soft delete)
+   * Delete a vehicle with cascade deletion of related records
    *
    * @param userId - ID of the driver
    * @param vehicleId - ID of the vehicle to delete
@@ -284,9 +284,38 @@ export class VehicleService {
         throw new NotFoundException(`Vehicle not found or access denied`);
       }
 
-      // Hard delete vehicle
-      await this.prisma.vehicle.delete({
-        where: { id: vehicleId },
+      // Cascade delete vehicle and all related records in a transaction
+      await this.prisma.$transaction(async (tx) => {
+        // Step 1: Get all MOT report IDs for this vehicle
+        const motReports = await tx.motReport.findMany({
+          where: { vehicle_id: vehicleId },
+          select: { id: true },
+        });
+
+        const motReportIds = motReports.map((report) => report.id);
+
+        // Step 2: Delete all MotDefects related to these MOT reports
+        if (motReportIds.length > 0) {
+          const deletedDefects = await tx.motDefect.deleteMany({
+            where: { mot_report_id: { in: motReportIds } },
+          });
+          this.logger.log(
+            `Deleted ${deletedDefects.count} MOT defects for vehicle ${vehicleId}`,
+          );
+        }
+
+        // Step 3: Delete all MotReports for this vehicle
+        const deletedReports = await tx.motReport.deleteMany({
+          where: { vehicle_id: vehicleId },
+        });
+        this.logger.log(
+          `Deleted ${deletedReports.count} MOT reports for vehicle ${vehicleId}`,
+        );
+
+        // Step 4: Finally delete the vehicle
+        await tx.vehicle.delete({
+          where: { id: vehicleId },
+        });
       });
 
       this.logger.log(`Successfully deleted vehicle ${vehicleId}`);
