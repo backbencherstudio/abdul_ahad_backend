@@ -7,8 +7,11 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserRole, ServiceType } from '@prisma/client';
 import { GarageDto } from './dto/garage-search-response.dto';
-import { AdditionalServiceDto, BookableServiceDto, GarageServicesResponseDto } from './dto/garage-services.dto';
-
+import {
+  AdditionalServiceDto,
+  BookableServiceDto,
+  GarageServicesResponseDto,
+} from './dto/garage-services.dto';
 
 @Injectable()
 export class VehicleGarageService {
@@ -78,9 +81,7 @@ export class VehicleGarageService {
   /**
    * Get garage services separated into bookable and additional
    */
-  async getGarageServices(
-    garageId: string,
-  ): Promise<GarageServicesResponseDto> {
+  async getGarageServices(garageId: string): Promise<any> {
     try {
       this.logger.log(`Fetching services for garage: ${garageId}`);
 
@@ -136,6 +137,15 @@ export class VehicleGarageService {
       );
 
       return {
+        garage: {
+          id: garage.id,
+          garage_name: garage.garage_name,
+          address: garage.address,
+          zip_code: garage.zip_code,
+          vts_number: garage.vts_number,
+          primary_contact: garage.primary_contact,
+          phone_number: garage.phone_number,
+        },
         services: bookableServices,
         additionals: additionalServices,
       };
