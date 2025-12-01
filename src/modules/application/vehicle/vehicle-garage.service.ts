@@ -80,6 +80,7 @@ export class VehicleGarageService {
 
   /**
    * Get garage services separated into bookable and additional
+   * Also includes garage schedule (operating hours and weekly pattern)
    */
   async getGarageServices(garageId: string): Promise<any> {
     try {
@@ -105,6 +106,46 @@ export class VehicleGarageService {
         },
         orderBy: [{ type: 'asc' }, { name: 'asc' }],
       });
+
+      // Fetch garage schedule
+      const schedule = await this.prisma.schedule.findUnique({
+        where: { garage_id: garageId },
+      });
+
+      // Parse schedule data if exists
+      let scheduleData = null;
+      if (schedule) {
+        const restrictions = Array.isArray(schedule.restrictions)
+          ? schedule.restrictions
+          : JSON.parse(schedule.restrictions as string);
+
+        let daily_hours: any = null;
+        if (
+          (schedule as any).daily_hours !== undefined &&
+          (schedule as any).daily_hours !== null
+        ) {
+          const dh = (schedule as any).daily_hours as any;
+          if (typeof dh === 'string') {
+            try {
+              daily_hours = JSON.parse(dh);
+            } catch {
+              daily_hours = null;
+            }
+          } else {
+            daily_hours = dh;
+          }
+        }
+
+        scheduleData = {
+          id: schedule.id,
+          start_time: schedule.start_time,
+          end_time: schedule.end_time,
+          slot_duration: schedule.slot_duration,
+          restrictions,
+          daily_hours,
+          is_active: schedule.is_active
+        };
+      }
 
       // Separate services into bookable and additional
       const bookableServices: BookableServiceDto[] = [];
@@ -148,6 +189,7 @@ export class VehicleGarageService {
         },
         services: bookableServices,
         additionals: additionalServices,
+        schedule: scheduleData, // Include schedule in response
       };
     } catch (error) {
       this.logger.error(`Error fetching garage services: ${error.message}`);

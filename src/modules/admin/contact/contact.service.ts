@@ -69,6 +69,9 @@ export class ContactService {
           phone_number: true,
           message: true,
         },
+        orderBy: {
+          created_at: 'desc',
+        },
       });
       return {
         success: true,
