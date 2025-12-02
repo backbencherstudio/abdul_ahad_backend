@@ -521,11 +521,97 @@ export class VehicleService {
     }
   }
 
+  /**
+   * Get complete MOT report with vehicle details for report generation/download
+   *
+   * @param reportId - MOT Report ID
+   * @returns Complete report data ready for PDF/report generation
+   */
   async getMotReportWithDefects(reportId: string) {
-    return await this.prisma.motReport.findUnique({
-      where: { id: reportId },
-      include: { defects: true },
-    });
+    try {
+      this.logger.log(`Fetching complete MOT report details for: ${reportId}`);
+
+      // Get MOT report with defects and vehicle details
+      const report = await this.prisma.motReport.findUnique({
+        where: { id: reportId },
+        include: {
+          defects: true,
+          vehicle: true, // ✅ Include complete vehicle information
+        },
+      });
+
+      if (!report) {
+        throw new NotFoundException('MOT report not found');
+      }
+
+      // Build comprehensive response for report generation
+      return {
+        success: true,
+        message: 'MOT report retrieved successfully',
+        data: {
+          // Report metadata
+          reportId: report.id,
+
+          // Vehicle information
+          vehicle: {
+            registration: report.vehicle.registration_number,
+            make: report.vehicle.make,
+            model: report.vehicle.model,
+            colour: report.vehicle.color,
+            fuelType: report.vehicle.fuel_type,
+            engineCapacity: report.vehicle.engine_capacity,
+            yearOfManufacture: report.vehicle.year_of_manufacture,
+            registrationDate: report.vehicle.year_of_manufacture
+              ? `${report.vehicle.year_of_manufacture}-01-01`
+              : null,
+          },
+
+          // MOT test details
+          motTest: {
+            testNumber: report.test_number,
+            testDate: report.test_date?.toISOString(),
+            expiryDate: report.expiry_date?.toISOString(),
+            testResult: report.status,
+            registrationAtTimeOfTest: report.registration_at_test,
+
+            // Odometer information
+            odometer: {
+              value: report.odometer_value,
+              unit: report.odometer_unit,
+              resultType: report.odometer_result_type,
+            },
+
+            dataSource: report.data_source,
+          },
+
+          // Defects information
+          defects: {
+            total: report.defects?.length || 0,
+            dangerous: report.defects?.filter((d) => d.dangerous).length || 0,
+            items:
+              report.defects?.map((defect) => ({
+                id: defect.id,
+                type: defect.type,
+                text: defect.text,
+                dangerous: defect.dangerous,
+              })) || [],
+          },
+
+          // Additional metadata for report generation
+          reportMetadata: {
+            generatedAt: new Date().toISOString(),
+            reportType: 'MOT_TEST_CERTIFICATE',
+            isPassed: report.status === 'PASSED',
+            hasDefects: (report.defects?.length || 0) > 0,
+            hasDangerousDefects:
+              (report.defects?.filter((d) => d.dangerous).length || 0) > 0,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get MOT report ${reportId}:`, error);
+      throw error;
+    }
   }
 
   async getCompleteMotHistory(
@@ -625,27 +711,39 @@ export class VehicleService {
     });
 
     return {
+      // Vehicle basic information
       registration: vehicle.registration_number,
       make: vehicle.make,
       model: vehicle.model,
+
+      // Vehicle details for UI display
+      primaryColour: vehicle.color,
+      fuelType: vehicle.fuel_type,
+      engineSize: vehicle.engine_capacity?.toString(),
+
+      // Date information
       firstUsedDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
-      fuelType: vehicle.fuel_type,
-      primaryColour: vehicle.color,
       registrationDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
       manufactureDate: vehicle.year_of_manufacture
         ? `${vehicle.year_of_manufacture}-01-01`
         : null,
-      engineSize: vehicle.engine_capacity?.toString(),
+
+      // MOT expiry from vehicle record
+      motExpiryDate: vehicle.mot_expiry_date?.toISOString(),
+
       hasOutstandingRecall: 'Unknown',
+
+      // MOT test history with report IDs
       motTests: reports.map((report) => ({
+        reportId: report.id, // ✅ Added: Report ID for navigation/linking
         registrationAtTimeOfTest: report.registration_at_test,
         motTestNumber: report.test_number,
         completedDate: report.test_date?.toISOString(),
-        expiryDate: report.expiry_date?.toISOString()?.split('T')[0],
+        expiryDate: report.expiry_date?.toISOString(),
         odometerValue: report.odometer_value?.toString(),
         odometerUnit: report.odometer_unit,
         odometerResultType: report.odometer_result_type,
@@ -867,7 +965,9 @@ export class VehicleService {
     // Add MOT reports if any report fields are requested
     if (reportFields.length > 0) {
       response.motTests = reports.map((report) => {
-        const motTest: any = {};
+        const motTest: any = {
+          reportId: report.id, // ✅ Always include report ID for navigation
+        };
 
         if (reportFields.includes('test_number')) {
           motTest.motTestNumber = report.test_number;
@@ -876,7 +976,7 @@ export class VehicleService {
           motTest.completedDate = report.test_date?.toISOString();
         }
         if (reportFields.includes('expiry_date')) {
-          motTest.expiryDate = report.expiry_date?.toISOString()?.split('T')[0];
+          motTest.expiryDate = report.expiry_date?.toISOString();
         }
         if (reportFields.includes('status')) {
           motTest.testResult = report.status;

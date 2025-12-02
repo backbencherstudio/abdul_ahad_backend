@@ -52,6 +52,59 @@ export class VehicleController {
   }
 
   @Get('mot-report/:reportId')
+  @ApiOperation({
+    summary: 'Get complete MOT report details for download/report generation',
+    description:
+      'Returns comprehensive MOT report with vehicle details, test information, and defects. Ready for PDF generation or detailed report display.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Complete MOT report with vehicle and test details',
+    schema: {
+      example: {
+        success: true,
+        message: 'MOT report retrieved successfully',
+        data: {
+          reportId: 'cm4xyz123...',
+          vehicle: {
+            registration: 'LS51 DMW',
+            make: 'FORD',
+            model: 'FOCUS',
+            colour: 'Silver',
+            fuelType: 'Petrol',
+            engineCapacity: 1600,
+            yearOfManufacture: 2001,
+            registrationDate: '2001-01-01',
+          },
+          motTest: {
+            testNumber: '5219 3210 9491',
+            testDate: '2023-12-07T00:00:00.000Z',
+            expiryDate: '2024-01-06T00:00:00.000Z',
+            testResult: 'PASSED',
+            registrationAtTimeOfTest: 'LS51 DMW',
+            odometer: {
+              value: 123456,
+              unit: 'mi',
+              resultType: 'READ',
+            },
+            dataSource: 'dvsa',
+          },
+          defects: {
+            total: 0,
+            dangerous: 0,
+            items: [],
+          },
+          reportMetadata: {
+            generatedAt: '2024-12-02T10:43:00.000Z',
+            reportType: 'MOT_TEST_CERTIFICATE',
+            isPassed: true,
+            hasDefects: false,
+            hasDangerousDefects: false,
+          },
+        },
+      },
+    },
+  })
   async getMotReport(@Param('reportId') reportId: string) {
     return this.vehicleService.getMotReportWithDefects(reportId);
   }
