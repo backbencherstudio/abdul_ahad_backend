@@ -6,6 +6,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   WebSocketServer,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { NotificationService } from './notification.service';
@@ -110,8 +111,11 @@ export class NotificationGateway
   }
 
   @SubscribeMessage('findAllNotification')
-  findAll() {
-    return this.notificationService.findAll();
+  findAll(@ConnectedSocket() client: Socket) {
+    const userId = [...this.clients.entries()].find(
+      ([, socketId]) => socketId === client.id,
+    )?.[0];
+    return this.notificationService.findAll(userId);
   }
 
   @SubscribeMessage('findOneNotification')
