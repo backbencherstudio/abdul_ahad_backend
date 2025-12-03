@@ -12,7 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
-import { OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, OnModuleInit } from '@nestjs/common';
 import appConfig from 'src/config/app.config';
 import Redis from 'ioredis';
 
@@ -37,7 +37,10 @@ export class NotificationGateway
   // Map to store connected clients
   private clients = new Map<string, string>(); // userId -> socketId
 
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
+  ) {}
 
   onModuleInit() {
     this.redisPubClient = new Redis({
@@ -52,9 +55,26 @@ export class NotificationGateway
       password: appConfig().redis.password,
     });
 
-    this.redisSubClient.subscribe('notification', (err, message: string) => {
-      const data = JSON.parse(message);
-      this.server.emit('receiveNotification', data);
+    this.redisSubClient.subscribe('notification', (err, count) => {
+      console.log(`Subscribed to ${count} channel(s)`);
+    });
+
+    this.redisSubClient.on('message', (channel, message) => {
+      if (channel === 'notification') {
+        const data = JSON.parse(message);
+        // Send notification to specific user's socket client
+        if (data.userId) {
+          const targetSocketId = this.clients.get(data.userId);
+          if (targetSocketId) {
+            this.server.to(targetSocketId).emit('notification', data);
+            console.log(
+              `Notification sent to socket: ${targetSocketId} for user: ${data.userId}`,
+            );
+          } else {
+            console.log(`User ${data.userId} not connected`);
+          }
+        }
+      }
     });
   }
 

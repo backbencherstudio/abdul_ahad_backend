@@ -214,9 +214,10 @@ model NotificationEvent {
   updated_at DateTime  @default(now())
   deleted_at DateTime?
 
-  status Int?    @default(1) @db.SmallInt
-  type   String?
-  text   String?
+  status  Int?    @default(1) @db.SmallInt
+  type    String?
+  text    String?
+  actions Json?
 
   notifications Notification[]
 
@@ -242,7 +243,8 @@ model Notification {
   notification_event_id String?
   notification_event    NotificationEvent? @relation(fields: [notification_event_id], references: [id])
 
-  entity_id String?
+  entity_id       String?
+  is_action_taken Boolean @default(false)
 
   @@map("notifications")
 }

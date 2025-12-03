@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -8,13 +8,62 @@ import {
 } from './dto/fetch-notification.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
+import { NotificationGateway } from './notification.gateway';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => NotificationGateway))
+    private notificationGateway: NotificationGateway,
+  ) {}
 
-  create(createNotificationDto: CreateNotificationDto) {
-    return 'This action adds a new notification';
+  async create(createNotificationDto: CreateNotificationDto) {
+    // 1. Save to Database
+    const notification = await this.prisma.notification.create({
+      data: {
+        receiver: {
+          connect: { id: createNotificationDto.receiver_id },
+        },
+        sender: createNotificationDto.sender_id
+          ? { connect: { id: createNotificationDto.sender_id } }
+          : undefined,
+        entity_id: createNotificationDto.entity_id,
+        notification_event: {
+          create: {
+            type: createNotificationDto.type,
+            text: createNotificationDto.text,
+            actions: createNotificationDto.actions as any,
+          },
+        },
+      },
+      include: {
+        notification_event: true,
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // 2. Add avatar URL if sender exists
+    if (notification.sender && notification.sender.avatar) {
+      notification.sender['avatar_url'] = SojebStorage.url(
+        appConfig().storageUrl.avatar + notification.sender.avatar,
+      );
+    }
+
+    // 3. Emit via Gateway
+    // The gateway handles sending to the specific user via Redis/Socket.io
+    await this.notificationGateway.handleNotification({
+      userId: createNotificationDto.receiver_id,
+      ...notification,
+    });
+
+    return notification;
   }
 
   async findAll(userId: string, query?: FetchNotificationDto) {

@@ -2,6 +2,20 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+/**
+ * Notification Types
+ * Add new notification types here to maintain consistency across the application
+ */
+export enum NotificationType {
+  MESSAGE = 'message',
+  COMMENT = 'comment',
+  REVIEW = 'review',
+  BOOKING = 'booking',
+  PAYMENT_TRANSACTION = 'payment_transaction',
+  PACKAGE = 'package',
+  BLOG = 'blog',
+  // Add new types here as needed
+}
 export class NotificationRepository {
   /**
    * Create a notification
@@ -22,14 +36,7 @@ export class NotificationRepository {
     sender_id?: string;
     receiver_id?: string;
     text?: string;
-    type?:
-      | 'message'
-      | 'comment'
-      | 'review'
-      | 'booking'
-      | 'payment_transaction'
-      | 'package'
-      | 'blog';
+    type?: NotificationType;
     entity_id?: string;
   }) {
     const notificationEventData = {};
