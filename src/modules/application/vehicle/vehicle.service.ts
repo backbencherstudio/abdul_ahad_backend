@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import {
@@ -81,11 +82,14 @@ export class VehicleService {
       });
 
       if (globalExistingVehicle) {
+        const ownerName = `${globalExistingVehicle.user.first_name || ''} ${globalExistingVehicle.user.last_name || ''}`.trim() || 'Unknown';
         this.logger.warn(
           `Vehicle ${dto.registration_number} already registered by another user: ${globalExistingVehicle.user.email}`,
         );
-        // You might want to handle this differently based on business requirements
-        // For now, we'll allow it but log the warning
+        // Throw error early with clear message since database constraint prevents duplicate registration numbers
+        throw new ConflictException(
+          `Vehicle with registration ${dto.registration_number} is already registered by another user (${ownerName} - ${globalExistingVehicle.user.email}). Each vehicle registration number can only be associated with one account.`,
+        );
       }
 
       // Fetch comprehensive vehicle data from external APIs
@@ -462,6 +466,56 @@ export class VehicleService {
 
       return vehicle;
     } catch (error) {
+      // Handle Prisma unique constraint violation (P2002)
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = error.meta?.target as string[];
+        
+        // Check if it's a registration_number constraint violation
+        if (target?.includes('registration_number')) {
+          this.logger.warn(
+            `Vehicle with registration ${vehicleData.registrationNumber} already exists`,
+          );
+
+          // Try to find the existing vehicle
+          const existingVehicle = await this.prisma.vehicle.findUnique({
+            where: {
+              registration_number: vehicleData.registrationNumber,
+            },
+          });
+
+          if (existingVehicle) {
+            // If it belongs to the same user, return it (race condition handled)
+            if (existingVehicle.user_id === userId) {
+              this.logger.log(
+                `Vehicle ${vehicleData.registrationNumber} already exists for user ${userId}, returning existing vehicle`,
+              );
+              return existingVehicle;
+            } else {
+              // Vehicle exists for a different user - fetch user details for better error
+              const existingUser = await this.prisma.user.findUnique({
+                where: { id: existingVehicle.user_id },
+                select: {
+                  email: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              });
+
+              const ownerName = existingUser
+                ? `${existingUser.first_name || ''} ${existingUser.last_name || ''}`.trim() || 'Unknown'
+                : 'Unknown';
+
+              throw new ConflictException(
+                `Vehicle with registration ${vehicleData.registrationNumber} is already registered by another user (${ownerName} - ${existingUser?.email || 'Unknown'}). Each vehicle registration number can only be associated with one account.`,
+              );
+            }
+          }
+        }
+      }
+
       this.logger.error('Failed to create vehicle record:', error);
       throw new InternalServerErrorException(
         'Failed to save vehicle to database',

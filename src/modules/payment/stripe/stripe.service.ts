@@ -412,70 +412,214 @@ export class StripeService {
   // Handle payment succeeded
   async handlePaymentSucceeded(invoice: any) {
     try {
-      if (invoice.subscription) {
-        const garageSubscription =
-          await this.prisma.garageSubscription.findFirst({
-            where: { stripe_subscription_id: invoice.subscription },
-            include: { garage: true, plan: true },
-          });
+      console.log(
+        `💳 Payment succeeded webhook received for invoice: ${invoice.id}, subscription: ${invoice.subscription}`,
+      );
 
-        if (garageSubscription) {
-          // Update subscription status to ACTIVE if payment succeeded
-          await this.prisma.garageSubscription.update({
-            where: { id: garageSubscription.id },
-            data: {
-              status: 'ACTIVE',
-              updated_at: new Date(),
-            },
-          });
+      if (!invoice.subscription) {
+        console.log(
+          '⚠️ Invoice has no subscription field, skipping invoice creation',
+        );
+        return;
+      }
 
-          // Create payment transaction record
-          await this.prisma.paymentTransaction.create({
-            data: {
-              user_id: garageSubscription.garage_id,
-              garage_id: garageSubscription.garage_id,
-              amount: invoice.amount_paid / 100, // Convert from cents
-              currency: invoice.currency,
-              type: 'SUBSCRIPTION',
-              status: 'PAID',
-              provider: 'stripe',
-              reference_number: invoice.id,
-              raw_status: 'succeeded',
-            },
-          });
+      // Get subscription ID (could be string or object)
+      const subscriptionId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription.id;
 
-          // Update user subscription visibility status
-          // This will ensure has_subscription is true after successful payment
-          await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+      if (!subscriptionId) {
+        console.error('❌ Could not extract subscription ID from invoice');
+        return;
+      }
 
-          console.log(
-            `✅ Payment succeeded for garage: ${garageSubscription.garage.email} (Amount: ${invoice.amount_paid / 100} ${invoice.currency})`,
+      console.log(`🔍 Looking for garage subscription with Stripe ID: ${subscriptionId}`);
+
+      // Try to find garage subscription by stripe_subscription_id
+      let garageSubscription =
+        await this.prisma.garageSubscription.findFirst({
+          where: { stripe_subscription_id: subscriptionId },
+          include: { garage: true, plan: true },
+        });
+
+      // Fallback: If not found, try to find by metadata in Stripe subscription
+      if (!garageSubscription) {
+        console.log(
+          `⚠️ Garage subscription not found by stripe_subscription_id, trying to fetch from Stripe...`,
+        );
+        try {
+          const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+          const stripeSubscription = await Stripe.subscriptions.retrieve(
+            subscriptionId,
           );
 
-          // 🆕 SEND PAYMENT SUCCESS EMAIL
-          // Get full subscription details from Stripe for email
-          let stripeSubscription = null;
-          try {
-            const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-            stripeSubscription = await Stripe.subscriptions.retrieve(
-              invoice.subscription,
+          if (stripeSubscription?.metadata?.garage_subscription_id) {
+            garageSubscription = await this.prisma.garageSubscription.findUnique(
+              {
+                where: {
+                  id: stripeSubscription.metadata.garage_subscription_id,
+                },
+                include: { garage: true, plan: true },
+              },
             );
-          } catch (error) {
-            console.warn(
-              `Could not fetch subscription details for email: ${error.message}`,
-            );
-          }
 
-          await this.sendPaymentSuccessEmail({
-            garage: garageSubscription.garage,
-            plan: garageSubscription.plan,
-            invoice: invoice,
-            subscription: stripeSubscription,
-          });
+            // Update stripe_subscription_id if it was missing
+            if (garageSubscription && !garageSubscription.stripe_subscription_id) {
+              await this.prisma.garageSubscription.update({
+                where: { id: garageSubscription.id },
+                data: { stripe_subscription_id: subscriptionId },
+              });
+              console.log(
+                `✅ Updated garage subscription with stripe_subscription_id: ${subscriptionId}`,
+              );
+            }
+          }
+        } catch (error) {
+          console.error(
+            `❌ Error fetching subscription from Stripe: ${error.message}`,
+          );
         }
       }
+
+      if (!garageSubscription) {
+        console.error(
+          `❌ No garage subscription found for Stripe subscription: ${subscriptionId}`,
+        );
+        return;
+      }
+
+      console.log(
+        `✅ Found garage subscription: ${garageSubscription.id} for garage: ${garageSubscription.garage.email}`,
+      );
+
+      // Check if invoice already exists for this payment
+      const existingInvoice = await this.prisma.invoice.findFirst({
+        where: {
+          garage_id: garageSubscription.garage_id,
+          // Check by amount and date to avoid duplicates
+          amount: invoice.amount_paid / 100,
+          created_at: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Within last 24 hours
+          },
+        },
+      });
+
+      if (existingInvoice) {
+        console.log(
+          `⚠️ Invoice already exists for this payment: ${existingInvoice.invoice_number}`,
+        );
+        return;
+      }
+
+      // Update subscription status to ACTIVE if payment succeeded
+      await this.prisma.garageSubscription.update({
+        where: { id: garageSubscription.id },
+        data: {
+          status: 'ACTIVE',
+          updated_at: new Date(),
+        },
+      });
+
+      // Create payment transaction record
+      await this.prisma.paymentTransaction.create({
+        data: {
+          user_id: garageSubscription.garage_id,
+          garage_id: garageSubscription.garage_id,
+          amount: invoice.amount_paid / 100, // Convert from cents
+          currency: invoice.currency,
+          type: 'SUBSCRIPTION',
+          status: 'PAID',
+          provider: 'stripe',
+          reference_number: invoice.id,
+          raw_status: 'succeeded',
+        },
+      });
+
+      // 🆕 CREATE INVOICE FOR SUBSCRIPTION PAYMENT
+      // Get full subscription details from Stripe for invoice
+      let stripeSubscription = null;
+      try {
+        const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        stripeSubscription = await Stripe.subscriptions.retrieve(subscriptionId);
+      } catch (error) {
+        console.warn(
+          `⚠️ Could not fetch subscription details for invoice: ${error.message}`,
+        );
+      }
+
+      // Generate invoice number
+      const invoiceNumber = await this.generateInvoiceNumber();
+      console.log(`📝 Generated invoice number: ${invoiceNumber}`);
+
+      // Format membership period from subscription dates
+      let membershipPeriod = null;
+      if (stripeSubscription) {
+        const periodStart = new Date(
+          stripeSubscription.current_period_start * 1000,
+        );
+        const periodEnd = new Date(
+          stripeSubscription.current_period_end * 1000,
+        );
+        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(periodEnd)}`;
+      } else if (invoice.period_start && invoice.period_end) {
+        // Fallback to invoice period dates
+        const periodStart = new Date(invoice.period_start * 1000);
+        const periodEnd = new Date(invoice.period_end * 1000);
+        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(periodEnd)}`;
+      }
+
+      // Calculate due date (30 days from issue date)
+      const issueDate = new Date();
+      const dueDate = new Date(issueDate);
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      // Create invoice record
+      // Note: For subscriptions, garage_id and driver_id are the same (garage paying for their own subscription)
+      try {
+        const createdInvoice = await this.prisma.invoice.create({
+          data: {
+            invoice_number: invoiceNumber,
+            garage_id: garageSubscription.garage_id,
+            driver_id: garageSubscription.garage_id, // Same as garage_id for subscriptions
+            order_id: null, // No order for subscription invoices
+            membership_period: membershipPeriod,
+            issue_date: issueDate,
+            due_date: dueDate,
+            amount: invoice.amount_paid / 100, // Convert from cents to dollars
+            status: 'PAID', // Payment already succeeded
+          },
+        });
+
+        console.log(
+          `📄 ✅ Invoice created successfully: ${invoiceNumber} (ID: ${createdInvoice.id}) for garage: ${garageSubscription.garage.email}`,
+        );
+      } catch (invoiceError) {
+        console.error(
+          `❌ Error creating invoice: ${invoiceError.message}`,
+          invoiceError,
+        );
+        // Don't throw - continue with other operations
+      }
+
+      // Update user subscription visibility status
+      // This will ensure has_subscription is true after successful payment
+      await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
+
+      console.log(
+        `✅ Payment succeeded for garage: ${garageSubscription.garage.email} (Amount: ${invoice.amount_paid / 100} ${invoice.currency})`,
+      );
+
+      // 🆕 SEND PAYMENT SUCCESS EMAIL
+      await this.sendPaymentSuccessEmail({
+        garage: garageSubscription.garage,
+        plan: garageSubscription.plan,
+        invoice: invoice,
+        subscription: stripeSubscription,
+      });
     } catch (error) {
-      console.error('Error handling payment succeeded:', error);
+      console.error('❌ Error handling payment succeeded:', error);
+      console.error('Error stack:', error.stack);
     }
   }
 
@@ -1799,5 +1943,63 @@ export class StripeService {
     } catch (error) {
       console.error('Error sending payment success email:', error);
     }
+  }
+
+  /**
+   * Generate unique invoice number
+   * Format: INV-YYYYMMDD-XXXX (e.g., INV-20250115-0001)
+   *
+   * @returns Unique invoice number
+   */
+  private async generateInvoiceNumber(): Promise<string> {
+    const now = new Date();
+    const datePrefix = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+
+    // Find the highest sequence number for today
+    const todayInvoices = await this.prisma.invoice.findMany({
+      where: {
+        invoice_number: {
+          startsWith: datePrefix,
+        },
+      },
+      orderBy: {
+        invoice_number: 'desc',
+      },
+      take: 1,
+    });
+
+    let sequence = 1;
+    if (todayInvoices.length > 0) {
+      const lastInvoiceNumber = todayInvoices[0].invoice_number;
+      const lastSequence = parseInt(lastInvoiceNumber.split('-')[2] || '0', 10);
+      sequence = lastSequence + 1;
+    }
+
+    return `${datePrefix}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  /**
+   * Format date for membership period display
+   * Format: "MMM DD, YYYY" (e.g., "Jan 15, 2025")
+   *
+   * @param date - Date to format
+   * @returns Formatted date string
+   */
+  private formatDate(date: Date): string {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   }
 }

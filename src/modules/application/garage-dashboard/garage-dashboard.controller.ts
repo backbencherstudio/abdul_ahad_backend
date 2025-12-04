@@ -393,8 +393,25 @@ export class GarageDashboardController {
 
   @ApiOperation({ summary: 'Get all invoices' })
   @Get('invoices')
-  async getInvoices(@Req() req) {
-    return this.garageInvoiceService.getInvoices(req.user.userId);
+  async getInvoices(
+    @Req() req,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('status') status?: string,
+  ) {
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+      throw new BadRequestException('Invalid page or limit parameters');
+    }
+
+    return this.garageInvoiceService.getInvoices(
+      req.user.userId,
+      pageNum,
+      limitNum,
+      status,
+    );
   }
 
   @ApiOperation({ summary: 'Get invoice by ID' })

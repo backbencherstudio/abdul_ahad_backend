@@ -8,14 +8,13 @@ import {
 } from './dto/fetch-notification.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
-import { NotificationGateway } from './notification.gateway';
 
 @Injectable()
 export class NotificationService {
   constructor(
     private prisma: PrismaService,
-    @Inject(forwardRef(() => NotificationGateway))
-    private notificationGateway: NotificationGateway,
+    @Inject(forwardRef(() => require('./notification.gateway').NotificationGateway))
+    private notificationGateway: any,
   ) {}
 
   async create(createNotificationDto: CreateNotificationDto) {
