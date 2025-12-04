@@ -41,6 +41,7 @@ import { ScheduleDto, SetWeeklyPatternDto } from './dto/schedule.dto';
 import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
 import { SlotModificationDto } from './dto/slot-modification.dto';
 import { ModifySlotTimeDto } from './dto/modify-slot-time.dto';
+import { GetBookingsDto } from './dto/get-bookings.dto';
 import { GarageSubscriptionService } from './services/garage-subscription.service';
 import { SubscriptionPlansResponseDto } from './dto/subscription-plan-response.dto';
 import { CurrentSubscriptionResponseDto } from './dto/current-subscription-response.dto';
@@ -349,10 +350,12 @@ export class GarageDashboardController {
 
   // ==================== BOOKING MANAGEMENT ====================
 
-  @ApiOperation({ summary: 'Get all bookings' })
+  @ApiOperation({
+    summary: 'Get all bookings with search, status filter, and pagination',
+  })
   @Get('bookings')
-  async getBookings(@Req() req) {
-    return this.garageBookingService.getBookings(req.user.userId);
+  async getBookings(@Req() req, @Query() query: GetBookingsDto) {
+    return this.garageBookingService.getBookings(req.user.userId, query);
   }
 
   @ApiOperation({ summary: 'Get booking by ID' })

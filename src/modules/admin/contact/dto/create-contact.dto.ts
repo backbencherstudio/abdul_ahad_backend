@@ -5,18 +5,10 @@ export class CreateContactDto {
   @IsNotEmpty()
   @IsString()
   @ApiProperty({
-    description: 'First name',
-    example: 'John',
+    description: 'Full name',
+    example: 'John Doe',
   })
-  first_name: string;
-
-  @IsNotEmpty()
-  @IsString()
-  @ApiProperty({
-    description: 'Last name',
-    example: 'Doe',
-  })
-  last_name: string;
+  name: string;
 
   @IsNotEmpty()
   @IsEmail()
@@ -41,4 +33,12 @@ export class CreateContactDto {
     example: 'Hello, I have a question about your product.',
   })
   message: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({
+    description: 'User ID',
+    example: '1234567890',
+  })
+  user_id?: string;
 }

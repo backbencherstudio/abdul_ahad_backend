@@ -42,14 +42,11 @@ export class ContactController {
 
   @ApiOperation({ summary: 'Read all contacts' })
   @Get()
-  async findAll(@Query() query: { q?: string; status?: number }) {
+  async findAll(@Query() query: { q?: string }) {
     try {
       const searchQuery = query.q;
-      const status = query.status;
-
       const contacts = await this.contactService.findAll({
         q: searchQuery,
-        status: status,
       });
       return contacts;
     } catch (error) {

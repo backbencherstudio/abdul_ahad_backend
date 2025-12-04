@@ -10,28 +10,8 @@ export class ContactService {
 
   async create(createContactDto: CreateContactDto) {
     try {
-      const data = {};
-      if (createContactDto.first_name) {
-        data['first_name'] = createContactDto.first_name;
-      }
-      if (createContactDto.last_name) {
-        data['last_name'] = createContactDto.last_name;
-      }
-      if (createContactDto.email) {
-        data['email'] = createContactDto.email;
-      }
-      if (createContactDto.phone_number) {
-        data['phone_number'] = createContactDto.phone_number;
-      }
-      if (createContactDto.message) {
-        data['message'] = createContactDto.message;
-      }
-
       await this.prisma.contact.create({
-        data: {
-          ...data,
-          updated_at: DateHelper.now(),
-        },
+        data: createContactDto,
       });
       return {
         success: true,
@@ -45,29 +25,25 @@ export class ContactService {
     }
   }
 
-  async findAll({ q = null, status = null }: { q?: string; status?: number }) {
+  async findAll({ q }: { q?: string }) {
     try {
       const whereClause = {};
       if (q) {
         whereClause['OR'] = [
-          { first_name: { contains: q, mode: 'insensitive' } },
-          { last_name: { contains: q, mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
           { email: { contains: q, mode: 'insensitive' } },
           { phone_number: { contains: q, mode: 'insensitive' } },
         ];
-      }
-      if (status) {
-        whereClause['status'] = Number(status);
       }
 
       const contacts = await this.prisma.contact.findMany({
         select: {
           id: true,
-          first_name: true,
-          last_name: true,
+          name: true,
           email: true,
           phone_number: true,
           message: true,
+          user_id: true,
         },
         orderBy: {
           created_at: 'desc',
@@ -91,8 +67,7 @@ export class ContactService {
         where: { id },
         select: {
           id: true,
-          first_name: true,
-          last_name: true,
+          name: true,
           email: true,
           phone_number: true,
           message: true,
@@ -113,11 +88,8 @@ export class ContactService {
   async update(id: string, updateContactDto: UpdateContactDto) {
     try {
       const data = {};
-      if (updateContactDto.first_name) {
-        data['first_name'] = updateContactDto.first_name;
-      }
-      if (updateContactDto.last_name) {
-        data['last_name'] = updateContactDto.last_name;
+      if (updateContactDto.name) {
+        data['name'] = updateContactDto.name;
       }
       if (updateContactDto.email) {
         data['email'] = updateContactDto.email;
