@@ -16,6 +16,7 @@ import {
   VehicleInfoDto,
 } from './dto/garage-search-response.dto';
 import { BookableServiceType, BookSlotDto } from './dto/book-slot.dto';
+import { GarageScheduleService } from '../garage-dashboard/services/garage-schedule.service';
 import {
   GetMyBookingsDto,
   MyBookingsResponseDto,
@@ -30,6 +31,7 @@ export class VehicleBookingService {
     private readonly prisma: PrismaService,
     private readonly vehicleService: VehicleService,
     private readonly vehicleGarageService: VehicleGarageService,
+    private readonly garageScheduleService: GarageScheduleService,
   ) {}
 
   /**
@@ -100,8 +102,9 @@ export class VehicleBookingService {
 
   /**
    * Get available slots for a garage on a specific date
+   * Returns template slots (no ID) + database slots (with ID)
    */
-  async getAvailableSlots(garageId: string, date: string): Promise<any[]> {
+  async getAvailableSlots(garageId: string, date: string): Promise<any> {
     try {
       this.logger.log(
         `Fetching available slots for garage ${garageId} on ${date}`,
@@ -115,53 +118,80 @@ export class VehicleBookingService {
         throw new NotFoundException('Garage not available for bookings');
       }
 
-      // Parse and validate date
-      const targetDate = new Date(date + 'T00:00:00Z');
-      if (isNaN(targetDate.getTime())) {
-        throw new BadRequestException('Invalid date format');
+      // Get schedule-based slots using GarageScheduleService
+      const scheduleResponse =
+        await this.garageScheduleService.viewAvailableSlots(garageId, date);
+
+      // Check if response is valid and has data
+      if (!scheduleResponse || !scheduleResponse.success) {
+        this.logger.warn(
+          `No schedule data found for garage ${garageId} on ${date}`,
+        );
+        return {
+          success: true,
+          message: 'No schedule found for this garage',
+          data: [],
+        };
       }
 
-      // Get available slots for the date
-      const startOfDay = new Date(targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      // Extract slots from response data
+      const responseData = scheduleResponse.data;
 
-      const slots = await this.prisma.timeSlot.findMany({
-        where: {
-          garage_id: garageId,
-          start_datetime: {
-            gte: startOfDay,
-            lte: endOfDay,
-          },
-          is_available: true,
-          is_blocked: false,
-          order_id: null, // Not booked
-        },
-        orderBy: {
-          start_datetime: 'asc',
-        },
-      });
+      // Handle the case where data exists but slots might be empty or missing
+      if (!responseData || !responseData.slots) {
+        this.logger.warn(
+          `No slots in response data for garage ${garageId} on ${date}`,
+        );
+        return {
+          success: true,
+          message: 'No slots available for this date',
+          data: [],
+        };
+      }
 
-      this.logger.log(
-        `Found ${slots.length} available slots for garage ${garageId}`,
-      );
+      const { slots } = responseData;
 
-      return slots.map((slot) => {
-        const startDate = new Date(slot.start_datetime);
-        const endDate = new Date(slot.end_datetime);
-        const dateStr = startDate.toISOString().split('T')[0];
-        // Format time as HH:mm in UTC
-        const startTime = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
-        const endTime = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
+      // If slots array is empty, it might be a holiday or closed day
+      if (!Array.isArray(slots) || slots.length === 0) {
+        this.logger.log(
+          `No slots available for ${date} - might be holiday or closed`,
+        );
+        return {
+          success: true,
+          message: 'No slots available for this date (holiday or closed)',
+          data: [],
+        };
+      }
 
+      // Format slots for driver view
+      const formattedSlots = slots.map((slot: any) => {
+        // Template slots don't have IDs
+        if (!slot.id) {
+          const [startTime, endTime] = slot.time.split('-');
+          return {
+            start_time: startTime,
+            end_time: endTime,
+            date,
+            status: slot.status,
+          };
+        }
+
+        // Database slots have IDs
+        const [startTime, endTime] = slot.time.split('-');
         return {
           id: slot.id,
           start_time: startTime,
           end_time: endTime,
-          date: dateStr,
+          date,
+          status: slot.status,
         };
       });
+
+      return {
+        success: true,
+        message: `Found ${formattedSlots.length} available slots`,
+        data: formattedSlots,
+      };
     } catch (error) {
       this.logger.error(
         `Error fetching available slots: ${error.message}`,
@@ -172,7 +202,8 @@ export class VehicleBookingService {
   }
 
   /**
-   * Book a slot for MOT or Retest (no payment)
+   * Book a slot for MOT or Retest with race condition protection
+   * Supports both ID-based (existing slots) and time-based (template slots) booking
    */
   async bookSlot(userId: string, bookingData: BookSlotDto): Promise<any> {
     try {
@@ -181,10 +212,7 @@ export class VehicleBookingService {
       );
 
       // Step 1: Validate user and vehicle ownership
-      const user = await this.validateUserAndVehicle(
-        userId,
-        bookingData.vehicle_id,
-      );
+      await this.validateUserAndVehicle(userId, bookingData.vehicle_id);
 
       // Step 2: Validate garage availability
       const isGarageAvailable =
@@ -196,20 +224,79 @@ export class VehicleBookingService {
         throw new NotFoundException('Garage not available for bookings');
       }
 
-      // Step 3: Validate slot availability
-      const slot = await this.validateSlotAvailability(
-        bookingData.slot_id,
-        bookingData.garage_id,
-      );
-
-      // Step 4: Get service details
+      // Step 3: Get service details
       const service = await this.getServiceDetails(
         bookingData.garage_id,
         bookingData.service_type,
       );
 
-      // Step 5: Create booking (transaction to ensure data consistency)
-      const booking = await this.prisma.$transaction(async (tx) => {
+      // Step 4: Book slot with race protection
+      if (bookingData.slot_id) {
+        // ID-based booking (existing database slot)
+        return this.bookExistingSlot(userId, bookingData, service);
+      } else {
+        // Time-based booking (template slot - create and book atomically)
+        return this.bookTemplateSlot(userId, bookingData, service);
+      }
+    } catch (error) {
+      this.logger.error(`Error booking slot: ${error.message}`, error.stack);
+
+      // ✅ Environment-aware error handling
+      const isDevelopment = process.env.NODE_ENV === 'development';
+
+      // If it's a known NestJS exception (BadRequest, NotFound, Conflict), throw as-is
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+
+      // For other errors (Prisma, etc.), handle based on environment
+      if (isDevelopment) {
+        // Development: Show full error details
+        throw new BadRequestException({
+          message: 'Booking failed',
+          error: error.message,
+          stack: error.stack,
+          details: error,
+        });
+      } else {
+        // Production: Clean user-friendly message only
+        this.logger.error('Booking error (production):', error);
+        throw new BadRequestException(
+          'Unable to complete booking. Please try again or contact support.',
+        );
+      }
+    }
+  }
+
+  /**
+   * Book an existing database slot
+   */
+  private async bookExistingSlot(
+    userId: string,
+    bookingData: BookSlotDto,
+    service: any,
+  ): Promise<any> {
+    return await this.prisma.$transaction(
+      async (tx) => {
+        // Validate slot availability
+        const slot = await tx.timeSlot.findFirst({
+          where: {
+            id: bookingData.slot_id,
+            garage_id: bookingData.garage_id,
+            is_available: true,
+            is_blocked: false,
+            order_id: null,
+          },
+        });
+
+        if (!slot) {
+          throw new ConflictException('Slot not available or already booked');
+        }
+
         // Create order
         const order = await tx.order.create({
           data: {
@@ -242,31 +329,386 @@ export class VehicleBookingService {
           },
         });
 
-        return order;
-      });
+        this.logger.log(
+          `Successfully booked existing slot for user ${userId}, order ID: ${order.id}`,
+        );
 
-      this.logger.log(
-        `Successfully booked slot for user ${userId}, order ID: ${booking.id}`,
+        return {
+          success: true,
+          message: 'Booking confirmed successfully',
+          data: {
+            order_id: order.id,
+            garage_id: order.garage_id,
+            vehicle_id: order.vehicle_id,
+            slot_id: order.slot_id,
+            service_type: bookingData.service_type,
+            total_amount: order.total_amount,
+            order_date: order.order_date,
+            status: order.status,
+          },
+        };
+      },
+      { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 },
+    );
+  }
+
+  /**
+   * Book a template slot (atomic create + book with race protection)
+   */
+  private async bookTemplateSlot(
+    userId: string,
+    bookingData: BookSlotDto,
+    service: any,
+  ): Promise<any> {
+    // Calculate datetime
+    const startDateTime = new Date(
+      `${bookingData.date}T${bookingData.start_time}:00`,
+    );
+    const endDateTime = new Date(
+      `${bookingData.date}T${bookingData.end_time}:00`,
+    );
+
+    return await this.prisma.$transaction(
+      async (tx) => {
+        // Validate slot is bookable (schedule, holiday, break, etc.)
+        await this.validateSlotIsBookable(
+          bookingData.garage_id,
+          startDateTime,
+          endDateTime,
+          tx,
+        );
+
+        // ✅ FIX: Check if slot exists FIRST to avoid transaction abort
+        let slot = await tx.timeSlot.findUnique({
+          where: {
+            garage_id_start_datetime: {
+              garage_id: bookingData.garage_id,
+              start_datetime: startDateTime,
+            },
+          },
+        });
+
+        if (slot) {
+          // Slot already exists, check if it's available
+          if (slot.order_id) {
+            throw new ConflictException(
+              'This time slot has just been booked by another user. Please choose a different time.',
+            );
+          }
+
+          this.logger.log(
+            `Using existing slot ${slot.id} for time ${bookingData.start_time}`,
+          );
+        } else {
+          // Slot doesn't exist, create it
+          try {
+            slot = await tx.timeSlot.create({
+              data: {
+                garage_id: bookingData.garage_id,
+                start_datetime: startDateTime,
+                end_datetime: endDateTime,
+                is_available: false, // Immediately mark as unavailable
+                is_blocked: false,
+              },
+            });
+
+            this.logger.log(
+              `Created new slot ${slot.id} for time ${bookingData.start_time}-${bookingData.end_time}`,
+            );
+          } catch (error: any) {
+            // P2002 = Unique constraint violation (race condition - another user just created it)
+            if (error.code === 'P2002') {
+              this.logger.warn(
+                `Race condition detected: slot created by another transaction for ${bookingData.start_time}`,
+              );
+              throw new ConflictException(
+                'This time slot was just booked by another user. Please refresh and try a different time.',
+              );
+            }
+            throw error;
+          }
+        }
+
+        // Create order
+        const order = await tx.order.create({
+          data: {
+            driver_id: userId,
+            vehicle_id: bookingData.vehicle_id,
+            garage_id: bookingData.garage_id,
+            order_date: startDateTime,
+            status: OrderStatus.PENDING,
+            total_amount: service.price,
+            slot_id: slot.id,
+          },
+        });
+
+        // Create order item
+        await tx.orderItem.create({
+          data: {
+            order_id: order.id,
+            service_id: service.id,
+            quantity: 1,
+            price: service.price,
+          },
+        });
+
+        // Update slot with order_id
+        await tx.timeSlot.update({
+          where: { id: slot.id },
+          data: {
+            order_id: order.id,
+            is_available: false,
+          },
+        });
+
+        this.logger.log(
+          `Successfully booked template slot for user ${userId}, order ID: ${order.id}`,
+        );
+
+        return {
+          success: true,
+          message: 'Booking confirmed successfully',
+          data: {
+            order_id: order.id,
+            garage_id: order.garage_id,
+            vehicle_id: order.vehicle_id,
+            slot_id: order.slot_id,
+            service_type: bookingData.service_type,
+            total_amount: order.total_amount,
+            order_date: order.order_date,
+            status: order.status,
+          },
+        };
+      },
+      { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 },
+    );
+  }
+
+  /**
+   * Validate that a slot time is bookable
+   */
+  private async validateSlotIsBookable(
+    garageId: string,
+    startDateTime: Date,
+    endDateTime: Date,
+    tx: any,
+  ): Promise<void> {
+    // 1. Get schedule
+    const schedule = await tx.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule || !schedule.is_active) {
+      throw new BadRequestException(
+        'Garage does not have an active schedule for bookings',
       );
-
-      return {
-        success: true,
-        message: 'Booking confirmed successfully',
-        data: {
-          order_id: booking.id,
-          garage_id: booking.garage_id,
-          vehicle_id: booking.vehicle_id,
-          slot_id: booking.slot_id,
-          service_type: bookingData.service_type,
-          total_amount: booking.total_amount,
-          order_date: booking.order_date,
-          status: booking.status,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Error booking slot: ${error.message}`, error.stack);
-      throw error;
     }
+
+    // 2. Check if date is in the past
+    if (startDateTime < new Date()) {
+      throw new BadRequestException('Cannot book slots in the past');
+    }
+
+    const dayOfWeek = startDateTime.getDay();
+
+    // 3. Check Daily Hours (New System)
+    // If daily_hours exists, it takes precedence for "Closed" status
+    if (schedule.daily_hours) {
+      const dailyHours =
+        typeof schedule.daily_hours === 'string'
+          ? JSON.parse(schedule.daily_hours)
+          : schedule.daily_hours;
+
+      const dayConfig = dailyHours[dayOfWeek.toString()];
+
+      if (dayConfig && dayConfig.is_closed) {
+        throw new BadRequestException(
+          'Garage is closed on this day. Please choose another date.',
+        );
+      }
+    }
+
+    // 4. Parse restrictions (Legacy System)
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? schedule.restrictions
+      : JSON.parse(schedule.restrictions as string);
+    // 4. Check if day is restricted (holiday)
+    const bookingDateString = startDateTime.toISOString().split('T')[0]; // YYYY-MM-DD
+    const bookingMonth = startDateTime.getMonth() + 1; // 1-12
+    const bookingDay = startDateTime.getDate(); // 1-31
+
+    const isHoliday = restrictions.some((r: any) => {
+      if (r.type !== 'HOLIDAY') {
+        return false;
+      }
+
+      // Check specific date (YYYY-MM-DD)
+      if (r.date && r.date === bookingDateString) {
+        return true;
+      }
+
+      // Check annual recurring date (Month + Day)
+      if (
+        r.month &&
+        r.day &&
+        r.month === bookingMonth &&
+        r.day === bookingDay
+      ) {
+        return true;
+      }
+
+      // Check day of week
+      if (r.day_of_week !== undefined && r.day_of_week !== null) {
+        // Handle array of days
+        if (Array.isArray(r.day_of_week)) {
+          return r.day_of_week.includes(dayOfWeek);
+        }
+
+        // Handle string vs number comparison
+        const restrictionDay =
+          typeof r.day_of_week === 'string'
+            ? parseInt(r.day_of_week, 10)
+            : r.day_of_week;
+
+        return restrictionDay === dayOfWeek;
+      }
+
+      return false;
+    });
+
+    if (isHoliday) {
+      throw new BadRequestException(
+        'This day is a holiday. Please choose another date.',
+      );
+    }
+
+    // 5. Check if time is in break
+    // Logic replicated from GarageScheduleService.isTimeInBreak
+    const slotStartTime = this.formatTime24Hour(startDateTime);
+    const slotEndTime = this.formatTime24Hour(endDateTime);
+    const slotStartMins = this.parseTimeToMinutes(slotStartTime);
+    const slotEndMins = this.parseTimeToMinutes(slotEndTime);
+
+    for (const restriction of restrictions) {
+      if (restriction.type === 'BREAK') {
+        // Check if break applies to this day
+        let appliesToDay = false;
+        if (Array.isArray(restriction.day_of_week)) {
+          appliesToDay = restriction.day_of_week.includes(dayOfWeek);
+        } else {
+          const restrictionDay =
+            typeof restriction.day_of_week === 'string'
+              ? parseInt(restriction.day_of_week, 10)
+              : restriction.day_of_week;
+          appliesToDay = restrictionDay === dayOfWeek;
+        }
+
+        if (appliesToDay) {
+          const breakStartMins = this.parseTimeToMinutes(
+            restriction.start_time,
+          );
+          const breakEndMins = this.parseTimeToMinutes(restriction.end_time);
+
+          // Check if slot overlaps with break
+          // Overlap logic: (StartA < EndB) and (EndA > StartB)
+          if (slotStartMins < breakEndMins && slotEndMins > breakStartMins) {
+            throw new BadRequestException(
+              `Cannot book during break time (${restriction.start_time} - ${restriction.end_time})`,
+            );
+          }
+        }
+      }
+    }
+
+    // 6. Check operating hours (Global vs Daily)
+    let openTime = this.parseTimeToMinutes(schedule.start_time);
+    let closeTime = this.parseTimeToMinutes(schedule.end_time);
+    let validIntervals: { start: number; end: number }[] = [];
+
+    // Check if daily_hours defines specific intervals for this day
+    if (schedule.daily_hours) {
+      const dailyHours =
+        typeof schedule.daily_hours === 'string'
+          ? JSON.parse(schedule.daily_hours)
+          : schedule.daily_hours;
+
+      const dayConfig = dailyHours[dayOfWeek.toString()];
+
+      if (
+        dayConfig &&
+        Array.isArray(dayConfig.intervals) &&
+        dayConfig.intervals.length > 0
+      ) {
+        // Use daily intervals
+        validIntervals = dayConfig.intervals.map((interval: any) => ({
+          start: this.parseTimeToMinutes(interval.start_time),
+          end: this.parseTimeToMinutes(interval.end_time),
+        }));
+      }
+    }
+
+    // If no specific intervals, use global hours as a single interval
+    if (validIntervals.length === 0) {
+      validIntervals.push({ start: openTime, end: closeTime });
+    }
+
+    // Validate slot fits within at least one valid interval
+    const fitsInInterval = validIntervals.some(
+      (interval) =>
+        slotStartMins >= interval.start && slotEndMins <= interval.end,
+    );
+
+    if (!fitsInInterval) {
+      // Construct readable interval strings for error message
+      const intervalStrings = validIntervals
+        .map((i) => {
+          const startStr = this.formatMinutesToTime(i.start);
+          const endStr = this.formatMinutesToTime(i.end);
+          return `${startStr} - ${endStr}`;
+        })
+        .join(', ');
+
+      throw new BadRequestException(
+        `Booking must be within operating hours: ${intervalStrings}`,
+      );
+    }
+
+    // 7. Check slot duration
+    const duration =
+      (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60);
+    if (duration < 15 || duration > 480) {
+      throw new BadRequestException(
+        'Slot duration must be between 15 minutes and 8 hours',
+      );
+    }
+  }
+
+  /**
+   * Helper: Format time as HH:mm
+   */
+  private formatTime24Hour(date: Date): string {
+    return date.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
+  /**
+   * Helper: Parse time to minutes
+   */
+  private parseTimeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Helper: Format minutes to HH:mm
+   */
+  private formatMinutesToTime(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
 
   /**
