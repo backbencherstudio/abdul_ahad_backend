@@ -484,203 +484,161 @@ export class VehicleBookingService {
     );
   }
 
-  /**
-   * Validate that a slot time is bookable
-   */
   private async validateSlotIsBookable(
     garageId: string,
     startDateTime: Date,
     endDateTime: Date,
     tx: any,
   ): Promise<void> {
-    // 1. Get schedule
     const schedule = await tx.schedule.findUnique({
       where: { garage_id: garageId },
     });
 
-    if (!schedule || !schedule.is_active) {
-      throw new BadRequestException(
-        'Garage does not have an active schedule for bookings',
-      );
+    if (!schedule?.is_active) {
+      throw new BadRequestException('Garage schedule not active');
     }
 
-    // 2. Check if date is in the past
     if (startDateTime < new Date()) {
-      throw new BadRequestException('Cannot book slots in the past');
+      throw new BadRequestException('Cannot book past dates');
     }
 
     const dayOfWeek = startDateTime.getDay();
+    const dailyHours = this.parseDailyHours(schedule.daily_hours);
+    const dayConfig = dailyHours?.[dayOfWeek];
 
-    // 3. Check Daily Hours (New System)
-    // If daily_hours exists, it takes precedence for "Closed" status
-    if (schedule.daily_hours) {
-      const dailyHours =
-        typeof schedule.daily_hours === 'string'
-          ? JSON.parse(schedule.daily_hours)
-          : schedule.daily_hours;
-
-      const dayConfig = dailyHours[dayOfWeek.toString()];
-
-      if (dayConfig && dayConfig.is_closed) {
-        throw new BadRequestException(
-          'Garage is closed on this day. Please choose another date.',
-        );
-      }
+    if (dayConfig?.is_closed) {
+      throw new BadRequestException('Garage closed on this day');
     }
 
-    // 4. Parse restrictions (Legacy System)
     const restrictions = Array.isArray(schedule.restrictions)
       ? schedule.restrictions
-      : JSON.parse(schedule.restrictions as string);
-    // 4. Check if day is restricted (holiday)
-    const bookingDateString = startDateTime.toISOString().split('T')[0]; // YYYY-MM-DD
-    const bookingMonth = startDateTime.getMonth() + 1; // 1-12
-    const bookingDay = startDateTime.getDate(); // 1-31
+      : JSON.parse(schedule.restrictions || '[]');
 
-    const isHoliday = restrictions.some((r: any) => {
-      if (r.type !== 'HOLIDAY') {
-        return false;
-      }
+    this.checkHoliday(restrictions, startDateTime, dayOfWeek);
+    this.checkBreakTime(restrictions, startDateTime, endDateTime, dayOfWeek);
+    this.checkOperatingHours(
+      schedule,
+      startDateTime,
+      endDateTime,
+      dayOfWeek,
+      dayConfig,
+    );
+    this.checkSlotDuration(startDateTime, endDateTime);
+  }
 
-      // Check specific date (YYYY-MM-DD)
-      if (r.date && r.date === bookingDateString) {
-        return true;
-      }
+  private parseDailyHours(dailyHours: any): any {
+    if (!dailyHours) return null;
+    return typeof dailyHours === 'string' ? JSON.parse(dailyHours) : dailyHours;
+  }
 
-      // Check annual recurring date (Month + Day)
-      if (
-        r.month &&
-        r.day &&
-        r.month === bookingMonth &&
-        r.day === bookingDay
-      ) {
-        return true;
-      }
+  private checkHoliday(
+    restrictions: any[],
+    startDateTime: Date,
+    dayOfWeek: number,
+  ): void {
+    const dateStr = startDateTime.toISOString().split('T')[0];
+    const month = startDateTime.getMonth() + 1;
+    const day = startDateTime.getDate();
 
-      // Check day of week
-      if (r.day_of_week !== undefined && r.day_of_week !== null) {
-        // Handle array of days
-        if (Array.isArray(r.day_of_week)) {
-          return r.day_of_week.includes(dayOfWeek);
-        }
-
-        // Handle string vs number comparison
-        const restrictionDay =
-          typeof r.day_of_week === 'string'
-            ? parseInt(r.day_of_week, 10)
-            : r.day_of_week;
-
-        return restrictionDay === dayOfWeek;
-      }
-
-      return false;
+    const isHoliday = restrictions.some((r) => {
+      if (r.type !== 'HOLIDAY') return false;
+      if (r.date === dateStr) return true;
+      if (r.month === month && r.day === day) return true;
+      return this.matchesDayOfWeek(r.day_of_week, dayOfWeek);
     });
 
     if (isHoliday) {
-      throw new BadRequestException(
-        'This day is a holiday. Please choose another date.',
-      );
+      throw new BadRequestException('Cannot book on holidays');
     }
+  }
 
-    // 5. Check if time is in break
-    // Logic replicated from GarageScheduleService.isTimeInBreak
-    const slotStartTime = this.formatTime24Hour(startDateTime);
-    const slotEndTime = this.formatTime24Hour(endDateTime);
-    const slotStartMins = this.parseTimeToMinutes(slotStartTime);
-    const slotEndMins = this.parseTimeToMinutes(slotEndTime);
+  private checkBreakTime(
+    restrictions: any[],
+    startDateTime: Date,
+    endDateTime: Date,
+    dayOfWeek: number,
+  ): void {
+    const startMins = this.parseTimeToMinutes(
+      this.formatTime24Hour(startDateTime),
+    );
+    const endMins = this.parseTimeToMinutes(this.formatTime24Hour(endDateTime));
 
-    for (const restriction of restrictions) {
-      if (restriction.type === 'BREAK') {
-        // Check if break applies to this day
-        let appliesToDay = false;
-        if (Array.isArray(restriction.day_of_week)) {
-          appliesToDay = restriction.day_of_week.includes(dayOfWeek);
-        } else {
-          const restrictionDay =
-            typeof restriction.day_of_week === 'string'
-              ? parseInt(restriction.day_of_week, 10)
-              : restriction.day_of_week;
-          appliesToDay = restrictionDay === dayOfWeek;
-        }
-
-        if (appliesToDay) {
-          const breakStartMins = this.parseTimeToMinutes(
-            restriction.start_time,
-          );
-          const breakEndMins = this.parseTimeToMinutes(restriction.end_time);
-
-          // Check if slot overlaps with break
-          // Overlap logic: (StartA < EndB) and (EndA > StartB)
-          if (slotStartMins < breakEndMins && slotEndMins > breakStartMins) {
-            throw new BadRequestException(
-              `Cannot book during break time (${restriction.start_time} - ${restriction.end_time})`,
-            );
-          }
-        }
-      }
-    }
-
-    // 6. Check operating hours (Global vs Daily)
-    let openTime = this.parseTimeToMinutes(schedule.start_time);
-    let closeTime = this.parseTimeToMinutes(schedule.end_time);
-    let validIntervals: { start: number; end: number }[] = [];
-
-    // Check if daily_hours defines specific intervals for this day
-    if (schedule.daily_hours) {
-      const dailyHours =
-        typeof schedule.daily_hours === 'string'
-          ? JSON.parse(schedule.daily_hours)
-          : schedule.daily_hours;
-
-      const dayConfig = dailyHours[dayOfWeek.toString()];
-
+    for (const r of restrictions) {
       if (
-        dayConfig &&
-        Array.isArray(dayConfig.intervals) &&
-        dayConfig.intervals.length > 0
+        r.type === 'BREAK' &&
+        this.matchesDayOfWeek(r.day_of_week, dayOfWeek)
       ) {
-        // Use daily intervals
-        validIntervals = dayConfig.intervals.map((interval: any) => ({
-          start: this.parseTimeToMinutes(interval.start_time),
-          end: this.parseTimeToMinutes(interval.end_time),
-        }));
+        const breakStart = this.parseTimeToMinutes(r.start_time);
+        const breakEnd = this.parseTimeToMinutes(r.end_time);
+
+        if (startMins < breakEnd && endMins > breakStart) {
+          throw new BadRequestException(
+            `Cannot book during break (${r.start_time}-${r.end_time})`,
+          );
+        }
       }
     }
+  }
 
-    // If no specific intervals, use global hours as a single interval
-    if (validIntervals.length === 0) {
-      validIntervals.push({ start: openTime, end: closeTime });
+  private checkOperatingHours(
+    schedule: any,
+    startDateTime: Date,
+    endDateTime: Date,
+    dayOfWeek: number,
+    dayConfig: any,
+  ): void {
+    const startMins = this.parseTimeToMinutes(
+      this.formatTime24Hour(startDateTime),
+    );
+    const endMins = this.parseTimeToMinutes(this.formatTime24Hour(endDateTime));
+
+    let intervals: { start: number; end: number }[] = [];
+
+    if (dayConfig?.intervals?.length) {
+      intervals = dayConfig.intervals.map((i: any) => ({
+        start: this.parseTimeToMinutes(i.start_time),
+        end: this.parseTimeToMinutes(i.end_time),
+      }));
+    } else {
+      intervals = [
+        {
+          start: this.parseTimeToMinutes(schedule.start_time),
+          end: this.parseTimeToMinutes(schedule.end_time),
+        },
+      ];
     }
 
-    // Validate slot fits within at least one valid interval
-    const fitsInInterval = validIntervals.some(
-      (interval) =>
-        slotStartMins >= interval.start && slotEndMins <= interval.end,
+    const valid = intervals.some(
+      (i) => startMins >= i.start && endMins <= i.end,
     );
 
-    if (!fitsInInterval) {
-      // Construct readable interval strings for error message
-      const intervalStrings = validIntervals
-        .map((i) => {
-          const startStr = this.formatMinutesToTime(i.start);
-          const endStr = this.formatMinutesToTime(i.end);
-          return `${startStr} - ${endStr}`;
-        })
+    if (!valid) {
+      const times = intervals
+        .map(
+          (i) =>
+            `${this.formatMinutesToTime(i.start)}-${this.formatMinutesToTime(i.end)}`,
+        )
         .join(', ');
-
-      throw new BadRequestException(
-        `Booking must be within operating hours: ${intervalStrings}`,
-      );
+      throw new BadRequestException(`Must be within hours: ${times}`);
     }
+  }
 
-    // 7. Check slot duration
-    const duration =
-      (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60);
-    if (duration < 15 || duration > 480) {
-      throw new BadRequestException(
-        'Slot duration must be between 15 minutes and 8 hours',
-      );
+  private checkSlotDuration(startDateTime: Date, endDateTime: Date): void {
+    const mins = (endDateTime.getTime() - startDateTime.getTime()) / 60000;
+    if (mins < 15 || mins > 480) {
+      throw new BadRequestException('Duration must be 15min-8hrs');
     }
+  }
+
+  private matchesDayOfWeek(restrictionDay: any, dayOfWeek: number): boolean {
+    if (restrictionDay === undefined || restrictionDay === null) return false;
+    if (Array.isArray(restrictionDay))
+      return restrictionDay.includes(dayOfWeek);
+    const day =
+      typeof restrictionDay === 'string'
+        ? parseInt(restrictionDay)
+        : restrictionDay;
+    return day === dayOfWeek;
   }
 
   /**
