@@ -8,12 +8,15 @@ import {
 } from './dto/fetch-notification.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class NotificationService {
   constructor(
     private prisma: PrismaService,
-    @Inject(forwardRef(() => require('./notification.gateway').NotificationGateway))
+    @Inject(
+      forwardRef(() => require('./notification.gateway').NotificationGateway),
+    )
     private notificationGateway: any,
   ) {}
 
@@ -102,14 +105,32 @@ export class NotificationService {
     ]);
 
     // Add avatar URL
-    const data = notifications.map((notification) => {
-      if (notification.sender && notification.sender.avatar) {
-        notification.sender['avatar_url'] = SojebStorage.url(
-          appConfig().storageUrl.avatar + notification.sender.avatar,
-        );
-      }
-      return notification;
-    });
+    const data = await Promise.all(
+      notifications.map(async (notification) => {
+        if (notification.sender && notification.sender.avatar) {
+          notification.sender['avatar_url'] = SojebStorage.url(
+            appConfig().storageUrl.avatar + notification.sender.avatar,
+          );
+        }
+        if (
+          notification.notification_event.type === NotificationType.BOOKING &&
+          notification.entity_id
+        ) {
+          const entity = await this.prisma.order.findFirst({
+            where: {
+              id: notification?.entity_id,
+            },
+            select: {
+              id: true,
+              vehicle: true,
+            },
+          });
+          console.log(entity);
+          (notification as any).entity = entity;
+        }
+        return notification;
+      }),
+    );
 
     return {
       success: true,

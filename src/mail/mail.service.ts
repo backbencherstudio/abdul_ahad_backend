@@ -559,4 +559,92 @@ export class MailService {
       console.error('Error sending payment success email:', error);
     }
   }
+
+  /**
+   * Generic method to send user notifications (Driver/Garage approval, rejection, deletion)
+   * @param params - Notification parameters
+   */
+  async sendUserNotification(params: {
+    to: string;
+    userType: 'driver' | 'garage';
+    actionType: 'approved' | 'rejected' | 'deleted';
+    userName: string;
+    reason?: string;
+  }) {
+    try {
+      const { to, userType, actionType, userName, reason } = params;
+
+      // Configuration for different notification types
+      const config = {
+        driver: {
+          approved: {
+            subject: 'Account Approved - Simply MOT',
+            template: 'driver-approved',
+            logMessage: 'Driver approval',
+          },
+          rejected: {
+            subject: 'Account Status Update - Simply MOT',
+            template: 'driver-rejected',
+            logMessage: 'Driver rejection',
+          },
+          deleted: {
+            subject: 'Account Deleted - Simply MOT',
+            template: 'driver-deleted',
+            logMessage: 'Driver deletion',
+          },
+        },
+        garage: {
+          approved: {
+            subject: 'Garage Account Approved - Simply MOT',
+            template: 'garage-approved',
+            logMessage: 'Garage approval',
+          },
+          rejected: {
+            subject: 'Garage Account Status Update - Simply MOT',
+            template: 'garage-rejected',
+            logMessage: 'Garage rejection',
+          },
+        },
+      };
+
+      const notificationConfig = config[userType][actionType];
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+
+      // Build context based on user type
+      const context: any = {
+        app_name: process.env.APP_NAME || appConfig().app.name,
+        support_email: appConfig().mail.from,
+      };
+
+      if (userType === 'driver') {
+        context.driver_name = userName;
+      } else {
+        context.garage_name = userName;
+      }
+
+      if (reason) {
+        context.reason = reason;
+      } else if (actionType === 'rejected') {
+        context.reason = 'Administrative decision';
+      } else if (actionType === 'deleted') {
+        context.reason = 'Administrative action';
+      }
+
+      // Queue the email
+      await this.queue.add(
+        `send${userType.charAt(0).toUpperCase() + userType.slice(1)}${actionType.charAt(0).toUpperCase() + actionType.slice(1)}Notification`,
+        {
+          to,
+          from,
+          subject: notificationConfig.subject,
+          template: notificationConfig.template,
+          context,
+        },
+      );
+
+      console.log(`${notificationConfig.logMessage} email queued for: ${to}`);
+    } catch (error) {
+      console.error('Error queuing user notification email:', error);
+    }
+  }
 }

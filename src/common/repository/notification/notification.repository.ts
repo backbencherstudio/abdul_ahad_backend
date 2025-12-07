@@ -14,6 +14,7 @@ export enum NotificationType {
   PAYMENT_TRANSACTION = 'payment_transaction',
   PACKAGE = 'package',
   BLOG = 'blog',
+  ROLE_MANAGEMENT = 'role_management',
   // Add new types here as needed
 }
 export class NotificationRepository {

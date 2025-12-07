@@ -117,7 +117,8 @@ export class GarageSubscriptionService {
 
       if (!subscription) {
         return {
-          success: true,
+          success: false,
+          message: 'No subscription found',
           data: null,
         };
       }
@@ -166,7 +167,10 @@ export class GarageSubscriptionService {
       };
 
       return {
-        success: true,
+        success: formattedSubscription ? true : false,
+        message: formattedSubscription
+          ? 'Subscription found'
+          : 'No subscription found',
         data: formattedSubscription,
       };
     } catch (error) {

@@ -9,6 +9,8 @@ import { DateHelper } from '../../../common/helper/date.helper';
 import { Role } from 'src/common/guard/role/role.enum';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
 import { MailService } from '../../../mail/mail.service';
+import { NotificationService } from '../../application/notification/notification.service';
+import { NotificationType } from '../../../common/repository/notification/notification.repository';
 
 @Injectable()
 export class UserService {
@@ -26,6 +28,7 @@ export class UserService {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    private notificationService: NotificationService,
   ) {}
 
   async create(createUserDto: CreateUserDto, currentUserId?: string) {
@@ -1152,6 +1155,24 @@ export class UserService {
         );
       }
 
+      // ✅ NOTIFICATION: Send in-app notification for role assignment
+      // TODO: Uncomment when in-app notifications are needed for role management
+      // if (rolesToAdd.length > 0) {
+      //   try {
+      //     const roleNames = rolesToAdd.map((r) => r.name).join(', ');
+      //     await this.notificationService.create({
+      //       receiver_id: userId,
+      //       type: NotificationType.ROLE_MANAGEMENT,
+      //       text: `New role(s) assigned: ${roleNames}`,
+      //       entity_id: userId,
+      //     });
+      //   } catch (error) {
+      //     this.logger.error(
+      //       `Failed to send role assignment notification: ${error.message}`,
+      //     );
+      //   }
+      // }
+
       // Return updated user with roles
       const updatedUser = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -1373,6 +1394,21 @@ export class UserService {
           role_id: roleId,
         },
       });
+
+      // ✅ NOTIFICATION: Send in-app notification for role removal
+      // TODO: Uncomment when in-app notifications are needed for role management
+      // try {
+      //   await this.notificationService.create({
+      //     receiver_id: userId,
+      //     type: NotificationType.ROLE_MANAGEMENT,
+      //     text: `Role removed: ${role.name}`,
+      //     entity_id: userId,
+      //   });
+      // } catch (error) {
+      //   this.logger.error(
+      //     `Failed to send role removal notification: ${error.message}`,
+      //   );
+      // }
 
       return {
         success: true,

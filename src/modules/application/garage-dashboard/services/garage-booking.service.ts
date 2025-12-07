@@ -2,12 +2,17 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { GetBookingsDto, BookingStatusFilter } from '../dto/get-bookings.dto';
 import { OrderStatus, Prisma } from '@prisma/client';
+import { NotificationService } from '../../notification/notification.service';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class GarageBookingService {
   private readonly logger = new Logger(GarageBookingService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getBookings(userId: string, query: GetBookingsDto) {
     const { search, status, page = 1, limit = 10 } = query;
@@ -222,6 +227,17 @@ export class GarageBookingService {
         id: bookingId,
         garage_id: userId,
       },
+      select: {
+        id: true,
+        driver_id: true,
+        order_date: true,
+        garage: {
+          select: {
+            id: true,
+            garage_name: true,
+          },
+        },
+      },
     });
 
     if (!booking) {
@@ -249,6 +265,16 @@ export class GarageBookingService {
       },
     });
 
+    await this.notificationService.create({
+      receiver_id: booking.driver_id,
+      sender_id: userId,
+      type: NotificationType.BOOKING,
+      text:
+        status == OrderStatus.ACCEPTED
+          ? `Your booking with ${booking.garage.garage_name} has been accepted on ${booking.order_date.toISOString().split('T')[0]} at ${booking.order_date.toISOString().split('T')[1]}.`
+          : `Your booking with ${booking.garage.garage_name} has been rejected on ${booking.order_date.toISOString().split('T')[0]} at ${booking.order_date.toISOString().split('T')[1]}.`,
+      entity_id: booking.id,
+    });
     return {
       success: true,
       message: 'Booking status updated successfully',

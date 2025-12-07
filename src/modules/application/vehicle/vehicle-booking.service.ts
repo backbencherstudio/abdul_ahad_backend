@@ -22,6 +22,8 @@ import {
   MyBookingsResponseDto,
   BookingDto,
 } from './dto/my-bookings.dto';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class VehicleBookingService {
@@ -32,6 +34,7 @@ export class VehicleBookingService {
     private readonly vehicleService: VehicleService,
     private readonly vehicleGarageService: VehicleGarageService,
     private readonly garageScheduleService: GarageScheduleService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -231,18 +234,38 @@ export class VehicleBookingService {
       );
 
       // Step 4: Book slot with race protection
+
+      let booking;
       if (bookingData.slot_id) {
         // ID-based booking (existing database slot)
-        return this.bookExistingSlot(userId, bookingData, service);
+        booking = await this.bookExistingSlot(userId, bookingData, service);
       } else {
         // Time-based booking (template slot - create and book atomically)
-        return this.bookTemplateSlot(userId, bookingData, service);
+        booking = await this.bookTemplateSlot(userId, bookingData, service);
       }
+
+      await this.notificationService.create({
+        receiver_id: bookingData.garage_id,
+        sender_id: userId,
+        type: NotificationType.BOOKING,
+        text: `New booking received for ${bookingData.service_type} service`,
+        entity_id: booking.data.order_id,
+        actions: [
+          {
+            label: 'Accept',
+            action: 'accept_booking',
+            variant: 'success',
+          },
+          {
+            label: 'Reject',
+            action: 'reject_booking',
+            variant: 'danger',
+          },
+        ],
+      });
+      return booking;
     } catch (error) {
       this.logger.error(`Error booking slot: ${error.message}`, error.stack);
-
-      // ✅ Environment-aware error handling
-      const isDevelopment = process.env.NODE_ENV === 'development';
 
       // If it's a known NestJS exception (BadRequest, NotFound, Conflict), throw as-is
       if (
@@ -251,23 +274,6 @@ export class VehicleBookingService {
         error instanceof ConflictException
       ) {
         throw error;
-      }
-
-      // For other errors (Prisma, etc.), handle based on environment
-      if (isDevelopment) {
-        // Development: Show full error details
-        throw new BadRequestException({
-          message: 'Booking failed',
-          error: error.message,
-          stack: error.stack,
-          details: error,
-        });
-      } else {
-        // Production: Clean user-friendly message only
-        this.logger.error('Booking error (production):', error);
-        throw new BadRequestException(
-          'Unable to complete booking. Please try again or contact support.',
-        );
       }
     }
   }

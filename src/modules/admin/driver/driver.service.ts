@@ -4,12 +4,23 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class DriverService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
-  async getDrivers(page: number, limit: number, status?: string, search?: string, startdate?: string, enddate?: string) {
+  async getDrivers(
+    page: number,
+    limit: number,
+    status?: string,
+    search?: string,
+    startdate?: string,
+    enddate?: string,
+  ) {
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
@@ -17,20 +28,20 @@ export class DriverService {
       deleted_at: null, // Exclude soft-deleted users
     };
 
-    if (search && search.trim() !== ''){
+    if (search && search.trim() !== '') {
       whereClause.OR = [
-        { name: {contains: search, mode: 'insensitive'}},
-        { email: { contains: search, mode: 'insensitive'}}
-      ]
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
-    if(startdate && enddate){
+    if (startdate && enddate) {
       whereClause.created_at = {
         gte: new Date(startdate),
-        lte: new Date(enddate + "T23:59:59.999Z"),
-      }
+        lte: new Date(enddate + 'T23:59:59.999Z'),
+      };
     }
-    
+
     // Handle status filter - only apply if status is a valid number, not "all" or empty
     if (status && status !== 'all' && status !== '') {
       const statusNum = parseInt(status, 10);
@@ -131,6 +142,14 @@ export class DriverService {
       },
     });
 
+    // Send approval email notification
+    await this.mailService.sendUserNotification({
+      to: updatedDriver.email,
+      userType: 'driver',
+      actionType: 'approved',
+      userName: updatedDriver.name,
+    });
+
     return {
       success: true,
       message: 'Driver approved successfully',
@@ -166,34 +185,52 @@ export class DriverService {
       },
     });
 
+    // Send rejection email notification
+    await this.mailService.sendUserNotification({
+      to: updatedDriver.email,
+      userType: 'driver',
+      actionType: 'rejected',
+      userName: updatedDriver.name,
+    });
+
     return {
       success: true,
       message: 'Driver rejected successfully',
       data: updatedDriver,
     };
   }
-  
+
   async deleteDriver(id: string) {
     const driver = await this.prisma.user.findFirst({
       where: { id, type: 'DRIVER', deleted_at: null },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true,
+      },
     });
 
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
-    if (driver.status === 0) {
-      throw new BadRequestException('Driver is already rejected');
-    }
+    // Send deletion email notification before deleting
+    await this.mailService.sendUserNotification({
+      to: driver.email,
+      userType: 'driver',
+      actionType: 'deleted',
+      userName: driver.name,
+    });
 
-    const updatedDriver = await this.prisma.user.delete({
+    const deletedDriver = await this.prisma.user.delete({
       where: { id },
     });
 
     return {
       success: true,
       message: 'Driver deleted successfully',
-      data: updatedDriver,
+      data: deletedDriver,
     };
   }
 }

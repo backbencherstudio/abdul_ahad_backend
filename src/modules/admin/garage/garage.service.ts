@@ -4,10 +4,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MailService } from 'src/mail/mail.service';
+import { NotificationService } from '../../application/notification/notification.service';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class GarageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getGarages(page: number, limit: number, status?: string) {
     const skip = (page - 1) * limit;
@@ -16,7 +23,7 @@ export class GarageService {
       type: 'GARAGE',
       deleted_at: null, // Exclude soft-deleted users
     };
-    
+
     // Handle status filter - only apply if status is a valid number, not "all" or empty
     if (status && status !== 'all' && status !== '') {
       const statusNum = parseInt(status, 10);
@@ -37,7 +44,6 @@ export class GarageService {
         deleted_at: true,
       },
     });
-    
 
     const [garages, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -112,7 +118,6 @@ export class GarageService {
     const garage = await this.prisma.user.findFirst({
       where: { id, type: 'GARAGE' },
     });
-    
 
     if (!garage) {
       throw new NotFoundException('Garage not found');
@@ -139,6 +144,27 @@ export class GarageService {
         approved_at: true,
       },
     });
+
+    // Send approval email notification
+    await this.mailService.sendUserNotification({
+      to: updatedGarage.email,
+      userType: 'garage',
+      actionType: 'approved',
+      userName: updatedGarage.garage_name,
+    });
+
+    // Send in-app notification
+    // TODO: Uncomment when in-app notifications are needed for garage management
+    // try {
+    //   await this.notificationService.create({
+    //     receiver_id: updatedGarage.id,
+    //     type: NotificationType.ROLE_MANAGEMENT,
+    //     text: `Your garage account has been approved! You can now start accepting bookings.`,
+    //     entity_id: updatedGarage.id,
+    //   });
+    // } catch (error) {
+    //   console.error('Failed to send garage approval in-app notification:', error);
+    // }
 
     return {
       success: true,
@@ -174,6 +200,27 @@ export class GarageService {
         approved_at: true,
       },
     });
+
+    // Send rejection email notification
+    await this.mailService.sendUserNotification({
+      to: updatedGarage.email,
+      userType: 'garage',
+      actionType: 'rejected',
+      userName: updatedGarage.garage_name,
+    });
+
+    // Send in-app notification
+    // TODO: Uncomment when in-app notifications are needed for garage management
+    // try {
+    //   await this.notificationService.create({
+    //     receiver_id: updatedGarage.id,
+    //     type: NotificationType.ROLE_MANAGEMENT,
+    //     text: `Your garage account application has been reviewed. Please check your email for more details.`,
+    //     entity_id: updatedGarage.id,
+    //   });
+    // } catch (error) {
+    //   console.error('Failed to send garage rejection in-app notification:', error);
+    // }
 
     return {
       success: true,
