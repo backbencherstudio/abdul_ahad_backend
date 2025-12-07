@@ -122,10 +122,22 @@ export class NotificationService {
             },
             select: {
               id: true,
-              vehicle: true,
+              vehicle: {
+                select: {
+                  id: true,
+                  registration_number: true,
+                  make: true,
+                  model: true,
+                  color: true,
+                  fuel_type: true,
+                  year_of_manufacture: true,
+                  engine_capacity: true,
+                  co2_emissions: true,
+                  mot_expiry_date: true,
+                },
+              },
             },
           });
-          console.log(entity);
           (notification as any).entity = entity;
         }
         return notification;

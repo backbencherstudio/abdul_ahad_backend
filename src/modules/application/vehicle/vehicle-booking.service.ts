@@ -263,7 +263,13 @@ export class VehicleBookingService {
           },
         ],
       });
-      return booking;
+      console.log(booking);
+      return booking
+        ? booking
+        : {
+            success: false,
+            message: 'Booking failed',
+          };
     } catch (error) {
       this.logger.error(`Error booking slot: ${error.message}`, error.stack);
 
@@ -275,6 +281,11 @@ export class VehicleBookingService {
       ) {
         throw error;
       }
+
+      // For any other error (including deadlock/transaction errors), return error response
+      throw new BadRequestException(
+        error.message || 'Failed to book slot. Please try again.',
+      );
     }
   }
 
@@ -359,9 +370,55 @@ export class VehicleBookingService {
   }
 
   /**
-   * Book a template slot (atomic create + book with race protection)
+   * Book a template slot (atomic create + book with race protection and retry logic)
    */
   private async bookTemplateSlot(
+    userId: string,
+    bookingData: BookSlotDto,
+    service: any,
+  ): Promise<any> {
+    const maxRetries = 3;
+    let lastError: any;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await this.executeTemplateSlotBooking(
+          userId,
+          bookingData,
+          service,
+        );
+      } catch (error: any) {
+        lastError = error;
+
+        // Check if it's a deadlock/write conflict error
+        const isDeadlock =
+          error.code === 'P2034' || // Write conflict
+          error.message?.includes('write conflict') ||
+          error.message?.includes('deadlock');
+
+        if (isDeadlock && attempt < maxRetries - 1) {
+          // Exponential backoff: 100ms, 200ms, 400ms
+          const delay = 100 * Math.pow(2, attempt);
+          this.logger.warn(
+            `Deadlock detected on attempt ${attempt + 1}/${maxRetries}. Retrying in ${delay}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // If it's not a deadlock or we've exhausted retries, throw the error
+        throw error;
+      }
+    }
+
+    // This should never be reached, but TypeScript needs it
+    throw lastError;
+  }
+
+  /**
+   * Execute the actual template slot booking transaction
+   */
+  private async executeTemplateSlotBooking(
     userId: string,
     bookingData: BookSlotDto,
     service: any,
@@ -384,7 +441,7 @@ export class VehicleBookingService {
           tx,
         );
 
-        // ✅ FIX: Check if slot exists FIRST to avoid transaction abort
+        // Try to find or create the slot atomically
         let slot = await tx.timeSlot.findUnique({
           where: {
             garage_id_start_datetime: {
