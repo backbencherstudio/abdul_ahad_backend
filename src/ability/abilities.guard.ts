@@ -14,7 +14,7 @@ import { AbilityFactory } from './ability.factory';
 export class AbilitiesGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private abilityFacory: AbilityFactory,
+    private abilityFactory: AbilityFactory,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -25,7 +25,7 @@ export class AbilitiesGuard implements CanActivate {
     const req = context.switchToHttp().getRequest();
     const userDetails = await UserRepository.getUserDetails(req.user.userId);
 
-    const ability = this.abilityFacory.defineAbility(userDetails);
+    const ability = this.abilityFactory.defineAbility(userDetails);
 
     try {
       for (const rule of rules) {

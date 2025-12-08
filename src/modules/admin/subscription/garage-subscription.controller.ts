@@ -29,7 +29,6 @@ import { UpdateGarageSubscriptionDto } from './dto/update-garage-subscription.dt
 import { SubscriptionStatusService } from './subscription-status.service';
 import { SubscriptionAnalyticsService } from './subscription-analytics.service';
 
-
 @ApiTags('Admin Garage Subscriptions')
 @Controller('admin/subscription/garages')
 @UseGuards(JwtAuthGuard, RolesGuard, AbilitiesGuard)
@@ -74,6 +73,13 @@ export class GarageSubscriptionController {
     status: 404,
     description: 'Garage subscription not found',
   })
+  @ApiOperation({ summary: 'Get subscription health summary' })
+  @Get('health')
+  @CheckAbilities({ action: Action.Read, subject: 'Analytics' })
+  async getSubscriptionHealth() {
+    return this.subscriptionStatusService.getSubscriptionHealthSummary();
+  }
+
   @ApiParam({ name: 'id', description: 'Garage subscription ID' })
   @Get(':id')
   @CheckAbilities({ action: Action.Show, subject: 'Subscription' })
@@ -127,13 +133,6 @@ export class GarageSubscriptionController {
     @Body() dto: UpdateGarageSubscriptionDto,
   ): Promise<GarageSubscriptionResponseDto> {
     return this.garageSubscriptionService.updateGarageSubscription(id, dto);
-  }
-
-  @ApiOperation({ summary: 'Get subscription health summary' })
-  @Get('health')
-  @CheckAbilities({ action: Action.Read, subject: 'Analytics' })
-  async getSubscriptionHealth() {
-    return this.subscriptionStatusService.getSubscriptionHealthSummary();
   }
 
   @ApiOperation({ summary: 'Get subscription status breakdown' })

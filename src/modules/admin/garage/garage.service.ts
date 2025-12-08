@@ -16,7 +16,7 @@ export class GarageService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async getGarages(page: number, limit: number, status?: string) {
+  async getGarages(page: number, limit: number, q?: string, status?: string) {
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
@@ -32,18 +32,18 @@ export class GarageService {
       }
     }
 
-    // Debug: Check what's actually in the database
-    const allGaragesCheck = await this.prisma.user.findMany({
-      where: { type: 'GARAGE' },
-      select: {
-        id: true,
-        email: true,
-        type: true,
-        garage_name: true,
-        status: true,
-        deleted_at: true,
-      },
-    });
+    // Handle search filter
+    if (q) {
+      whereClause.OR = [
+        { id: { contains: q, mode: 'insensitive' } },
+        { garage_name: { contains: q, mode: 'insensitive' } },
+        { email: { contains: q, mode: 'insensitive' } },
+        { phone_number: { contains: q, mode: 'insensitive' } },
+        { address: { contains: q, mode: 'insensitive' } },
+        { vts_number: { contains: q, mode: 'insensitive' } },
+        { primary_contact: { contains: q, mode: 'insensitive' } },
+      ];
+    }
 
     const [garages, total] = await Promise.all([
       this.prisma.user.findMany({

@@ -172,12 +172,18 @@ export class StripeService {
           data: {
             status: 'ACTIVE',
             current_period_start: new Date(
-              subscription.current_period_start * 1000,
+              (subscription.current_period_start ||
+                subscription.start_date ||
+                subscription.created) * 1000,
             ),
             current_period_end: new Date(
-              subscription.current_period_end * 1000,
+              (subscription.current_period_end || subscription.trial_end) *
+                1000,
             ),
-            next_billing_date: new Date(subscription.current_period_end * 1000),
+            next_billing_date: new Date(
+              (subscription.current_period_end || subscription.trial_end) *
+                1000,
+            ),
           },
         });
 
@@ -232,10 +238,16 @@ export class StripeService {
           status: 'ACTIVE',
           stripe_subscription_id: subscription.id,
           current_period_start: new Date(
-            subscription.current_period_start * 1000,
+            (subscription.current_period_start ||
+              subscription.start_date ||
+              subscription.created) * 1000,
           ),
-          current_period_end: new Date(subscription.current_period_end * 1000),
-          next_billing_date: new Date(subscription.current_period_end * 1000),
+          current_period_end: new Date(
+            (subscription.current_period_end || subscription.trial_end) * 1000,
+          ),
+          next_billing_date: new Date(
+            (subscription.current_period_end || subscription.trial_end) * 1000,
+          ),
           updated_at: new Date(),
         },
       });
@@ -313,10 +325,16 @@ export class StripeService {
         data: {
           status: newStatus,
           current_period_start: new Date(
-            subscription.current_period_start * 1000,
+            (subscription.current_period_start ||
+              subscription.start_date ||
+              subscription.created) * 1000,
           ),
-          current_period_end: new Date(subscription.current_period_end * 1000),
-          next_billing_date: new Date(subscription.current_period_end * 1000),
+          current_period_end: new Date(
+            (subscription.current_period_end || subscription.trial_end) * 1000,
+          ),
+          next_billing_date: new Date(
+            (subscription.current_period_end || subscription.trial_end) * 1000,
+          ),
           cancel_at: subscription.cancel_at
             ? new Date(subscription.cancel_at * 1000)
             : null,
@@ -434,14 +452,15 @@ export class StripeService {
         return;
       }
 
-      console.log(`🔍 Looking for garage subscription with Stripe ID: ${subscriptionId}`);
+      console.log(
+        `🔍 Looking for garage subscription with Stripe ID: ${subscriptionId}`,
+      );
 
       // Try to find garage subscription by stripe_subscription_id
-      let garageSubscription =
-        await this.prisma.garageSubscription.findFirst({
-          where: { stripe_subscription_id: subscriptionId },
-          include: { garage: true, plan: true },
-        });
+      let garageSubscription = await this.prisma.garageSubscription.findFirst({
+        where: { stripe_subscription_id: subscriptionId },
+        include: { garage: true, plan: true },
+      });
 
       // Fallback: If not found, try to find by metadata in Stripe subscription
       if (!garageSubscription) {
@@ -450,22 +469,23 @@ export class StripeService {
         );
         try {
           const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-          const stripeSubscription = await Stripe.subscriptions.retrieve(
-            subscriptionId,
-          );
+          const stripeSubscription =
+            await Stripe.subscriptions.retrieve(subscriptionId);
 
           if (stripeSubscription?.metadata?.garage_subscription_id) {
-            garageSubscription = await this.prisma.garageSubscription.findUnique(
-              {
+            garageSubscription =
+              await this.prisma.garageSubscription.findUnique({
                 where: {
                   id: stripeSubscription.metadata.garage_subscription_id,
                 },
                 include: { garage: true, plan: true },
-              },
-            );
+              });
 
             // Update stripe_subscription_id if it was missing
-            if (garageSubscription && !garageSubscription.stripe_subscription_id) {
+            if (
+              garageSubscription &&
+              !garageSubscription.stripe_subscription_id
+            ) {
               await this.prisma.garageSubscription.update({
                 where: { id: garageSubscription.id },
                 data: { stripe_subscription_id: subscriptionId },
@@ -541,7 +561,8 @@ export class StripeService {
       let stripeSubscription = null;
       try {
         const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-        stripeSubscription = await Stripe.subscriptions.retrieve(subscriptionId);
+        stripeSubscription =
+          await Stripe.subscriptions.retrieve(subscriptionId);
       } catch (error) {
         console.warn(
           `⚠️ Could not fetch subscription details for invoice: ${error.message}`,

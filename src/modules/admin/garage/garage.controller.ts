@@ -31,6 +31,7 @@ export class GarageController {
   async getGarages(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
+    @Query('q') q?: string,
     @Query('status') status?: string,
   ) {
     const pageNum = parseInt(page, 10);
@@ -40,7 +41,7 @@ export class GarageController {
       throw new BadRequestException('Invalid page or limit parameters');
     }
 
-    return this.garageService.getGarages(pageNum, limitNum, status);
+    return this.garageService.getGarages(pageNum, limitNum, q, status);
   }
 
   @ApiOperation({ summary: 'Get garage details by ID' })

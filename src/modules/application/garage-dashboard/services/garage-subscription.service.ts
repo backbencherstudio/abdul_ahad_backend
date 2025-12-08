@@ -749,7 +749,7 @@ export class GarageSubscriptionService {
    */
   async validateCheckoutSession(sessionId: string) {
     try {
-      this.logger.log(`Validating checkout session: ${sessionId}`);
+      console.log(`Validating checkout session: ${sessionId}`);
 
       // Retrieve session from Stripe
       const session = await StripePayment.retrieveCheckoutSession(sessionId);
@@ -771,6 +771,8 @@ export class GarageSubscriptionService {
           ? session.subscription
           : session.subscription?.id;
 
+      console.log(`Validating subscription ID from session: ${subscriptionId}`);
+
       if (!subscriptionId) {
         throw new BadRequestException(
           'No subscription found in checkout session',
@@ -784,9 +786,73 @@ export class GarageSubscriptionService {
         throw new NotFoundException('Stripe subscription not found');
       }
 
-      // Find garage subscription in database
-      const garageSubscription =
-        (await this.prisma.garageSubscription.findFirst({
+      // ✅ FIXED: Try to find by ID first (from metadata), then by stripe_subscription_id
+      // This handles the race condition where webhook hasn't updated the record yet
+      let garageSubscription: any = null;
+      const metadataSubscriptionId = session.metadata?.garage_subscription_id;
+
+      if (metadataSubscriptionId) {
+        this.logger.log(
+          `Found subscription ID in metadata: ${metadataSubscriptionId}`,
+        );
+        garageSubscription = await this.prisma.garageSubscription.findUnique({
+          where: {
+            id: metadataSubscriptionId,
+          },
+          include: {
+            plan: {
+              select: {
+                id: true,
+                name: true,
+                price_pence: true,
+                currency: true,
+              },
+            },
+            garage: {
+              select: {
+                id: true,
+                garage_name: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+        // Auto-heal: If found but missing stripe_subscription_id, update it
+        if (garageSubscription && !garageSubscription.stripe_subscription_id) {
+          this.logger.log(
+            `Linking Stripe subscription ${subscriptionId} to garage subscription ${garageSubscription.id}`,
+          );
+          garageSubscription = await this.prisma.garageSubscription.update({
+            where: { id: garageSubscription.id },
+            data: { stripe_subscription_id: subscriptionId },
+            include: {
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  price_pence: true,
+                  currency: true,
+                },
+              },
+              garage: {
+                select: {
+                  id: true,
+                  garage_name: true,
+                  email: true,
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // Fallback: Try searching by stripe_subscription_id if not found via metadata
+      if (!garageSubscription) {
+        this.logger.log(
+          `Searching subscription by Stripe ID: ${subscriptionId}`,
+        );
+        garageSubscription = await this.prisma.garageSubscription.findFirst({
           where: {
             stripe_subscription_id: subscriptionId,
           },
@@ -807,7 +873,8 @@ export class GarageSubscriptionService {
               },
             },
           },
-        })) as any; // Type assertion to handle Prisma include types
+        });
+      }
 
       if (!garageSubscription) {
         throw new NotFoundException(
