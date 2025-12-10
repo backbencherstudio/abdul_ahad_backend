@@ -20,6 +20,15 @@ export class SubscriptionPlanService {
   async createPlan(
     dto: CreateSubscriptionPlanDto,
   ): Promise<SubscriptionPlanResponseDto> {
+    // Check if any plan already exists (only one plan allowed)
+    const planCount = await this.prisma.subscriptionPlan.count();
+
+    if (planCount > 0) {
+      throw new ConflictException(
+        'Only one subscription plan is allowed in the system. Please update the existing plan instead.',
+      );
+    }
+
     // Check if plan name already exists
     const existingPlan = await this.prisma.subscriptionPlan.findFirst({
       where: { name: dto.name },
