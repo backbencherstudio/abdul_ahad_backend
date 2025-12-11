@@ -9,6 +9,9 @@ import { StripePayment } from '../../../../common/lib/Payment/stripe/StripePayme
 import { MailService } from '../../../../mail/mail.service';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
+import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService } from 'src/modules/application/notification/notification.service';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class PriceMigrationService {
@@ -19,6 +22,8 @@ export class PriceMigrationService {
     private readonly mailService: MailService,
     private readonly migrationJobService: MigrationJobService,
     private readonly jobAttemptService: JobAttemptService,
+    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // Create a new Stripe Price for the plan product and link it
@@ -249,6 +254,16 @@ export class PriceMigrationService {
         `❌ Migration notice campaign failed for plan ${planId}:`,
         error,
       );
+
+      // Notify admins about notice sending failure
+      await this.adminNotificationService.notifyNoticeSendingFailed({
+        jobId: job.job_id,
+        planId: planId,
+        planName: plan.name,
+        failedCount: 0,
+        totalCount: 0,
+      });
+
       throw error;
     }
   }
@@ -333,6 +348,12 @@ export class PriceMigrationService {
             ? new Date(updated.next_billing_date).toDateString()
             : 'your usual cycle',
           billing_portal_url: `${process.env.APP_URL || 'https://app.local'}/billing`,
+        });
+
+        await this.notificationService.create({
+            receiver_id: sub.garage_id,
+            type: NotificationType.SUBSCRIPTION,
+            text: `Your subscription for the "${sub.plan.name}" plan has been updated to the new price of ${formatGBP(updated.price_pence)}.`,
         });
       }
     } catch {}
@@ -521,6 +542,33 @@ export class PriceMigrationService {
         `🏁 Bulk migration completed for plan ${planId}: ` +
           `processed=${processed}, succeeded=${succeeded}, failed=${failed}`,
       );
+
+      // Notify admins about migration completion
+      const planData = await this.prisma.subscriptionPlan.findUnique({
+        where: { id: planId },
+        select: { name: true },
+      });
+
+      if (failed > 0) {
+        // Notify about failures
+        await this.adminNotificationService.notifyMigrationJobFailed({
+          jobId: job.job_id,
+          planId: planId,
+          planName: planData?.name || 'Unknown Plan',
+          failedCount: failed,
+          totalCount: processed,
+          errorMessage: errors.length > 0 ? errors[0] : undefined,
+        });
+      } else if (succeeded > 0) {
+        // Notify about success
+        await this.adminNotificationService.notifyMigrationSuccess({
+          jobId: job.job_id,
+          planId: planId,
+          planName: planData?.name || 'Unknown Plan',
+          migratedCount: succeeded,
+          totalCount: processed,
+        });
+      }
 
       return {
         success: true,

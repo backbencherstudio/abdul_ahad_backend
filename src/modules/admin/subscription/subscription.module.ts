@@ -18,9 +18,16 @@ import { MigrationMonitoringController } from './migration/migration-monitoring.
 import { MigrationRecoveryController } from './migration/migration-recovery.controller';
 import { MigrationErrorRecoveryController } from './migration/migration-error-recovery.controller';
 import { SubscriptionVisibilityModule } from '../../../common/lib/subscription/subscription-visibility.module';
+import { AdminNotificationModule } from '../notification/admin-notification.module';
+import { NotificationModule } from 'src/modules/application/notification/notification.module';
 
 @Module({
-  imports: [PrismaModule, SubscriptionVisibilityModule],
+  imports: [
+    PrismaModule,
+    SubscriptionVisibilityModule,
+    AdminNotificationModule,
+    NotificationModule,
+  ],
   controllers: [
     SubscriptionPlanController,
     GarageSubscriptionController,

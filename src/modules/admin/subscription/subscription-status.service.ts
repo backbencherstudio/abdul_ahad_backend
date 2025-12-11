@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 
 @Injectable()
 export class SubscriptionStatusService {
   private readonly logger = new Logger(SubscriptionStatusService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminNotificationService: AdminNotificationService,
+  ) {}
 
   /**
    * Check and update subscription statuses (runs daily)
@@ -54,9 +58,44 @@ export class SubscriptionStatusService {
         await this.updateSubscriptionStatus(subscription);
       }
 
+      // Add notification for mass expiry warnings
+      try {
+        const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const expiringSoon = await this.prisma.garageSubscription.count({
+          where: {
+            status: 'ACTIVE',
+            current_period_end: {
+              gte: today,
+              lte: sevenDaysFromNow,
+            },
+          },
+        });
+
+        if (expiringSoon > 20) {
+          // Threshold
+          await this.adminNotificationService.sendToAllAdmins({
+            type: 'subscription',
+            title: 'Mass Subscription Expiry Alert',
+            message: `${expiringSoon} subscriptions are expiring in the next 7 days. Consider sending renewal reminders to prevent churn.`,
+            metadata: { expiring_count: expiringSoon, days_ahead: 7 },
+          });
+        }
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send mass expiry warning notification:',
+          notificationError,
+        );
+      }
+
       this.logger.log('Daily subscription status update completed');
     } catch (error) {
       this.logger.error('Error updating subscription statuses:', error);
+
+      // Notify admins about cron failure
+      await this.adminNotificationService.notifyCronJobFailed({
+        jobName: 'Daily Subscription Status Update',
+        errorMessage: error.message || 'Unknown error',
+      });
     }
   }
 

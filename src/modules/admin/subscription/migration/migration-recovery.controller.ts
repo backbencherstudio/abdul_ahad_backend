@@ -23,6 +23,7 @@ import { Action } from '../../../../ability/ability.factory';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
 import { PriceMigrationService } from './price-migration.service';
+import { AdminNotificationService } from '../../notification/admin-notification.service';
 
 export class BulkRetryDto {
   max_retries?: number;
@@ -53,6 +54,7 @@ export class MigrationRecoveryController {
     private readonly migrationJobService: MigrationJobService,
     private readonly jobAttemptService: JobAttemptService,
     private readonly priceMigrationService: PriceMigrationService,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   /**
@@ -130,6 +132,24 @@ export class MigrationRecoveryController {
         `🚨 EMERGENCY STOP COMPLETED: ${stoppedJobs.length} jobs stopped, ${errors.length} errors. ` +
           `Reason: ${body.reason} | Admin: ${req.user?.email || 'unknown'}`,
       );
+
+      try {
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'migration',
+          title: 'Emergency Migration Stop Triggered',
+          message: `Admin ${req.user?.email} triggered emergency stop for all migration jobs. Reason: ${body.reason}. ${stoppedJobs.length} jobs were stopped.`,
+          metadata: {
+            stopped_by: req.user?.email,
+            reason: body.reason,
+            stopped_count: stoppedJobs.length,
+          },
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send emergency stop notification:',
+          notificationError,
+        );
+      }
 
       return {
         success: true,
@@ -213,12 +233,32 @@ export class MigrationRecoveryController {
       const batchSize = body.batch_size || 50;
       const bypassDateCheck = body.bypass_date_check || false;
       const retryDelayMinutes = body.retry_delay_minutes || 0;
+      const jobIdList = jobIds ? jobIds.split(',').map((id) => id.trim()) : [];
 
       this.logger.log(
         `Admin ${req?.user?.email || 'unknown'} initiated bulk retry: ` +
           `plan_id=${planId || 'all'}, job_ids=${jobIds || 'all'}, ` +
           `max_retries=${maxRetries}, batch_size=${batchSize}`,
       );
+
+      try {
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'migration',
+          title: 'Bulk Migration Retry Started',
+          message: `Admin ${req.user?.email} initiated bulk retry for ${jobIds ? jobIdList.length : 'multiple'} failed migration jobs.`,
+          metadata: {
+            initiated_by: req.user?.email,
+            job_ids: jobIds || 'all',
+            plan_id: planId || 'all',
+            max_retries: maxRetries,
+          },
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send bulk retry initiated notification:',
+          notificationError,
+        );
+      }
 
       // Determine target jobs
       let targetJobs = [];
@@ -234,7 +274,6 @@ export class MigrationRecoveryController {
         );
       } else if (jobIds) {
         // Get specific jobs
-        const jobIdList = jobIds.split(',').map((id) => id.trim());
         for (const jobId of jobIdList) {
           try {
             const jobDetails =

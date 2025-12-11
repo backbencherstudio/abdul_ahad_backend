@@ -3,7 +3,10 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   SubscriptionQueryDto,
@@ -19,9 +22,12 @@ import { SubscriptionVisibilityService } from '../../../common/lib/subscription/
 
 @Injectable()
 export class GarageSubscriptionService {
+  private readonly logger = new Logger(GarageSubscriptionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionVisibilityService: SubscriptionVisibilityService,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   async attachStripeSubscription(id: string) {
@@ -89,6 +95,26 @@ export class GarageSubscriptionService {
       },
     });
 
+    try {
+      await this.adminNotificationService.sendToAllAdmins({
+        type: 'subscription',
+        title: 'New Garage Subscription',
+        message: `Garage "${sub.garage.name || sub.garage.email}" has successfully subscribed to the "${sub.plan.name}" plan.`,
+        metadata: {
+          garage_id: sub.garage.id,
+          garage_name: sub.garage.name,
+          plan_id: sub.plan.id,
+          plan_name: sub.plan.name,
+          stripe_subscription_id: created.id,
+        },
+      });
+    } catch (notificationError) {
+      this.logger.error(
+        'Failed to send new garage subscription notification:',
+        notificationError,
+      );
+    }
+
     return {
       success: true,
       message: 'Stripe subscription attached',
@@ -100,12 +126,35 @@ export class GarageSubscriptionService {
   async cancelStripeSubscription(id: string) {
     const sub = await this.prisma.garageSubscription.findUnique({
       where: { id },
+      include: {
+        plan: true,
+      },
     });
     if (!sub) throw new NotFoundException('Garage subscription not found');
     if (!sub.stripe_subscription_id)
       throw new BadRequestException('No Stripe subscription linked');
 
-    await StripePayment.cancelSubscription(sub.stripe_subscription_id);
+    try {
+      await StripePayment.cancelSubscription(sub.stripe_subscription_id);
+    } catch (error) {
+      this.logger.error('Failed to cancel Stripe subscription:', error);
+
+      try {
+        await this.adminNotificationService.notifyStripeSyncFailed({
+          planId: sub.plan_id,
+          planName: sub.plan?.name || 'Unknown', // Need to include plan in sub query for this
+          operation: 'cancel subscription',
+          errorMessage: (error as Error).message || 'Unknown error',
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send Stripe cancellation failure notification:',
+          notificationError,
+        );
+      }
+
+      throw new InternalServerErrorException('Failed to cancel subscription');
+    }
 
     return { success: true, message: 'Stripe subscription cancelled' };
   }
@@ -324,6 +373,54 @@ export class GarageSubscriptionService {
           status: 'CANCELLED',
           current_period_end: new Date(), // End immediately
         };
+        // Notify admin about individual cancellation
+        try {
+          await this.adminNotificationService.sendToAllAdmins({
+            type: 'SUBSCRIPTION',
+            title: 'Garage Subscription Cancelled',
+            message: `Garage "${subscription.garage.garage_name || subscription.garage.email}" has cancelled their subscription to the "${subscription.plan.name}" plan.`,
+            metadata: {
+              garage_id: subscription.garage.id,
+              garage_name: subscription.garage.garage_name,
+              plan_id: subscription.plan.id,
+              plan_name: subscription.plan.name,
+              subscription_id: subscription.id,
+            },
+          });
+        } catch (notificationError) {
+          this.logger.error(
+            'Failed to send individual subscription cancellation notification:',
+            notificationError,
+          );
+        }
+        // Track and notify when many subscriptions are cancelled in short time
+        try {
+          const recentCancellations =
+            await this.prisma.garageSubscription.count({
+              where: {
+                status: 'CANCELLED',
+                updated_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+              },
+            });
+
+          if (recentCancellations > 10) {
+            // Threshold
+            await this.adminNotificationService.sendToAllAdmins({
+              type: 'subscription',
+              title: 'Unusual Cancellation Activity Detected',
+              message: `${recentCancellations} subscriptions have been cancelled in the last 24 hours, which is significantly higher than normal. This may indicate customer dissatisfaction or service issues.`,
+              metadata: {
+                cancellation_count: recentCancellations,
+                period_hours: 24,
+              },
+            });
+          }
+        } catch (notificationError) {
+          this.logger.error(
+            'Failed to send mass cancellations notification:',
+            notificationError,
+          );
+        }
         break;
 
       case GarageSubscriptionAction.REACTIVATE:

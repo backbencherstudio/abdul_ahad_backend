@@ -20,7 +20,6 @@ import { ApplicationModule } from './modules/application/application.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PaymentModule } from './modules/payment/payment.module';
-import { SubscriptionStatusService } from './modules/admin/subscription/subscription-status.service';
 
 @Module({
   imports: [
@@ -81,7 +80,6 @@ import { SubscriptionStatusService } from './modules/admin/subscription/subscrip
     //   useClass: ThrottlerBehindProxyGuard,
     // },
     AppService,
-    SubscriptionStatusService,
   ],
 })
 export class AppModule {

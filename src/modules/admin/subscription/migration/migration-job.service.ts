@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { MigrationJobStatus } from '@prisma/client';
+import { AdminNotificationService } from '../../notification/admin-notification.service';
 
 export interface CreateMigrationJobDto {
   plan_id: string;
@@ -25,7 +26,10 @@ export interface JobExecutionResult {
 export class MigrationJobService {
   private readonly logger = new Logger(MigrationJobService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminNotificationService: AdminNotificationService,
+  ) {}
 
   /**
    * Create a new migration job
@@ -177,6 +181,10 @@ export class MigrationJobService {
         throw new BadRequestException('Cannot cancel a completed job');
       }
 
+      const plan = await this.prisma.subscriptionPlan.findUnique({
+        where: { id: job.plan_id },
+      });
+
       await this.prisma.migrationJob.update({
         where: { id: jobId },
         data: {
@@ -186,6 +194,25 @@ export class MigrationJobService {
       });
 
       this.logger.log(`🛑 Cancelled migration job ${jobId}`);
+
+      try {
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'migration',
+          title: 'Migration Job Cancelled',
+          message: `Migration job for plan "${plan?.name || 'Unknown Plan'}" was cancelled. ${job.success_count} subscriptions were migrated before cancellation.`,
+          metadata: {
+            job_id: jobId,
+            plan_id: job.plan_id,
+            plan_name: plan?.name || 'Unknown Plan',
+            migrated_before_cancel: job.success_count,
+          },
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send migration job cancelled notification:',
+          notificationError,
+        );
+      }
     } catch (error) {
       this.logger.error(`Failed to cancel migration job ${jobId}:`, error);
       throw error;

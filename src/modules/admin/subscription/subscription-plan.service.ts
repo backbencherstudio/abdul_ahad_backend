@@ -9,10 +9,14 @@ import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { SubscriptionPlanResponseDto } from './dto/subscription-plan-response.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 
 @Injectable()
 export class SubscriptionPlanService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminNotificationService: AdminNotificationService,
+  ) {}
 
   /**
    * Create a new subscription plan
@@ -87,9 +91,57 @@ export class SubscriptionPlanService {
         },
       });
 
+      try {
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'subscription_plan',
+          title: 'New Subscription Plan Created',
+          message: `New subscription plan "${dto.name}" has been created with price £${(dto.price_pence / 100).toFixed(2)}/month. Successfully synced to Stripe.`,
+          metadata: {
+            plan_id: updatedPlan.id,
+            plan_name: dto.name,
+            price_pence: dto.price_pence,
+            stripe_synced: true,
+          },
+        });
+      } catch (notificationError) {
+        console.error(
+          'Failed to send new plan created notification:',
+          notificationError,
+        );
+      }
+
       return this.formatPlanResponse(updatedPlan);
     } catch (error) {
       console.error('Failed to sync with Stripe:', error);
+
+      // Notify admins about Stripe sync failure
+      try {
+        await this.adminNotificationService.notifyStripeSyncFailed({
+          planId: plan.id,
+          planName: plan.name,
+          operation: 'create price and product',
+          errorMessage: error.message || 'Unknown error',
+        });
+
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'subscription_plan',
+          title: 'New Subscription Plan Created (Stripe Sync Failed)',
+          message: `New subscription plan "${dto.name}" has been created with price £${(dto.price_pence / 100).toFixed(2)}/month, but failed to sync with Stripe. Error: ${error.message || 'Unknown error'}`,
+          metadata: {
+            plan_id: plan.id,
+            plan_name: dto.name,
+            price_pence: dto.price_pence,
+            stripe_synced: false,
+            error_message: error.message || 'Unknown error',
+          },
+        });
+      } catch (notificationError) {
+        console.error(
+          'Failed to send new plan created (Stripe sync failed) notification:',
+          notificationError,
+        );
+      }
+
       // Return plan without Stripe sync (you can decide if you want to throw error)
       return this.formatPlanResponse(plan);
     }
@@ -274,6 +326,24 @@ export class SubscriptionPlanService {
 
     // Check if plan has active subscriptions
     if (existingPlan._count.garage_subscriptions > 0) {
+      try {
+        await this.adminNotificationService.sendToAllAdmins({
+          type: 'subscription_plan',
+          title: 'Plan Deletion Blocked',
+          message: `Attempted to delete plan "${existingPlan.name}" but it has ${existingPlan._count.garage_subscriptions} active subscriptions. Please migrate or cancel subscriptions first.`,
+          metadata: {
+            plan_id: id,
+            plan_name: existingPlan.name,
+            active_count: existingPlan._count.garage_subscriptions,
+          },
+        });
+      } catch (notificationError) {
+        console.error(
+          'Failed to send plan deletion blocked notification:',
+          notificationError,
+        );
+      }
+
       throw new BadRequestException(
         `Cannot delete plan '${existingPlan.name}' because it has ${existingPlan._count.garage_subscriptions} active subscription(s). Please deactivate the plan instead.`,
       );

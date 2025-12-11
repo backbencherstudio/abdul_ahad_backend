@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MailService } from '../../../mail/mail.service';
+import { NotificationService } from 'src/modules/application/notification/notification.service';
+import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class StripeService {
+  private readonly logger = new Logger(StripeService.name);
+
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    private notificationService: NotificationService,
   ) {}
 
   /**
@@ -421,6 +426,19 @@ export class StripeService {
         console.log(
           `✅ Subscription cancelled for garage: ${garageSubscription.garage.email}`,
         );
+
+        try {
+            await this.notificationService.create({
+                receiver_id: garageSubscription.garage.id,
+                type: NotificationType.SUBSCRIPTION,
+                text: `Your subscription to the "${garageSubscription.plan.name}" plan has been cancelled.`,
+            });
+        } catch (notificationError) {
+            this.logger.error(
+                'Failed to send subscription cancelled notification to garage:',
+                notificationError,
+            );
+        }
       }
     } catch (error) {
       console.error('Error handling subscription cancelled:', error);
@@ -638,6 +656,19 @@ export class StripeService {
         invoice: invoice,
         subscription: stripeSubscription,
       });
+
+      try {
+        await this.notificationService.create({
+          receiver_id: garageSubscription.garage.id,
+          type: NotificationType.SUBSCRIPTION,
+          text: `Your payment for the "${garageSubscription.plan.name}" plan was successful.`,
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send payment success notification to garage:',
+          notificationError,
+        );
+      }
     } catch (error) {
       console.error('❌ Error handling payment succeeded:', error);
       console.error('Error stack:', error.stack);
@@ -767,6 +798,20 @@ export class StripeService {
           console.log(
             `❌ Payment failed for garage: ${garageSubscription.garage.email} (Amount: ${invoice.amount_due / 100} ${invoice.currency}) - Status: ${newStatus}`,
           );
+
+          try {
+            const failureReason = this.getPaymentFailureReason(invoice);
+            await this.notificationService.create({
+                receiver_id: garageSubscription.garage.id,
+                type: NotificationType.SUBSCRIPTION,
+                text: `Your subscription payment of £${(invoice.amount_due / 100).toFixed(2)} for the "${garageSubscription.plan.name}" plan failed. Please update your payment method.`,
+            });
+          } catch (notificationError) {
+            console.error(
+              'Failed to send payment failed notification to admins:',
+              notificationError,
+            );
+          }
         }
       }
     } catch (error) {
@@ -840,6 +885,19 @@ export class StripeService {
       console.log(
         `✅ Trial warning email sent to garage: ${garageSubscription.garage.email}`,
       );
+
+      try {
+        await this.notificationService.create({
+            receiver_id: garageSubscription.garage.id,
+            type: NotificationType.SUBSCRIPTION,
+            text: `Your trial for the "${garageSubscription.plan.name}" plan is ending in ${daysRemaining} days. Please add a payment method to continue your subscription.`,
+        });
+        } catch (notificationError) {
+            this.logger.error(
+                'Failed to send trial ending notification to garage:',
+                notificationError,
+            );
+        }
     } catch (error) {
       console.error('Error handling trial will end:', error);
     }

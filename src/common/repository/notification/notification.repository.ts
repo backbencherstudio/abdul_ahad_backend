@@ -15,6 +15,7 @@ export enum NotificationType {
   PACKAGE = 'package',
   BLOG = 'blog',
   ROLE_MANAGEMENT = 'role_management',
+  SUBSCRIPTION = 'subscription',
   // Add new types here as needed
 }
 export class NotificationRepository {

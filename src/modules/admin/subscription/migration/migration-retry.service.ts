@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../prisma/prisma.service';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
 import { MigrationErrorHandlerService } from './migration-error-handler.service';
+import { AdminNotificationService } from '../../notification/admin-notification.service';
 
 @Injectable()
 export class MigrationRetryService {
@@ -14,6 +15,7 @@ export class MigrationRetryService {
     private readonly migrationJobService: MigrationJobService,
     private readonly jobAttemptService: JobAttemptService,
     private readonly migrationErrorHandlerService: MigrationErrorHandlerService,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   /**
@@ -54,7 +56,7 @@ export class MigrationRetryService {
       let retriedCount = 0;
       let skippedCount = 0;
 
-      for (const job of failedJobs) {
+      for (const job of failedJobs as any[]) {
         try {
           // Check if job can be automatically retried
           if (this.canAutoRetry(job)) {
@@ -63,9 +65,30 @@ export class MigrationRetryService {
             this.logger.log(`✅ Auto-retried job ${job.id} (${job.job_type})`);
           } else {
             skippedCount++;
-            this.logger.log(
-              `⏭️ Skipped auto-retry for job ${job.id}: ${this.getSkipReason(job)}`,
-            );
+            const skipReason = this.getSkipReason(job);
+            this.logger.log(`⏭️ Skipped auto-retry for job ${job.id}: ${skipReason}`);
+
+            // Notify about persistent retry failures after max attempts
+            if (job.attempts.length >= 3) {
+              try {
+                const plan = await this.prisma.subscriptionPlan.findUnique({
+                  where: { id: job.plan_id },
+                });
+                await this.adminNotificationService.notifyMigrationJobFailed({
+                  jobId: job.id,
+                  planId: job.plan_id,
+                  planName: plan?.name || 'Unknown Plan', // Assuming plan might be included or fetched
+                  failedCount: job.attempts.length,
+                  totalCount: job.attempts.length, // Total attempts, all failed
+                  errorMessage: 'Max auto-retry attempts exceeded',
+                });
+              } catch (notificationError) {
+                this.logger.error(
+                  'Failed to send migration job failed notification:',
+                  notificationError,
+                );
+              }
+            }
           }
         } catch (error) {
           this.logger.error(`❌ Failed to auto-retry job ${job.id}:`, error);
@@ -77,6 +100,17 @@ export class MigrationRetryService {
       );
     } catch (error) {
       this.logger.error('❌ Automatic retry mechanism failed:', error);
+      try {
+        await this.adminNotificationService.notifyCronJobFailed({
+          jobName: 'Automatic Migration Retry',
+          errorMessage: (error as Error).message || 'Unknown error',
+        });
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send cron job failure notification:',
+          notificationError,
+        );
+      }
     }
   }
 
