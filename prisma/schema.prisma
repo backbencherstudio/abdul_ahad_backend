@@ -745,6 +745,8 @@ model SubscriptionPlan {
   is_legacy_price        Boolean  @default(false)
   // trial period in days (0 = no trial, business controls trial length)
   trial_period_days      Int      @default(14)
+  // Array of feature strings (e.g., "Unlimited MOT bookings", "Boost visibility")
+  features               Json?    @default("[]")
 
   garage_subscriptions GarageSubscription[]
 

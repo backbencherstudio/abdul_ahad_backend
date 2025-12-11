@@ -7,6 +7,7 @@ import {
   IsOptional,
   Min,
   MaxLength,
+  IsArray,
 } from 'class-validator';
 
 export class CreateSubscriptionPlanDto {
@@ -124,4 +125,21 @@ export class CreateSubscriptionPlanDto {
   @IsNumber()
   @Min(0)
   trial_period_days?: number;
+
+  @ApiProperty({
+    description: 'List of features included in this plan',
+    example: [
+      'Unlimited opportunity to receive MOT bookings — 24/7',
+      "Boost Your Garage's Visibility",
+      'Opportunity to upsell and offer extra services!',
+      'No Contract. No commission.',
+      'Simple set up.',
+    ],
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  features?: string[];
 }
