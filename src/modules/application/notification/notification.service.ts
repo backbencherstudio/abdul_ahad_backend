@@ -9,15 +9,13 @@ import {
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { NotificationType } from 'src/common/repository/notification/notification.repository';
+import { NotificationGateway } from './notification.gateway';
 
 @Injectable()
 export class NotificationService {
   constructor(
     private prisma: PrismaService,
-    @Inject(
-      forwardRef(() => require('./notification.gateway').NotificationGateway),
-    )
-    private notificationGateway: any,
+    private notificationGateway: NotificationGateway,
   ) {}
 
   async create(createNotificationDto: CreateNotificationDto) {

@@ -1,66 +1,185 @@
-import { Controller, Get, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  UseGuards,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guard/role/roles.guard';
+import { Roles } from 'src/common/guard/role/roles.decorator';
+import { Role } from 'src/common/guard/role/role.enum';
 import { NotificationService } from './notification.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Role } from '../../../common/guard/role/role.enum';
-import { Roles } from '../../../common/guard/role/roles.decorator';
-import { RolesGuard } from '../../../common/guard/role/roles.guard';
-import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
-import { Request } from 'express';
-
-@ApiBearerAuth()
-@ApiTags('Notification')
+import { CreateBulkNotificationDto } from './dto/create-notification.dto';
+@ApiTags('Admin Notifications')
+@Controller('admin/notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@Controller('admin/notification')
+@ApiBearerAuth()
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
-  @ApiOperation({ summary: 'Get all notifications' })
+  @Post('bulk')
+  async createBulkNotification(@Body() body: CreateBulkNotificationDto) {
+    return this.notificationService.createBulkNotification(body);
+  }
+
+  @ApiOperation({
+    summary: 'Get current admin notifications',
+    description:
+      'Retrieve all notifications for the currently logged-in admin user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notifications retrieved successfully',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          type: { type: 'string', example: 'MIGRATION_FAILED' },
+          message: {
+            type: 'string',
+            example:
+              'Migration job failed for plan "Premium Plan". 5 out of 50 subscriptions could not be migrated.',
+          },
+          metadata: { type: 'object' },
+          entity_id: { type: 'string' },
+          is_read: { type: 'boolean' },
+          read_at: { type: 'string', format: 'date-time' },
+          created_at: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  })
+  @ApiQuery({
+    name: 'unread_only',
+    required: false,
+    type: Boolean,
+    description: 'Filter to show only unread notifications',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    type: String,
+    description: 'Filter by notification type',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of notifications to return (default: 50)',
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: 'Offset for pagination (default: 0)',
+  })
   @Get()
-  async findAll(@Req() req: Request) {
-    try {
-      const user_id = req.user.userId;
+  async getMyNotifications(
+    @Req() req,
+    @Query('unread_only') unreadOnly?: string,
+    @Query('type') type?: string,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit?: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset?: number,
+  ) {
+    const adminId = req.user.userId;
 
-      const notification = await this.notificationService.findAll(user_id);
-
-      return notification;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
+    return this.notificationService.getAdminNotifications(adminId, {
+      unreadOnly: unreadOnly === 'true',
+      type,
+      limit,
+      offset,
+    });
   }
 
-  @ApiOperation({ summary: 'Delete notification' })
+  @ApiOperation({
+    summary: 'Get unread notification count',
+    description: 'Get the count of unread notifications for current admin',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Unread count retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', example: 5 },
+      },
+    },
+  })
+  @Get('unread/count')
+  async getUnreadCount(@Req() req) {
+    const adminId = req.user.id;
+    const count = await this.notificationService.getUnreadCount(adminId);
+    return { count };
+  }
+
+  @ApiOperation({
+    summary: 'Mark notification as read',
+    description: 'Mark a specific notification as read',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification marked as read successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Notification not found',
+  })
+  @ApiParam({ name: 'id', description: 'Notification ID' })
+  @Put(':id/read')
+  async markAsRead(@Param('id') id: string, @Req() req) {
+    const adminId = req.user.id;
+    return this.notificationService.markAsRead(id, adminId);
+  }
+
+  @ApiOperation({
+    summary: 'Mark all notifications as read',
+    description: 'Mark all unread notifications as read for current admin',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All notifications marked as read successfully',
+  })
+  @Put('read-all')
+  async markAllAsRead(@Req() req) {
+    const adminId = req.user.id;
+    return this.notificationService.markAllAsRead(adminId);
+  }
+
+  @ApiOperation({
+    summary: 'Delete notification',
+    description: 'Soft delete a notification',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification deleted successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Notification not found',
+  })
+  @ApiParam({ name: 'id', description: 'Notification ID' })
   @Delete(':id')
-  async remove(@Req() req: Request, @Param('id') id: string) {
-    try {
-      const user_id = req.user.userId;
-      const notification = await this.notificationService.remove(id, user_id);
-
-      return notification;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
-  @ApiOperation({ summary: 'Delete all notifications' })
-  @Delete()
-  async removeAll(@Req() req: Request) {
-    try {
-      const user_id = req.user.userId;
-      const notification = await this.notificationService.removeAll(user_id);
-
-      return notification;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
+  async deleteNotification(@Param('id') id: string, @Req() req) {
+    const adminId = req.user.id;
+    return this.notificationService.deleteNotification(id, adminId);
   }
 }

@@ -9,7 +9,7 @@ import { StripePayment } from '../../../../common/lib/Payment/stripe/StripePayme
 import { MailService } from '../../../../mail/mail.service';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
-import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService as AdminNotificationService } from '../../notification/notification.service';
 import { NotificationService } from 'src/modules/application/notification/notification.service';
 import { NotificationType } from 'src/common/repository/notification/notification.repository';
 
@@ -351,9 +351,9 @@ export class PriceMigrationService {
         });
 
         await this.notificationService.create({
-            receiver_id: sub.garage_id,
-            type: NotificationType.SUBSCRIPTION,
-            text: `Your subscription for the "${sub.plan.name}" plan has been updated to the new price of ${formatGBP(updated.price_pence)}.`,
+          receiver_id: sub.garage_id,
+          type: NotificationType.SUBSCRIPTION,
+          text: `Your subscription for the "${sub.plan.name}" plan has been updated to the new price of ${formatGBP(updated.price_pence)}.`,
         });
       }
     } catch {}

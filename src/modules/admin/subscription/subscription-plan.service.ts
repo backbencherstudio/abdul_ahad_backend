@@ -9,13 +9,13 @@ import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { SubscriptionPlanResponseDto } from './dto/subscription-plan-response.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 import { StripePayment } from '../../../common/lib/Payment/stripe/StripePayment';
-import { AdminNotificationService } from '../notification/admin-notification.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class SubscriptionPlanService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -92,7 +92,7 @@ export class SubscriptionPlanService {
       });
 
       try {
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'subscription_plan',
           title: 'New Subscription Plan Created',
           message: `New subscription plan "${dto.name}" has been created with price £${(dto.price_pence / 100).toFixed(2)}/month. Successfully synced to Stripe.`,
@@ -116,14 +116,14 @@ export class SubscriptionPlanService {
 
       // Notify admins about Stripe sync failure
       try {
-        await this.adminNotificationService.notifyStripeSyncFailed({
+        await this.notificationService.notifyStripeSyncFailed({
           planId: plan.id,
           planName: plan.name,
           operation: 'create price and product',
           errorMessage: error.message || 'Unknown error',
         });
 
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'subscription_plan',
           title: 'New Subscription Plan Created (Stripe Sync Failed)',
           message: `New subscription plan "${dto.name}" has been created with price £${(dto.price_pence / 100).toFixed(2)}/month, but failed to sync with Stripe. Error: ${error.message || 'Unknown error'}`,
@@ -327,7 +327,7 @@ export class SubscriptionPlanService {
     // Check if plan has active subscriptions
     if (existingPlan._count.garage_subscriptions > 0) {
       try {
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'subscription_plan',
           title: 'Plan Deletion Blocked',
           message: `Attempted to delete plan "${existingPlan.name}" but it has ${existingPlan._count.garage_subscriptions} active subscriptions. Please migrate or cancel subscriptions first.`,

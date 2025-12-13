@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { MigrationJobStatus } from '@prisma/client';
-import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService } from 'src/modules/admin/notification/notification.service';
 
 export interface CreateMigrationJobDto {
   plan_id: string;
@@ -28,7 +28,7 @@ export class MigrationJobService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -196,7 +196,7 @@ export class MigrationJobService {
       this.logger.log(`🛑 Cancelled migration job ${jobId}`);
 
       try {
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'migration',
           title: 'Migration Job Cancelled',
           message: `Migration job for plan "${plan?.name || 'Unknown Plan'}" was cancelled. ${job.success_count} subscriptions were migrated before cancellation.`,

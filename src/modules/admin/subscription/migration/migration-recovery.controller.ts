@@ -23,7 +23,7 @@ import { Action } from '../../../../ability/ability.factory';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
 import { PriceMigrationService } from './price-migration.service';
-import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService } from '../../notification/notification.service';
 
 export class BulkRetryDto {
   max_retries?: number;
@@ -54,7 +54,7 @@ export class MigrationRecoveryController {
     private readonly migrationJobService: MigrationJobService,
     private readonly jobAttemptService: JobAttemptService,
     private readonly priceMigrationService: PriceMigrationService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -134,7 +134,7 @@ export class MigrationRecoveryController {
       );
 
       try {
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'migration',
           title: 'Emergency Migration Stop Triggered',
           message: `Admin ${req.user?.email} triggered emergency stop for all migration jobs. Reason: ${body.reason}. ${stoppedJobs.length} jobs were stopped.`,
@@ -242,7 +242,7 @@ export class MigrationRecoveryController {
       );
 
       try {
-        await this.adminNotificationService.sendToAllAdmins({
+        await this.notificationService.sendToAllAdmins({
           type: 'migration',
           title: 'Bulk Migration Retry Started',
           message: `Admin ${req.user?.email} initiated bulk retry for ${jobIds ? jobIdList.length : 'multiple'} failed migration jobs.`,

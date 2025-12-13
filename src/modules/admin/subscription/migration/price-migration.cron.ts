@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { PriceMigrationService } from './price-migration.service';
-import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService } from '../../notification/notification.service';
 
 @Injectable()
 export class PriceMigrationCron {
@@ -11,7 +11,7 @@ export class PriceMigrationCron {
   constructor(
     private readonly prisma: PrismaService,
     private readonly priceMigrationService: PriceMigrationService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // Run daily at 02:00 server time
@@ -75,7 +75,7 @@ export class PriceMigrationCron {
         );
 
         try {
-          await this.adminNotificationService.sendToAllAdmins({
+          await this.notificationService.sendToAllAdmins({
             type: 'migration',
             title: 'Daily Migration Summary',
             message: `Daily migration completed. Processed ${duePlanIds.length} plans. Migrated: ${totalMigrated}, Failed: ${totalFailed}`,
@@ -100,7 +100,7 @@ export class PriceMigrationCron {
       this.logger.error('❌ Daily bulk migrate failed:', e as any);
 
       try {
-        await this.adminNotificationService.notifyCronJobFailed({
+        await this.notificationService.notifyCronJobFailed({
           jobName: 'Daily Bulk Price Migration',
           errorMessage: (e as Error).message || 'Unknown error',
         });

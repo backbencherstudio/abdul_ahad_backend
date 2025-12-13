@@ -155,4 +155,9 @@ export class NotificationGateway
   remove(@MessageBody() id: number) {
     return this.notificationService.remove(id);
   }
+
+  public sendNotification(data: any) {
+    console.log(`Publishing notification to Redis: ${JSON.stringify(data)}`);
+    this.redisPubClient.publish('notification', JSON.stringify(data));
+  }
 }

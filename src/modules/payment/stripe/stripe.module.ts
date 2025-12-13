@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { StripeService } from './stripe.service';
 import { StripeController } from './stripe.controller';
-import { AdminNotificationModule } from '../../admin/notification/admin-notification.module';
+import { NotificationModule } from '../../admin/notification/notification.module';
 
 @Module({
-  imports: [AdminNotificationModule],
+  imports: [NotificationModule],
   controllers: [StripeController],
   providers: [StripeService],
 })

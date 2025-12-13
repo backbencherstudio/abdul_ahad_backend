@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AdminNotificationService } from '../notification/admin-notification.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class SubscriptionStatusService {
@@ -9,7 +9,7 @@ export class SubscriptionStatusService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -73,7 +73,7 @@ export class SubscriptionStatusService {
 
         if (expiringSoon > 20) {
           // Threshold
-          await this.adminNotificationService.sendToAllAdmins({
+          await this.notificationService.sendToAllAdmins({
             type: 'subscription',
             title: 'Mass Subscription Expiry Alert',
             message: `${expiringSoon} subscriptions are expiring in the next 7 days. Consider sending renewal reminders to prevent churn.`,
@@ -92,7 +92,7 @@ export class SubscriptionStatusService {
       this.logger.error('Error updating subscription statuses:', error);
 
       // Notify admins about cron failure
-      await this.adminNotificationService.notifyCronJobFailed({
+      await this.notificationService.notifyCronJobFailed({
         jobName: 'Daily Subscription Status Update',
         errorMessage: error.message || 'Unknown error',
       });

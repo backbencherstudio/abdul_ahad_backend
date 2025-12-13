@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { AdminNotificationService } from '../notification/admin-notification.service';
+import { NotificationService as AdminNotificationService } from 'src/modules/admin/notification/notification.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   SubscriptionQueryDto,

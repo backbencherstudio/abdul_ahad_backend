@@ -4,7 +4,7 @@ import { PrismaService } from '../../../../prisma/prisma.service';
 import { MigrationJobService } from './migration-job.service';
 import { JobAttemptService } from './job-attempt.service';
 import { MigrationErrorHandlerService } from './migration-error-handler.service';
-import { AdminNotificationService } from '../../notification/admin-notification.service';
+import { NotificationService } from '../../notification/notification.service';
 
 @Injectable()
 export class MigrationRetryService {
@@ -15,7 +15,7 @@ export class MigrationRetryService {
     private readonly migrationJobService: MigrationJobService,
     private readonly jobAttemptService: JobAttemptService,
     private readonly migrationErrorHandlerService: MigrationErrorHandlerService,
-    private readonly adminNotificationService: AdminNotificationService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -66,7 +66,9 @@ export class MigrationRetryService {
           } else {
             skippedCount++;
             const skipReason = this.getSkipReason(job);
-            this.logger.log(`⏭️ Skipped auto-retry for job ${job.id}: ${skipReason}`);
+            this.logger.log(
+              `⏭️ Skipped auto-retry for job ${job.id}: ${skipReason}`,
+            );
 
             // Notify about persistent retry failures after max attempts
             if (job.attempts.length >= 3) {
@@ -74,7 +76,7 @@ export class MigrationRetryService {
                 const plan = await this.prisma.subscriptionPlan.findUnique({
                   where: { id: job.plan_id },
                 });
-                await this.adminNotificationService.notifyMigrationJobFailed({
+                await this.notificationService.notifyMigrationJobFailed({
                   jobId: job.id,
                   planId: job.plan_id,
                   planName: plan?.name || 'Unknown Plan', // Assuming plan might be included or fetched
@@ -101,7 +103,7 @@ export class MigrationRetryService {
     } catch (error) {
       this.logger.error('❌ Automatic retry mechanism failed:', error);
       try {
-        await this.adminNotificationService.notifyCronJobFailed({
+        await this.notificationService.notifyCronJobFailed({
           jobName: 'Automatic Migration Retry',
           errorMessage: (error as Error).message || 'Unknown error',
         });
