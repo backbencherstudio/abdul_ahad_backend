@@ -86,5 +86,3 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsString()
   name?: string;
 }
-
-

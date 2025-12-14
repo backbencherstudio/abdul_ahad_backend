@@ -6,6 +6,12 @@ import { VehicleModule } from './vehicle/vehicle.module';
 import { GarageDashboardModule } from './garage-dashboard/garage-dashboard.module';
 
 @Module({
-  imports: [NotificationModule, ContactModule, FaqModule, VehicleModule, GarageDashboardModule],
+  imports: [
+    NotificationModule,
+    ContactModule,
+    FaqModule,
+    VehicleModule,
+    GarageDashboardModule,
+  ],
 })
 export class ApplicationModule {}

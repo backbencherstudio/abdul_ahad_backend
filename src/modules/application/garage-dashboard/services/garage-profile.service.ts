@@ -43,7 +43,9 @@ export class GarageProfileService {
         },
       });
 
-      const avatarUrl = SojebStorage.url(appConfig().storageUrl.avatar + user.avatar);
+      const avatarUrl = SojebStorage.url(
+        appConfig().storageUrl.avatar + user.avatar,
+      );
 
       if (!user) {
         throw new NotFoundException('Garage profile not found');
@@ -104,7 +106,9 @@ export class GarageProfileService {
       if (avatar) {
         // Delete old avatar if exists
         if (existingUser.avatar) {
-          await SojebStorage.delete(appConfig().storageUrl.avatar + existingUser.avatar);
+          await SojebStorage.delete(
+            appConfig().storageUrl.avatar + existingUser.avatar,
+          );
         }
         // Generate a random file name
         const randomName = Array(32)
@@ -112,7 +116,10 @@ export class GarageProfileService {
           .map(() => Math.round(Math.random() * 16).toString(16))
           .join('');
         const fileName = `${randomName}${avatar.originalname}`;
-        await SojebStorage.put(appConfig().storageUrl.avatar + fileName, avatar.buffer);
+        await SojebStorage.put(
+          appConfig().storageUrl.avatar + fileName,
+          avatar.buffer,
+        );
         data.avatar = fileName;
       }
 
@@ -136,7 +143,9 @@ export class GarageProfileService {
       // Get public URL for avatar if present
       let avatarUrl = undefined;
       if (updatedUser.avatar) {
-        avatarUrl = SojebStorage.url(appConfig().storageUrl.avatar + updatedUser.avatar);
+        avatarUrl = SojebStorage.url(
+          appConfig().storageUrl.avatar + updatedUser.avatar,
+        );
       }
 
       return {

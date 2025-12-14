@@ -143,7 +143,7 @@ export class VehicleGarageService {
           slot_duration: schedule.slot_duration,
           restrictions,
           daily_hours,
-          is_active: schedule.is_active
+          is_active: schedule.is_active,
         };
       }
 

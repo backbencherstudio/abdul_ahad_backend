@@ -9,7 +9,9 @@ describe('GarageDashboardController', () => {
       controllers: [GarageDashboardController],
     }).compile();
 
-    controller = module.get<GarageDashboardController>(GarageDashboardController);
+    controller = module.get<GarageDashboardController>(
+      GarageDashboardController,
+    );
   });
 
   it('should be defined', () => {

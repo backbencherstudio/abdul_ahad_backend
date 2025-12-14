@@ -514,10 +514,7 @@ export class UserRepository {
   }
 
   // convert user type to admin/vendor
-  static async convertTo(
-    user_id: string,
-    type: Role,
-  ) {
+  static async convertTo(user_id: string, type: Role) {
     try {
       const userDetails = await UserRepository.getUserDetails(user_id);
       if (!userDetails) {

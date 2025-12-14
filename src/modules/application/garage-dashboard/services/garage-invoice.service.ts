@@ -9,6 +9,7 @@ import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import puppeteer from 'puppeteer';
 import { format } from 'date-fns';
+import { InvoiceStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class GarageInvoiceService {
@@ -21,16 +22,71 @@ export class GarageInvoiceService {
     page: number = 1,
     limit: number = 10,
     status?: string,
+    search?: string,
   ) {
     try {
       const skip = (page - 1) * limit;
 
-      const where: any = {
+      const where: Prisma.InvoiceWhereInput = {
         garage_id: userId,
       };
 
       if (status) {
-        where.status = status;
+        where.status = status as InvoiceStatus;
+      }
+
+      if (search) {
+        const parsedDate = new Date(search);
+        const isValidDate = !isNaN(parsedDate.getTime());
+
+        let dateFilter = [];
+
+        if (isValidDate) {
+          const startOfDay = new Date(parsedDate);
+          startOfDay.setHours(0, 0, 0, 0);
+
+          const endOfDay = new Date(parsedDate);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          dateFilter = [
+            {
+              issue_date: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
+            },
+            {
+              due_date: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
+            },
+          ];
+        }
+
+        where.OR = [
+          {
+            invoice_number: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            membership_period: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            garage: {
+              garage_name: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            },
+          },
+          ...dateFilter,
+        ];
       }
 
       const [invoices, total] = await Promise.all([

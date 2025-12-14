@@ -102,7 +102,7 @@ export class DvlaService {
 
       // Ensure we have a valid access token
       await this.ensureValidMotToken();
-      console.log("mot token: ", this.motAccessToken)
+      console.log('mot token: ', this.motAccessToken);
 
       const response: AxiosResponse<MotHistoryResponse> = await axios.get(
         `${this.MOT_API_BASE_URL}/${registrationNumber.toUpperCase()}`,
@@ -267,10 +267,10 @@ export class DvlaService {
     registrationNumber: string,
     operation: string,
   ): never {
-      // this.logger.error(
-      //   `DVLA API error for ${registrationNumber} (${operation}):`,
-      //   error,
-      // );
+    // this.logger.error(
+    //   `DVLA API error for ${registrationNumber} (${operation}):`,
+    //   error,
+    // );
 
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;

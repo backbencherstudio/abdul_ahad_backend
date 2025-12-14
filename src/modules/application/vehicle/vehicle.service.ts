@@ -82,7 +82,9 @@ export class VehicleService {
       });
 
       if (globalExistingVehicle) {
-        const ownerName = `${globalExistingVehicle.user.first_name || ''} ${globalExistingVehicle.user.last_name || ''}`.trim() || 'Unknown';
+        const ownerName =
+          `${globalExistingVehicle.user.first_name || ''} ${globalExistingVehicle.user.last_name || ''}`.trim() ||
+          'Unknown';
         this.logger.warn(
           `Vehicle ${dto.registration_number} already registered by another user: ${globalExistingVehicle.user.email}`,
         );
@@ -472,7 +474,7 @@ export class VehicleService {
         error.code === 'P2002'
       ) {
         const target = error.meta?.target as string[];
-        
+
         // Check if it's a registration_number constraint violation
         if (target?.includes('registration_number')) {
           this.logger.warn(
@@ -505,7 +507,8 @@ export class VehicleService {
               });
 
               const ownerName = existingUser
-                ? `${existingUser.first_name || ''} ${existingUser.last_name || ''}`.trim() || 'Unknown'
+                ? `${existingUser.first_name || ''} ${existingUser.last_name || ''}`.trim() ||
+                  'Unknown'
                 : 'Unknown';
 
               throw new ConflictException(
