@@ -41,41 +41,17 @@ export class GarageInvoiceService {
           orderBy: {
             created_at: 'desc',
           },
-          include: {
-            driver: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone_number: true,
-                address: true,
-                city: true,
-                state: true,
-                zip_code: true,
-              },
-            },
-            order: {
-              include: {
-                vehicle: {
-                  select: {
-                    registration_number: true,
-                    make: true,
-                    model: true,
-                  },
-                },
-                items: {
-                  include: {
-                    service: {
-                      select: {
-                        name: true,
-                        type: true,
-                        price: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
+          select: {
+            id: true,
+            invoice_number: true,
+            membership_period: true,
+            issue_date: true,
+            due_date: true,
+            amount: true,
+            status: true,
+            created_at: true,
+            pdf_url: true,
+            garage_id: true,
           },
         }),
         this.prisma.invoice.count({ where }),
@@ -86,15 +62,14 @@ export class GarageInvoiceService {
         const invoiceData: any = {
           id: invoice.id,
           invoice_number: invoice.invoice_number,
-          driver: invoice.driver,
-          order: invoice.order,
+          garage_id: invoice.garage_id,
           membership_period: invoice.membership_period,
           issue_date: invoice.issue_date,
           due_date: invoice.due_date,
           amount: invoice.amount.toString(),
           status: invoice.status,
           created_at: invoice.created_at,
-          updated_at: invoice.updated_at,
+          pdf_url: invoice.pdf_url,
         };
 
         // Add PDF URL if exists
@@ -107,9 +82,9 @@ export class GarageInvoiceService {
         return invoiceData;
       });
 
-    return {
-      success: true,
-      message: 'Invoices retrieved successfully',
+      return {
+        success: true,
+        message: 'Invoices retrieved successfully',
         data: formattedInvoices,
         meta: {
           total,
@@ -119,7 +94,10 @@ export class GarageInvoiceService {
         },
       };
     } catch (error) {
-      this.logger.error(`Error fetching invoices: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error fetching invoices: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -131,7 +109,17 @@ export class GarageInvoiceService {
           id: invoiceId,
           garage_id: userId,
         },
-        include: {
+        select: {
+          id: true,
+          invoice_number: true,
+          membership_period: true,
+          issue_date: true,
+          due_date: true,
+          amount: true,
+          status: true,
+          created_at: true,
+          updated_at: true,
+          pdf_url: true,
           garage: {
             select: {
               id: true,
@@ -145,42 +133,6 @@ export class GarageInvoiceService {
               vts_number: true,
             },
           },
-          driver: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone_number: true,
-              address: true,
-              city: true,
-              state: true,
-              zip_code: true,
-            },
-          },
-          order: {
-            include: {
-              vehicle: {
-                select: {
-                  registration_number: true,
-                  make: true,
-                  model: true,
-                  color: true,
-                  year_of_manufacture: true,
-                },
-              },
-              items: {
-                include: {
-                  service: {
-                    select: {
-                      name: true,
-                      type: true,
-                      price: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
         },
       });
 
@@ -192,8 +144,6 @@ export class GarageInvoiceService {
         id: invoice.id,
         invoice_number: invoice.invoice_number,
         garage: invoice.garage,
-        driver: invoice.driver,
-        order: invoice.order,
         membership_period: invoice.membership_period,
         issue_date: invoice.issue_date,
         due_date: invoice.due_date,
@@ -210,16 +160,19 @@ export class GarageInvoiceService {
         );
       }
 
-    return {
-      success: true,
-      message: 'Invoice retrieved successfully',
+      return {
+        success: true,
+        message: 'Invoice retrieved successfully',
         data: invoiceData,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Error fetching invoice: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error fetching invoice: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -232,7 +185,17 @@ export class GarageInvoiceService {
           id: invoiceId,
           garage_id: userId,
         },
-        include: {
+        select: {
+          id: true,
+          invoice_number: true,
+          membership_period: true,
+          issue_date: true,
+          due_date: true,
+          amount: true,
+          status: true,
+          created_at: true,
+          updated_at: true,
+          pdf_url: true,
           garage: {
             select: {
               id: true,
@@ -244,42 +207,6 @@ export class GarageInvoiceService {
               state: true,
               zip_code: true,
               vts_number: true,
-            },
-          },
-          driver: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone_number: true,
-              address: true,
-              city: true,
-              state: true,
-              zip_code: true,
-            },
-          },
-          order: {
-            include: {
-              vehicle: {
-                select: {
-                  registration_number: true,
-                  make: true,
-                  model: true,
-                  color: true,
-                  year_of_manufacture: true,
-                },
-              },
-              items: {
-                include: {
-                  service: {
-                    select: {
-                      name: true,
-                      type: true,
-                      price: true,
-                    },
-                  },
-                },
-              },
             },
           },
         },
@@ -305,8 +232,33 @@ export class GarageInvoiceService {
         };
       }
 
+      const garageSubscription = await this.prisma.garageSubscription.findFirst(
+        {
+          where: {
+            garage_id: invoice.garage.id,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          include: {
+            plan: true,
+          },
+        },
+      );
+
+      const invoiceData = {
+        ...invoice,
+        subscription: {
+          unitPrice: garageSubscription?.price_pence
+            ? garageSubscription.price_pence / 100
+            : invoice.amount || 0,
+          planName: garageSubscription?.plan?.name,
+          billingCycle: 'Monthly', // This is hardcoded, I should check if I can get this from the plan.
+        },
+      };
+
       // Generate PDF
-      const pdfBuffer = await this.generateInvoicePDF(invoice);
+      const pdfBuffer = await this.generateInvoicePDF(invoiceData);
 
       // Save PDF to storage
       const fileName = `invoice-${invoice.invoice_number}-${Date.now()}.pdf`;
@@ -387,276 +339,218 @@ export class GarageInvoiceService {
     }
   }
 
-  private generateInvoiceHTML(invoice: any): string {
-    const formatDate = (date: Date | null) => {
-      if (!date) return 'N/A';
-      return format(new Date(date), 'dd MMM yyyy');
-    };
+  private generateInvoiceHTML(data: any): string {
+    const vatRate = data.vatRate ?? 0;
 
-    const formatCurrency = (amount: string | number) => {
-      const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return `£${numAmount.toFixed(2)}`;
-    };
+    const subtotal = data.subscription.unitPrice;
+    const vat = subtotal * vatRate;
+    const total = subtotal + vat;
 
-    const garage = invoice.garage;
-    const driver = invoice.driver;
-    const order = invoice.order;
-
-    // Calculate amounts - assuming invoice.amount is the total including VAT
-    const total = parseFloat(invoice.amount.toString());
-    const vatRate = 0.2; // 20% VAT
-    const subtotal = total / (1 + vatRate); // Calculate subtotal from total
-    const vat = total - subtotal;
-
-    // Build order items HTML if order exists
-    let orderItemsHTML = '';
-    if (order && order.items && order.items.length > 0) {
-      orderItemsHTML = order.items
-        .map(
-          (item: any) => `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.service.name}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(parseFloat(item.price.toString()) * item.quantity)}</td>
-        </tr>
-      `,
-        )
-        .join('');
-    } else {
-      // If no order items, show membership period
-      orderItemsHTML = `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;" colspan="4">${invoice.membership_period || 'Subscription/Membership'}</td>
-        </tr>
-      `;
-    }
+    const formatCurrency = (amount: number) => `£${amount.toFixed(2)}`;
 
     return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 12px;
-      color: #333;
-      line-height: 1.6;
-      margin: 0;
-      padding: 0;
-    }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
-      border-bottom: 2px solid #333;
-      padding-bottom: 20px;
-    }
-    .logo-section {
-      flex: 1;
-    }
-    .invoice-info {
-      text-align: right;
-    }
-    .invoice-title {
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .invoice-number {
-      font-size: 14px;
-      color: #666;
-    }
-    .billing-section {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
-    }
-    .billing-box {
-      flex: 1;
-      margin-right: 20px;
-    }
-    .billing-box:last-child {
-      margin-right: 0;
-    }
-    .section-title {
-      font-weight: bold;
-      font-size: 14px;
-      margin-bottom: 10px;
-      color: #333;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 5px;
-    }
-    .items-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-    .items-table th {
-      background-color: #f5f5f5;
-      padding: 10px;
-      text-align: left;
-      border-bottom: 2px solid #333;
-      font-weight: bold;
-    }
-    .items-table td {
-      padding: 8px;
-      border-bottom: 1px solid #eee;
-    }
-    .totals-section {
-      margin-top: 20px;
-      text-align: right;
-    }
-    .totals-table {
-      width: 300px;
-      margin-left: auto;
-      border-collapse: collapse;
-    }
-    .totals-table td {
-      padding: 8px;
-      border-bottom: 1px solid #eee;
-    }
-    .totals-table .label {
-      text-align: right;
-      font-weight: bold;
-    }
-    .totals-table .amount {
-      text-align: right;
-    }
-    .total-row {
-      font-weight: bold;
-      font-size: 16px;
-      border-top: 2px solid #333;
-      border-bottom: 2px solid #333;
-    }
-    .status-badge {
-      display: inline-block;
-      padding: 5px 15px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 12px;
-      text-transform: uppercase;
-    }
-    .status-pending {
-      background-color: #ffc107;
-      color: #000;
-    }
-    .status-paid {
-      background-color: #28a745;
-      color: #fff;
-    }
-    .status-overdue {
-      background-color: #dc3545;
-      color: #fff;
-    }
-    .status-cancelled {
-      background-color: #6c757d;
-      color: #fff;
-    }
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #ddd;
-      text-align: center;
-      color: #666;
-      font-size: 10px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>SimplyMot Invoice</title>
+
+<style>
+  :root {
+    --brand: #19CA32;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    color: #111827;
+  }
+  .invoice-page {
+    width: 794px;
+    margin: auto;
+    background: #fff;
+    padding: 48px 56px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 40px;
+  }
+  .company h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--brand);
+  }
+  .company p {
+    margin: 4px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .invoice-title { text-align: right; }
+  .invoice-title h1 {
+    margin: 0;
+    letter-spacing: 4px;
+    font-size: 18px;
+    color: var(--brand);
+  }
+  .bill {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .bill h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--brand);
+  }
+  .bill p { margin: 4px 0; font-size: 13px; }
+  .meta p {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin: 4px 0;
+    font-size: 13px;
+  }
+  .meta span { color: var(--muted); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+  }
+  thead {
+    background: #5f8f7c;
+    color: #fff;
+  }
+  th, td {
+    padding: 12px;
+    font-size: 13px;
+  }
+  td { border-bottom: 1px solid #e5e7eb; }
+  th.right, td.right { text-align: right; }
+
+  .totals {
+    width: 300px;
+    margin-left: auto;
+    margin-top: 24px;
+  }
+  .totals div {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+  .totals .grand {
+    border-top: 2px solid var(--brand);
+    margin-top: 10px;
+    padding-top: 10px;
+    font-weight: 800;
+    color: var(--brand);
+  }
+
+  .invoice-footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: #6b7280;
+  }
+  .footer-line {
+    width: 100%;
+    height: 1px;
+    background: #e5e7eb;
+    margin-bottom: 24px;
+  }
+  .footer-title {
+    margin: 0 0 6px 0;
+    font-weight: 600;
+    color: #374151;
+  }
+  .footer-note {
+    margin: 0;
+    font-size: 11px;
+  }
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="logo-section">
-        <div class="invoice-title">INVOICE</div>
-        <div class="invoice-number">Invoice #: ${invoice.invoice_number}</div>
-      </div>
-      <div class="invoice-info">
-        <div style="margin-bottom: 10px;">
-          <span class="status-badge status-${invoice.status.toLowerCase()}">${invoice.status}</span>
-        </div>
-        <div><strong>Issue Date:</strong> ${formatDate(invoice.issue_date)}</div>
-        ${invoice.due_date ? `<div><strong>Due Date:</strong> ${formatDate(invoice.due_date)}</div>` : ''}
-      </div>
+<div class="invoice-page">
+
+  <div class="header">
+    <div class="company">
+      <h2>simplymot.co.uk</h2>
+      <p>support@simplymot.co.uk</p>
     </div>
-
-    <div class="billing-section">
-      <div class="billing-box">
-        <div class="section-title">From (Garage)</div>
-        <div><strong>${garage.garage_name || 'N/A'}</strong></div>
-        ${garage.vts_number ? `<div>VTS Number: ${garage.vts_number}</div>` : ''}
-        ${garage.address ? `<div>${garage.address}</div>` : ''}
-        ${garage.city || garage.state ? `<div>${[garage.city, garage.state].filter(Boolean).join(', ')}</div>` : ''}
-        ${garage.zip_code ? `<div>${garage.zip_code}</div>` : ''}
-        ${garage.email ? `<div>Email: ${garage.email}</div>` : ''}
-        ${garage.phone_number ? `<div>Phone: ${garage.phone_number}</div>` : ''}
-      </div>
-      <div class="billing-box">
-        <div class="section-title">To (Driver)</div>
-        <div><strong>${driver.name || 'N/A'}</strong></div>
-        ${driver.address ? `<div>${driver.address}</div>` : ''}
-        ${driver.city || driver.state ? `<div>${[driver.city, driver.state].filter(Boolean).join(', ')}</div>` : ''}
-        ${driver.zip_code ? `<div>${driver.zip_code}</div>` : ''}
-        ${driver.email ? `<div>Email: ${driver.email}</div>` : ''}
-        ${driver.phone_number ? `<div>Phone: ${driver.phone_number}</div>` : ''}
-      </div>
-    </div>
-
-    ${order && order.vehicle ? `
-    <div style="margin-bottom: 20px;">
-      <div class="section-title">Vehicle Information</div>
-      <div>
-        <strong>Registration:</strong> ${order.vehicle.registration_number || 'N/A'} | 
-        <strong>Make:</strong> ${order.vehicle.make || 'N/A'} | 
-        <strong>Model:</strong> ${order.vehicle.model || 'N/A'}
-        ${order.vehicle.year_of_manufacture ? ` | <strong>Year:</strong> ${order.vehicle.year_of_manufacture}` : ''}
-      </div>
-    </div>
-    ` : ''}
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th style="text-align: center;">Quantity</th>
-          <th style="text-align: right;">Unit Price</th>
-          <th style="text-align: right;">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${orderItemsHTML}
-      </tbody>
-    </table>
-
-    <div class="totals-section">
-      <table class="totals-table">
-        <tr>
-          <td class="label">Subtotal:</td>
-          <td class="amount">${formatCurrency(subtotal)}</td>
-        </tr>
-        <tr>
-          <td class="label">VAT (20%):</td>
-          <td class="amount">${formatCurrency(vat)}</td>
-        </tr>
-        <tr class="total-row">
-          <td class="label">Total:</td>
-          <td class="amount">${formatCurrency(total)}</td>
-        </tr>
-      </table>
-    </div>
-
-    <div class="footer">
-      <p>Thank you for your business!</p>
-      <p>This is a computer-generated invoice. No signature required.</p>
+    <div class="invoice-title">
+      <h1>INVOICE</h1>
     </div>
   </div>
+
+  <div class="bill">
+    <div>
+      <h4>Bill To</h4>
+      <p><strong>${data.garage.garage_name}</strong></p>
+      ${data.garage.vts_number ? `<p>VTS Number: ${data.garage.vts_number}</p>` : ''}
+      ${data.garage.address ? `<p>${data.garage.address}</p>` : ''}
+      ${data.garage.city ? `<p>${data.garage.city}, ${data.garage.zip_code ?? ''}</p>` : ''}
+      ${data.garage.email ? `<p>${data.garage.email}</p>` : ''}
+      ${data.garage.phone_number ? `<p>${data.garage.phone_number}</p>` : ''}
+    </div>
+
+    <div class="meta">
+      <p><span>Invoice #</span><strong>${data.invoice_number}</strong></p>
+      <p><span>Invoice date</span><strong>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</strong></p>
+      <p><span>Due date</span><strong>${format(new Date(data.due_date), 'dd/MM/yyyy')}</strong></p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>QTY</th>
+        <th>Description</th>
+        <th class="right">Unit Price</th>
+        <th class="right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>${data.subscription.planName} (${data.subscription.billingCycle} Subscription)</td>
+        <td class="right">${formatCurrency(subtotal)}</td>
+        <td class="right">${formatCurrency(subtotal)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div>
+      <span>Subtotal</span>
+      <span>${formatCurrency(subtotal)}</span>
+    </div>
+    <div>
+      <span>VAT (${vatRate * 100}%)</span>
+      <span>${formatCurrency(vat)}</span>
+    </div>
+    <div class="grand">
+      <span>Total</span>
+      <span>${formatCurrency(total)}</span>
+    </div>
+  </div>
+
+  <div class="invoice-footer">
+    <div class="footer-line"></div>
+    <p class="footer-title">Thank you for your business!</p>
+    <p class="footer-note">
+      This is a computer-generated invoice. No signature required.
+    </p>
+  </div>
+
+</div>
 </body>
 </html>
-    `;
+`;
   }
 }

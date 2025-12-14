@@ -428,16 +428,16 @@ export class StripeService {
         );
 
         try {
-            await this.notificationService.create({
-                receiver_id: garageSubscription.garage.id,
-                type: NotificationType.SUBSCRIPTION,
-                text: `Your subscription to the "${garageSubscription.plan.name}" plan has been cancelled.`,
-            });
+          await this.notificationService.create({
+            receiver_id: garageSubscription.garage.id,
+            type: NotificationType.SUBSCRIPTION,
+            text: `Your subscription to the "${garageSubscription.plan.name}" plan has been cancelled.`,
+          });
         } catch (notificationError) {
-            this.logger.error(
-                'Failed to send subscription cancelled notification to garage:',
-                notificationError,
-            );
+          this.logger.error(
+            'Failed to send subscription cancelled notification to garage:',
+            notificationError,
+          );
         }
       }
     } catch (error) {
@@ -452,21 +452,27 @@ export class StripeService {
         `💳 Payment succeeded webhook received for invoice: ${invoice.id}, subscription: ${invoice.subscription}`,
       );
 
-      if (!invoice.subscription) {
-        console.log(
-          '⚠️ Invoice has no subscription field, skipping invoice creation',
-        );
-        return;
+      console.log(invoice);
+
+      let subscriptionId: string;
+      if (typeof invoice.subscription === 'string') {
+        subscriptionId = invoice.subscription;
+      } else if (typeof invoice.subscription?.id === 'string') {
+        subscriptionId = invoice.subscription.id;
+      } else if (typeof invoice.lines?.data?.[0]?.subscription === 'string') {
+        subscriptionId = invoice.lines.data[0].subscription;
+      } else if (
+        typeof (invoice as any).parent?.subscription_details?.subscription ===
+        'string'
+      ) {
+        subscriptionId = (invoice as any).parent.subscription_details
+          .subscription;
       }
 
-      // Get subscription ID (could be string or object)
-      const subscriptionId =
-        typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription.id;
-
       if (!subscriptionId) {
-        console.error('❌ Could not extract subscription ID from invoice');
+        console.log(
+          '⚠️ Could not determine subscription ID from invoice, skipping invoice creation.',
+        );
         return;
       }
 
@@ -593,19 +599,37 @@ export class StripeService {
 
       // Format membership period from subscription dates
       let membershipPeriod = null;
-      if (stripeSubscription) {
+      if (
+        stripeSubscription &&
+        typeof stripeSubscription.current_period_start === 'number' &&
+        typeof stripeSubscription.current_period_end === 'number'
+      ) {
         const periodStart = new Date(
           stripeSubscription.current_period_start * 1000,
         );
         const periodEnd = new Date(
           stripeSubscription.current_period_end * 1000,
         );
-        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(periodEnd)}`;
+        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(
+          periodEnd,
+        )}`;
+      } else if (
+        invoice.lines?.data?.[0]?.period?.start &&
+        invoice.lines?.data?.[0]?.period?.end
+      ) {
+        // Fallback to invoice line item period dates
+        const periodStart = new Date(invoice.lines.data[0].period.start * 1000);
+        const periodEnd = new Date(invoice.lines.data[0].period.end * 1000);
+        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(
+          periodEnd,
+        )}`;
       } else if (invoice.period_start && invoice.period_end) {
         // Fallback to invoice period dates
         const periodStart = new Date(invoice.period_start * 1000);
         const periodEnd = new Date(invoice.period_end * 1000);
-        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(periodEnd)}`;
+        membershipPeriod = `${this.formatDate(periodStart)} - ${this.formatDate(
+          periodEnd,
+        )}`;
       }
 
       // Calculate due date (30 days from issue date)
@@ -802,9 +826,9 @@ export class StripeService {
           try {
             const failureReason = this.getPaymentFailureReason(invoice);
             await this.notificationService.create({
-                receiver_id: garageSubscription.garage.id,
-                type: NotificationType.SUBSCRIPTION,
-                text: `Your subscription payment of £${(invoice.amount_due / 100).toFixed(2)} for the "${garageSubscription.plan.name}" plan failed. Please update your payment method.`,
+              receiver_id: garageSubscription.garage.id,
+              type: NotificationType.SUBSCRIPTION,
+              text: `Your subscription payment of £${(invoice.amount_due / 100).toFixed(2)} for the "${garageSubscription.plan.name}" plan failed. Please update your payment method.`,
             });
           } catch (notificationError) {
             console.error(
@@ -888,16 +912,16 @@ export class StripeService {
 
       try {
         await this.notificationService.create({
-            receiver_id: garageSubscription.garage.id,
-            type: NotificationType.SUBSCRIPTION,
-            text: `Your trial for the "${garageSubscription.plan.name}" plan is ending in ${daysRemaining} days. Please add a payment method to continue your subscription.`,
+          receiver_id: garageSubscription.garage.id,
+          type: NotificationType.SUBSCRIPTION,
+          text: `Your trial for the "${garageSubscription.plan.name}" plan is ending in ${daysRemaining} days. Please add a payment method to continue your subscription.`,
         });
-        } catch (notificationError) {
-            this.logger.error(
-                'Failed to send trial ending notification to garage:',
-                notificationError,
-            );
-        }
+      } catch (notificationError) {
+        this.logger.error(
+          'Failed to send trial ending notification to garage:',
+          notificationError,
+        );
+      }
     } catch (error) {
       console.error('Error handling trial will end:', error);
     }
