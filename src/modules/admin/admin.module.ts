@@ -11,6 +11,7 @@ import { DriverModule } from './driver/driver.module';
 import { BookingModule } from './booking/booking.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { RoleModule } from './role/role.module';
+import { VehicleModule } from './vehicle/vehicle.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { RoleModule } from './role/role.module';
     BookingModule,
     SubscriptionModule,
     RoleModule,
+    VehicleModule,
   ],
 })
 export class AdminModule {}
