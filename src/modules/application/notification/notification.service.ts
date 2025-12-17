@@ -18,6 +18,74 @@ export class NotificationService {
     private notificationGateway: NotificationGateway,
   ) {}
 
+  async addAdditionalData(notification: any) {
+    try {
+      let entity;
+      if (!entity) {
+        const order = await this.prisma.order.findFirst({
+          where: {
+            id: notification?.entity_id,
+          },
+          select: {
+            id: true,
+            vehicle: {
+              select: {
+                id: true,
+                registration_number: true,
+                make: true,
+                model: true,
+                color: true,
+                fuel_type: true,
+                year_of_manufacture: true,
+                engine_capacity: true,
+                co2_emissions: true,
+                mot_expiry_date: true,
+              },
+            },
+          },
+        });
+        if (order) {
+          const { id, ...vehicle } = order?.vehicle;
+          entity = {
+            ...(order?.id && { order_id: order.id }),
+            ...(id && { vehicle_id: id }),
+            ...(vehicle && vehicle),
+          };
+        }
+      }
+      if (!entity) {
+        const vehicle = await this.prisma.vehicle.findUnique({
+          where: {
+            id: notification.entity_id,
+          },
+          select: {
+            id: true,
+            registration_number: true,
+            make: true,
+            model: true,
+            color: true,
+            fuel_type: true,
+            year_of_manufacture: true,
+            engine_capacity: true,
+            co2_emissions: true,
+            mot_expiry_date: true,
+          },
+        });
+        if (vehicle) {
+          const { id, ...rest } = vehicle;
+          entity = {
+            ...(id && { vehicle_id: id }),
+            ...(rest && rest),
+          };
+        }
+      }
+      notification['data'] = entity;
+    } catch (error) {
+      console.log(error);
+    }
+    return notification;
+  }
+
   async create(createNotificationDto: CreateNotificationDto) {
     // 1. Save to Database
     const notification = await this.prisma.notification.create({
@@ -60,7 +128,7 @@ export class NotificationService {
     // The gateway handles sending to the specific user via Redis/Socket.io
     await this.notificationGateway.handleNotification({
       userId: createNotificationDto.receiver_id,
-      ...notification,
+      ...(await this.addAdditionalData(notification)),
     });
 
     return notification;
@@ -110,35 +178,8 @@ export class NotificationService {
             appConfig().storageUrl.avatar + notification.sender.avatar,
           );
         }
-        if (
-          notification.notification_event.type === NotificationType.BOOKING &&
-          notification.entity_id
-        ) {
-          const entity = await this.prisma.order.findFirst({
-            where: {
-              id: notification?.entity_id,
-            },
-            select: {
-              id: true,
-              vehicle: {
-                select: {
-                  id: true,
-                  registration_number: true,
-                  make: true,
-                  model: true,
-                  color: true,
-                  fuel_type: true,
-                  year_of_manufacture: true,
-                  engine_capacity: true,
-                  co2_emissions: true,
-                  mot_expiry_date: true,
-                },
-              },
-            },
-          });
-          (notification as any).entity = entity;
-        }
-        return notification;
+
+        return this.addAdditionalData(notification);
       }),
     );
 

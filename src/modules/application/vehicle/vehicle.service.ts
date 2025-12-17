@@ -579,6 +579,141 @@ export class VehicleService {
   }
 
   /**
+   * Refresh vehicle MOT history from DVLA API
+   * Fetches latest data, filters duplicates, and updates database
+   *
+   * @param userId - ID of the user
+   * @param vehicleId - ID of the vehicle
+   */
+  async refreshMotHistory(userId: string, vehicleId: string) {
+    try {
+      this.logger.log(`Refreshing MOT history for vehicle ${vehicleId}`);
+
+      // 1. Validate user and get vehicle
+      await this.validateUserAndRole(userId, 'DRIVER');
+
+      const vehicle = await this.prisma.vehicle.findFirst({
+        where: { id: vehicleId, user_id: userId },
+      });
+
+      if (!vehicle) {
+        throw new NotFoundException('Vehicle not found or access denied');
+      }
+
+      // 2. Fetch latest history from DVLA
+      const motHistory = await DvlaService.getMotHistory(
+        vehicle.registration_number,
+      );
+
+      if (!motHistory || !motHistory.motTests) {
+        return {
+          success: true,
+          message: 'No MOT history found from DVLA',
+          data: { new_records: 0 },
+        };
+      }
+
+      // 3. Get existing local records to check for duplicates
+      const existingReports = await this.prisma.motReport.findMany({
+        where: { vehicle_id: vehicleId },
+        select: { test_number: true },
+      });
+
+      const existingTestNumbers = new Set(
+        existingReports.map((r) => r.test_number),
+      );
+
+      // 4. Filter for new tests only
+      const newTests = motHistory.motTests.filter(
+        (test) => !existingTestNumbers.has(test.motTestNumber),
+      );
+
+      if (newTests.length === 0) {
+        this.logger.log(
+          `Vehicle ${vehicle.registration_number} is already up to date`,
+        );
+        return {
+          success: true,
+          message: 'MOT history is already up to date',
+          data: { new_records: 0 },
+        };
+      }
+
+      this.logger.log(
+        `Found ${newTests.length} new MOT tests for ${vehicle.registration_number}`,
+      );
+
+      // 5. Insert new records concurrently using Promise.all
+      // Note: We use a transaction to ensure data integrity if needed, but for bulk independent inserts
+      // Promise.all with individual creates is sufficient and mandated by the request.
+      // However, createMotReports logic handles defects too, so we'll adapt that pattern inline for concurrency.
+
+      await Promise.all(
+        newTests.map(async (test) => {
+          // Create report with defects in a transaction to ensure report+defects consistency per test
+          return this.prisma.$transaction(async (tx) => {
+            const report = await tx.motReport.create({
+              data: {
+                vehicle_id: vehicleId,
+                test_number: test.motTestNumber,
+                test_date: test.completedDate
+                  ? new Date(test.completedDate)
+                  : null,
+                expiry_date: test.expiryDate ? new Date(test.expiryDate) : null,
+                status: test.motTestResult, // Note: API uses 'motTestResult', DB uses 'status'
+                odometer_value: test.odometerValue
+                  ? parseInt(test.odometerValue, 10)
+                  : null,
+                odometer_unit: test.odometerUnit,
+                odometer_result_type: test.odometerResultType,
+                data_source: 'dvsa', // Explicitly mark as refresh source
+                registration_at_test: test.registrationAtTimeOfTest,
+              },
+            });
+
+            if (
+              Array.isArray(test.rfrAndComments) &&
+              test.rfrAndComments.length > 0
+            ) {
+              // Map API 'rfrAndComments' to our DB 'MotDefect' structure
+              await tx.motDefect.createMany({
+                data: test.rfrAndComments.map((defect) => ({
+                  mot_report_id: report.id,
+                  type: defect.type,
+                  text: defect.text,
+                  dangerous: defect.dangerous,
+                })),
+              });
+            }
+          });
+        }),
+      );
+
+      // 6. Update local vehicle data with latest info if available (optional but good for consistency)
+      // We'll update the 'updated_at' timestamp at minimum
+      await this.prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: { updated_at: new Date() },
+      });
+
+      return {
+        success: true,
+        message: `Successfully added ${newTests.length} new MOT records`,
+        data: {
+          new_records: newTests.length,
+          latest_expiry: motHistory.motTests[0]?.expiryDate || null,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to refresh MOT history for vehicle ${vehicleId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get complete MOT report with vehicle details for report generation/download
    *
    * @param reportId - MOT Report ID

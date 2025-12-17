@@ -153,6 +153,41 @@ export class VehicleController {
     );
   }
 
+  @Patch(':vehicleId/mot-reports/refresh')
+  @Roles(Role.DRIVER)
+  @ApiOperation({
+    summary: 'Refresh MOT history from DVLA',
+    description:
+      'Fetches the latest MOT history from DVLA and updates the local database with any new records. Duplicate records are skipped.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'MOT history refreshed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example: 'Successfully added 2 new MOT records',
+        },
+        data: {
+          type: 'object',
+          properties: {
+            new_records: { type: 'number', example: 2 },
+            latest_expiry: {
+              type: 'string',
+              example: '2025-01-01T00:00:00.000Z',
+            },
+          },
+        },
+      },
+    },
+  })
+  async refreshMotHistory(@Req() req, @Param('vehicleId') vehicleId: string) {
+    return this.vehicleService.refreshMotHistory(req.user.userId, vehicleId);
+  }
+
   @Get('my-bookings')
   @Roles(Role.DRIVER) // ✅ ADD THIS: Explicitly require DRIVER role
   @ApiOperation({

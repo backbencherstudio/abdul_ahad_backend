@@ -20,8 +20,77 @@ export class NotificationService {
     private readonly notificationGateway: NotificationGateway,
   ) {}
 
+  async addAdditionalData(notification: any) {
+    try {
+      let entity;
+      if (!entity) {
+        const order = await this.prisma.order.findFirst({
+          where: {
+            id: notification?.entity_id,
+          },
+          select: {
+            id: true,
+            vehicle: {
+              select: {
+                id: true,
+                registration_number: true,
+                make: true,
+                model: true,
+                color: true,
+                fuel_type: true,
+                year_of_manufacture: true,
+                engine_capacity: true,
+                co2_emissions: true,
+                mot_expiry_date: true,
+              },
+            },
+          },
+        });
+        if (order) {
+          const { id, ...vehicle } = order?.vehicle;
+          entity = {
+            ...(order?.id && { order_id: order.id }),
+            ...(id && { vehicle_id: id }),
+            ...(vehicle && vehicle),
+          };
+        }
+      }
+      if (!entity) {
+        const vehicle = await this.prisma.vehicle.findUnique({
+          where: {
+            id: notification.entity_id,
+          },
+          select: {
+            id: true,
+            registration_number: true,
+            make: true,
+            model: true,
+            color: true,
+            fuel_type: true,
+            year_of_manufacture: true,
+            engine_capacity: true,
+            co2_emissions: true,
+            mot_expiry_date: true,
+          },
+        });
+        if (vehicle) {
+          const { id, ...rest } = vehicle;
+          entity = {
+            ...(id && { vehicle_id: id }),
+            ...(rest && rest),
+          };
+        }
+      }
+      notification['data'] = entity;
+    } catch (error) {
+      console.log(error);
+    }
+    return notification;
+  }
+
   async createBulkNotification(dto: CreateBulkNotificationDto) {
     try {
+      console.log(dto);
       await Promise.all(
         dto.receivers.map(async ({ entity_id, receiver_id }) => {
           const notification = await this.prisma.notification.create({
@@ -60,35 +129,17 @@ export class NotificationService {
               },
             },
           });
-          let vehicle;
-          try {
-            if (entity_id) {
-              vehicle = await this.prisma.vehicle.findUnique({
-                where: {
-                  id: entity_id,
-                },
-                select: {
-                  id: true,
-                  registration_number: true,
-                  make: true,
-                  model: true,
-                  color: true,
-                  fuel_type: true,
-                  year_of_manufacture: true,
-                  mot_expiry_date: true,
-                },
-              });
-            }
-          } catch (error) {
-            this.logger.error('Failed to find vehicle:', error);
-          }
           this.notificationGateway.sendNotification({
             userId: receiver_id,
-            ...notification,
-            ...(vehicle && { entity: vehicle }),
+            ...(await this.addAdditionalData(notification)),
           });
         }),
       );
+      console.log('Notification sent successfully');
+      return {
+        success: true,
+        message: 'Notification sent successfully',
+      };
     } catch (error) {
       this.logger.error('Failed to send admin notification:', error);
       throw error;
