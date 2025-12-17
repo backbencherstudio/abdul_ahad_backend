@@ -704,12 +704,15 @@ export class VehicleService {
         fields = '',
         include_defects = true,
         limit = 10,
+        page = 1,
         full_response = false,
       } = query || {};
 
+      const skip = (page - 1) * limit;
+
       // If full_response is true or no fields specified, return complete response (backward compatibility)
       if (full_response || !fields) {
-        return this.getFullMotHistory(vehicle, include_defects, limit);
+        return this.getFullMotHistory(vehicle, include_defects, limit, skip);
       }
 
       // Parse requested fields
@@ -721,6 +724,7 @@ export class VehicleService {
         requestedFields,
         include_defects,
         limit,
+        skip,
       );
 
       // Build response based on requested fields
@@ -735,6 +739,7 @@ export class VehicleService {
         fields_requested: fields,
         include_defects,
         limit,
+        page,
         full_response,
         total_reports: reports.length,
       };
@@ -756,6 +761,7 @@ export class VehicleService {
     vehicle: any,
     includeDefects: boolean,
     limit: number,
+    skip: number,
   ) {
     // ✅ Fix: Use proper Prisma include syntax
     const includeOptions = includeDefects ? { defects: true } : undefined;
@@ -765,6 +771,7 @@ export class VehicleService {
       include: includeOptions, // ✅ Fixed: Use undefined instead of false
       orderBy: { test_date: 'desc' },
       take: limit,
+      skip,
     });
 
     return {
@@ -961,6 +968,7 @@ export class VehicleService {
     },
     includeDefects: boolean,
     limit: number,
+    skip: number,
   ) {
     const { reportFields, includeDefects: fieldsRequireDefects } =
       fieldCategories;
@@ -975,6 +983,7 @@ export class VehicleService {
       include: includeOptions, // ✅ Fixed: Use undefined instead of false
       orderBy: { test_date: 'desc' },
       take: limit,
+      skip,
     });
   }
 

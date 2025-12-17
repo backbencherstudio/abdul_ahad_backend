@@ -2195,6 +2195,10 @@ export class GarageScheduleService {
           throw new BadRequestException(operatingHoursValidation.errorMessage);
         }
 
+        // ✅ REMOVED: Boundary validation is too restrictive for template slots
+        // Template slots should be freely modifiable within operating hours
+        // Only check if new time fits within operating hours (already done above)
+        /*
         // ✅ NEW: Validate operating hours boundary integrity
         const boundaryValidation = this.validateOperatingHoursBoundary(
           dto.current_time,
@@ -2207,6 +2211,7 @@ export class GarageScheduleService {
         if (!boundaryValidation.isValid) {
           throw new BadRequestException(boundaryValidation.errorMessage);
         }
+        */
 
         // ✅ NEW: Check for break time conflicts (block modifications)
         const restrictionsForBreak = Array.isArray(schedule.restrictions)
@@ -2372,7 +2377,7 @@ export class GarageScheduleService {
               affected_slots: affectedSlots,
               message:
                 'Modification rejected due to overlaps. Set overlap: true to proceed.',
-              requires_confirmation: true,
+              overlap: true,
             };
           }
 

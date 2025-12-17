@@ -46,6 +46,18 @@ export class GetMotReportsQueryDto {
 
   @ApiProperty({
     required: false,
+    default: 1,
+    minimum: 1,
+    description: 'Page number for pagination',
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value))
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiProperty({
+    required: false,
     default: false,
     description: 'Return full response (backward compatibility)',
   })

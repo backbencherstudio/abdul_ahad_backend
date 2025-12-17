@@ -134,6 +134,7 @@ export class VehicleController {
           fields_requested: 'registration,make,model,test_number,status',
           include_defects: true,
           limit: 10,
+          page: 1,
           full_response: false,
           total_reports: 1,
         },
