@@ -145,7 +145,6 @@ export class VehicleService {
           created_at: true,
           mot_expiry_date: true,
           user_id: true,
-          mot_data: true,
         },
         orderBy: {
           created_at: 'desc',
