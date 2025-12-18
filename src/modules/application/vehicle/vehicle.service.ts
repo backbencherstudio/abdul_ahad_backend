@@ -132,13 +132,20 @@ export class VehicleService {
         where: {
           user_id: userId,
         },
-        include: {
-          mot_reports: {
-            orderBy: {
-              created_at: 'desc',
-            },
-            take: 1, // Get latest MOT report
-          },
+        select: {
+          id: true,
+          registration_number: true,
+          make: true,
+          model: true,
+          color: true,
+          fuel_type: true,
+          year_of_manufacture: true,
+          engine_capacity: true,
+          co2_emissions: true,
+          created_at: true,
+          mot_expiry_date: true,
+          user_id: true,
+          mot_data: true,
         },
         orderBy: {
           created_at: 'desc',
