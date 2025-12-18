@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../../../prisma/prisma.service';
 
 import { ServiceType } from '@prisma/client';
+import { UpsertServicePriceDto } from '../dto/upsert-service-price.dto';
 
 @Injectable()
 export class GaragePricingService {
@@ -28,10 +29,14 @@ export class GaragePricingService {
     return { success: true, message: 'Service deleted successfully' };
   }
 
-  async upsertServicePrice(garageId: string, body: any) {
-    const { mot, retest, additional } = body;
+  async upsertServicePrice(garageId: string, body: UpsertServicePriceDto) {
+    const { mot, retest, additionals } = body;
 
-    // --- MOT ---
+    console.log(body);
+
+    // =========================
+    // MOT
+    // =========================
     let motService = null;
     if (mot) {
       if (
@@ -42,27 +47,29 @@ export class GaragePricingService {
       ) {
         throw new BadRequestException('MOT requires name and valid price > 0');
       }
-      motService = await this.prisma.service.findFirst({
+
+      const existingMot = await this.prisma.service.findFirst({
         where: { garage_id: garageId, type: ServiceType.MOT },
       });
-      if (motService) {
-        motService = await this.prisma.service.update({
-          where: { id: motService.id },
-          data: { name: mot.name, price: mot.price },
-        });
-      } else {
-        motService = await this.prisma.service.create({
-          data: {
-            garage_id: garageId,
-            name: mot.name,
-            price: mot.price,
-            type: ServiceType.MOT,
-          },
-        });
-      }
+
+      motService = existingMot
+        ? await this.prisma.service.update({
+            where: { id: existingMot.id },
+            data: { name: mot.name, price: mot.price },
+          })
+        : await this.prisma.service.create({
+            data: {
+              garage_id: garageId,
+              name: mot.name,
+              price: mot.price,
+              type: ServiceType.MOT,
+            },
+          });
     }
 
-    // --- RETEST ---
+    // =========================
+    // RETEST
+    // =========================
     let retestService = null;
     if (retest) {
       if (
@@ -75,92 +82,93 @@ export class GaragePricingService {
           'Retest requires name and valid price > 0',
         );
       }
-      retestService = await this.prisma.service.findFirst({
+
+      const existingRetest = await this.prisma.service.findFirst({
         where: { garage_id: garageId, type: ServiceType.RETEST },
       });
-      if (retestService) {
-        retestService = await this.prisma.service.update({
-          where: { id: retestService.id },
-          data: { name: retest.name, price: retest.price },
-        });
-      } else {
-        retestService = await this.prisma.service.create({
-          data: {
-            garage_id: garageId,
-            name: retest.name,
-            price: retest.price,
-            type: ServiceType.RETEST,
-          },
-        });
-      }
+
+      retestService = existingRetest
+        ? await this.prisma.service.update({
+            where: { id: existingRetest.id },
+            data: { name: retest.name, price: retest.price },
+          })
+        : await this.prisma.service.create({
+            data: {
+              garage_id: garageId,
+              name: retest.name,
+              price: retest.price,
+              type: ServiceType.RETEST,
+            },
+          });
     }
 
-    // --- ADDITIONAL ---
+    // =========================
+    // ADDITIONAL (SKIP EXISTING, CREATE NEW)
+    // =========================
     const additionalResults = [];
-    if (additional && Array.isArray(additional)) {
-      // Check for duplicate names in the request
-      const names = new Set<string>();
-      for (const add of additional) {
-        if (!add.name) {
+
+    if (additionals && Array.isArray(additionals)) {
+      // 1️⃣ Request-level duplicate check
+      const requestNames = new Set<string>();
+
+      for (const add of additionals) {
+        if (!add.name || !add.name.trim()) {
           throw new BadRequestException('Additional service name is required');
         }
-        if (add.price !== undefined && add.price !== null) {
-          throw new BadRequestException(
-            'Additional services should not have prices',
-          );
-        }
-        const lower = add.name.trim().toLowerCase();
-        if (names.has(lower)) {
+
+        const normalized = add.name.trim().toLowerCase();
+        if (requestNames.has(normalized)) {
           throw new BadRequestException(
             `Duplicate additional service name in request: ${add.name}`,
           );
         }
-        names.add(lower);
+        requestNames.add(normalized);
       }
 
-      // Fetch existing additional from DB
+      // 2️⃣ Fetch existing additional services
       const dbAdditional = await this.prisma.service.findMany({
         where: { garage_id: garageId, type: ServiceType.ADDITIONAL },
       });
 
-      // Filter additional to skip those that already exist in DB with the same name (excluding self)
-      const validAdditional = additional.filter((add) => {
-        return !dbAdditional.some(
-          (db) =>
-            db.name.trim().toLowerCase() === add.name.trim().toLowerCase() &&
-            db.id !== add.id,
-        );
-      });
+      const dbNames = new Set(
+        dbAdditional.map((db) => db.name.trim().toLowerCase()),
+      );
 
-      // Upsert each valid additional service
-      for (const add of validAdditional) {
-        let result;
-        if (add.id) {
-          result = await this.prisma.service.update({
-            where: { id: add.id },
-            data: { name: add.name, price: null }, // Always set price to null for additional
-          });
-        } else {
-          result = await this.prisma.service.create({
-            data: {
-              garage_id: garageId,
-              name: add.name,
-              price: null, // Always null for additional services
-              type: ServiceType.ADDITIONAL,
-            },
-          });
+      // 3️⃣ Create only NEW services
+      for (const add of additionals) {
+        const normalized = add.name.trim().toLowerCase();
+
+        // 🔹 Skip if already exists
+        if (dbNames.has(normalized)) {
+          additionalResults.push(
+            dbAdditional.find((db) => db.name === add.name),
+          );
+          continue;
         }
-        additionalResults.push(result);
+
+        const created = await this.prisma.service.create({
+          data: {
+            garage_id: garageId,
+            name: add.name,
+            price: null,
+            type: ServiceType.ADDITIONAL,
+          },
+        });
+
+        additionalResults.push(created);
       }
     }
 
+    // =========================
+    // RESPONSE
+    // =========================
     return {
       success: true,
       message: 'Service prices updated successfully',
       data: {
         mot: motService,
         retest: retestService,
-        additional: additionalResults,
+        additionals: additionalResults,
       },
     };
   }
