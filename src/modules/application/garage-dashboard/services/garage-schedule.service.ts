@@ -2184,6 +2184,7 @@ export class GarageScheduleService {
           );
         }
 
+        /*
         // ✅ NEW: Validate operating hours with user-friendly error message
         const operatingHoursValidation = this.validateOperatingHours(
           dto.new_start_time,
@@ -2198,7 +2199,6 @@ export class GarageScheduleService {
         // ✅ REMOVED: Boundary validation is too restrictive for template slots
         // Template slots should be freely modifiable within operating hours
         // Only check if new time fits within operating hours (already done above)
-        /*
         // ✅ NEW: Validate operating hours boundary integrity
         const boundaryValidation = this.validateOperatingHoursBoundary(
           dto.current_time,

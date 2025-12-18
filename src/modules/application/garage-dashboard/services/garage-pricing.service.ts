@@ -29,7 +29,7 @@ export class GaragePricingService {
   }
 
   async upsertServicePrice(garageId: string, body: any) {
-    const { mot, retest, additionals } = body;
+    const { mot, retest, additional } = body;
 
     // --- MOT ---
     let motService = null;
@@ -95,12 +95,12 @@ export class GaragePricingService {
       }
     }
 
-    // --- ADDITIONALS ---
+    // --- ADDITIONAL ---
     const additionalResults = [];
-    if (additionals && Array.isArray(additionals)) {
+    if (additional && Array.isArray(additional)) {
       // Check for duplicate names in the request
       const names = new Set<string>();
-      for (const add of additionals) {
+      for (const add of additional) {
         if (!add.name) {
           throw new BadRequestException('Additional service name is required');
         }
@@ -118,31 +118,27 @@ export class GaragePricingService {
         names.add(lower);
       }
 
-      // Check for duplicate names in DB (excluding self for updates)
-      const dbAdditionals = await this.prisma.service.findMany({
+      // Fetch existing additional from DB
+      const dbAdditional = await this.prisma.service.findMany({
         where: { garage_id: garageId, type: ServiceType.ADDITIONAL },
       });
-      for (const add of additionals) {
-        if (
-          dbAdditionals.some(
-            (db) =>
-              db.name.trim().toLowerCase() === add.name.trim().toLowerCase() &&
-              db.id !== add.id,
-          )
-        ) {
-          throw new BadRequestException(
-            `Additional service name already exists: ${add.name}`,
-          );
-        }
-      }
 
-      // Upsert each additional service
-      for (const add of additionals) {
+      // Filter additional to skip those that already exist in DB with the same name (excluding self)
+      const validAdditional = additional.filter((add) => {
+        return !dbAdditional.some(
+          (db) =>
+            db.name.trim().toLowerCase() === add.name.trim().toLowerCase() &&
+            db.id !== add.id,
+        );
+      });
+
+      // Upsert each valid additional service
+      for (const add of validAdditional) {
         let result;
         if (add.id) {
           result = await this.prisma.service.update({
             where: { id: add.id },
-            data: { name: add.name, price: null }, // Always set price to null for additionals
+            data: { name: add.name, price: null }, // Always set price to null for additional
           });
         } else {
           result = await this.prisma.service.create({
@@ -164,7 +160,7 @@ export class GaragePricingService {
       data: {
         mot: motService,
         retest: retestService,
-        additionals: additionalResults,
+        additional: additionalResults,
       },
     };
   }
