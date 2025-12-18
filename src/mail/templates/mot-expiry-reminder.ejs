@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MOT Expiry Reminder</title>
+</head>
+<body>
+    <p>Dear <%= user_name %>,</p>
+    <p>This is a reminder that your vehicle <strong><%= vehicle_make %> <%= vehicle_model %></strong> (Registration: <strong><%= vehicle_registration %></strong>) has an MOT expiring on <strong><%= mot_expiry_date %></strong>.</p>
+    <p>You have <strong><%= days_remaining %></strong> days left until expiry. Please ensure your vehicle's MOT is renewed before this date to comply with legal requirements.</p>
+    <p>Thank you,</p>
+    <p>The <%= app_name %> Team</p>
+</body>
+</html>

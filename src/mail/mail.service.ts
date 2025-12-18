@@ -647,4 +647,36 @@ export class MailService {
       console.error('Error queuing user notification email:', error);
     }
   }
+
+  /**
+   * Send MOT expiry reminder email
+   */
+  async sendMotExpiryReminder(user: any, vehicle: any, daysRemaining: number) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `MOT Expiry Reminder - ${vehicle.registration_number}`;
+
+      await this.queue.add('sendMotExpiryReminder', {
+        to: user.email,
+        from,
+        subject,
+        template: 'mot-expiry-reminder',
+        context: {
+          user_name: user.name,
+          vehicle_registration: vehicle.registration_number,
+          vehicle_make: vehicle.make,
+          vehicle_model: vehicle.model,
+          mot_expiry_date: vehicle.mot_expiry_date.toLocaleDateString(),
+          days_remaining: daysRemaining,
+          app_name: process.env.APP_NAME || appConfig().app.name,
+        },
+      });
+
+      console.log(
+        `MOT expiry reminder email queued for ${user.email} for vehicle ${vehicle.registration_number}`,
+      );
+    } catch (error) {
+      console.error('Error queuing MOT expiry reminder email:', error);
+    }
+  }
 }

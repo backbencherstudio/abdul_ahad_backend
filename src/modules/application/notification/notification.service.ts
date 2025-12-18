@@ -1,6 +1,5 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   FetchNotificationDto,
@@ -8,7 +7,6 @@ import {
 } from './dto/fetch-notification.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
-import { NotificationType } from 'src/common/repository/notification/notification.repository';
 import { NotificationGateway } from './notification.gateway';
 
 @Injectable()

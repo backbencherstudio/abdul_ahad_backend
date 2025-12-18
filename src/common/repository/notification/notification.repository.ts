@@ -16,6 +16,7 @@ export enum NotificationType {
   BLOG = 'blog',
   ROLE_MANAGEMENT = 'role_management',
   SUBSCRIPTION = 'subscription',
+  MOT_EXPIRY_REMINDER = 'mot_expiry_reminder',
   // Add new types here as needed
 }
 export class NotificationRepository {
