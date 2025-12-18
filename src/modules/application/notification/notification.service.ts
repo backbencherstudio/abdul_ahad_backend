@@ -242,15 +242,22 @@ export class NotificationService {
     return { success: true, message: 'All notifications marked as read' };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} notification`;
+  async deleteAll(userId: string) {
+    await this.prisma.notification.deleteMany({
+      where: {
+        receiver_id: userId,
+      },
+    });
+    return { success: true, message: 'All notifications deleted' };
   }
 
-  update(id: number, updateNotificationDto: UpdateNotificationDto) {
-    return `This action updates a #${id} notification`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} notification`;
+  async deleteOne(userId: string, id: string) {
+    await this.prisma.notification.deleteMany({
+      where: {
+        id,
+        receiver_id: userId,
+      },
+    });
+    return { success: true, message: 'Notification deleted' };
   }
 }

@@ -138,22 +138,25 @@ export class NotificationGateway
     return this.notificationService.findAll(userId);
   }
 
-  @SubscribeMessage('findOneNotification')
-  findOne(@MessageBody() id: number) {
-    return this.notificationService.findOne(id);
-  }
+  // @SubscribeMessage('findOneNotification')
+  // findOne(@MessageBody() id: number) {
+  //   return this.notificationService.findOne(id);
+  // }
 
-  @SubscribeMessage('updateNotification')
-  update(@MessageBody() updateNotificationDto: UpdateNotificationDto) {
-    return this.notificationService.update(
-      updateNotificationDto.id,
-      updateNotificationDto,
-    );
-  }
+  // @SubscribeMessage('updateNotification')
+  // update(@MessageBody() updateNotificationDto: UpdateNotificationDto) {
+  //   return this.notificationService.update(
+  //     updateNotificationDto.id,
+  //     updateNotificationDto,
+  //   );
+  // }
 
   @SubscribeMessage('removeNotification')
-  remove(@MessageBody() id: number) {
-    return this.notificationService.remove(id);
+  remove(@MessageBody() id: string, @ConnectedSocket() client: Socket) {
+    const userId = [...this.clients.entries()].find(
+      ([, socketId]) => socketId === client.id,
+    )?.[0];
+    return this.notificationService.deleteOne(userId, id);
   }
 
   public sendNotification(data: any) {

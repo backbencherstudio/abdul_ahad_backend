@@ -6,6 +6,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Delete,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -68,6 +69,34 @@ export class NotificationController {
     try {
       const userId = req.user.userId;
       return await this.notificationService.markAsRead(userId, id);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Delete all notifications' })
+  @Delete('all')
+  async deleteAll(@Req() req: Request) {
+    try {
+      const userId = req.user.userId;
+      return await this.notificationService.deleteAll(userId);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Delete a notification' })
+  @Delete(':id')
+  async deleteOne(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const userId = req.user.userId;
+      return await this.notificationService.deleteOne(userId, id);
     } catch (error) {
       return {
         success: false,

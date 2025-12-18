@@ -165,8 +165,22 @@ export class NotificationController {
   }
 
   @ApiOperation({
-    summary: 'Delete notification',
-    description: 'Soft delete a notification',
+    summary: 'Delete all notifications',
+    description: 'Delete all notifications for current admin',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All notifications deleted successfully',
+  })
+  @Delete('all')
+  async deleteAllNotifications(@Req() req) {
+    const adminId = req.user.id;
+    return this.notificationService.deleteAllNotifications(adminId);
+  }
+
+  @ApiOperation({
+    summary: 'Delete notification by ID',
+    description: 'Soft delete a notification by its ID',
   })
   @ApiResponse({
     status: 200,
@@ -178,8 +192,8 @@ export class NotificationController {
   })
   @ApiParam({ name: 'id', description: 'Notification ID' })
   @Delete(':id')
-  async deleteNotification(@Param('id') id: string, @Req() req) {
+  async deleteNotificationById(@Param('id') id: string, @Req() req) {
     const adminId = req.user.id;
-    return this.notificationService.deleteNotification(id, adminId);
+    return this.notificationService.deleteNotificationById(id, adminId);
   }
 }

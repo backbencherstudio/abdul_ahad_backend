@@ -413,7 +413,7 @@ export class NotificationService {
   /**
    * Delete notification (soft delete)
    */
-  async deleteNotification(notificationId: string, adminId: string) {
+  async deleteNotificationById(notificationId: string, adminId: string) {
     const notification = await this.prisma.notification.findFirst({
       where: {
         id: notificationId,
@@ -428,6 +428,17 @@ export class NotificationService {
     return this.prisma.notification.update({
       where: { id: notificationId },
       data: { deleted_at: new Date() },
+    });
+  }
+
+  /**
+   * Delete all notifications for an admin
+   */
+  async deleteAllNotifications(adminId: string) {
+    return this.prisma.notification.deleteMany({
+      where: {
+        receiver_id: adminId,
+      },
     });
   }
 
