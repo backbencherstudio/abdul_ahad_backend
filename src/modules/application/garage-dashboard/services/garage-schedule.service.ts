@@ -2483,7 +2483,7 @@ export class GarageScheduleService {
         }
 
         // ✅ NEW: Generic error with more helpful message
-        console.error('Slot modification error:', error);
+        //console.error('Slot modification error:', error);
         throw new BadRequestException(
           'Failed to modify slot time. Please check your input and try again. If the problem persists, contact support.',
         );
