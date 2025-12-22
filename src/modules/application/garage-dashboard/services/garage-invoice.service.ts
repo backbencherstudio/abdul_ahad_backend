@@ -68,20 +68,20 @@ export class GarageInvoiceService {
           {
             invoice_number: {
               contains: search,
-              mode: 'insensitive',
+              // mode: 'insensitive',
             },
           },
           {
             membership_period: {
               contains: search,
-              mode: 'insensitive',
+              // mode: 'insensitive',
             },
           },
           {
             garage: {
               garage_name: {
                 contains: search,
-                mode: 'insensitive',
+                // mode: 'insensitive',
               },
             },
           },

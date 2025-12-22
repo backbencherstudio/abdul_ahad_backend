@@ -25,7 +25,7 @@ export class VehicleService {
     if (search && search.trim() !== '') {
       const searchFilter = {
         contains: search,
-        mode: 'insensitive',
+        // mode: 'insensitive',
       };
 
       whereClause.OR = [

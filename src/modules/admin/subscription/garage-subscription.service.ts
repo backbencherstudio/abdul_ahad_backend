@@ -193,8 +193,8 @@ export class GarageSubscriptionService {
 
     if (search) {
       where.OR = [
-        { garage: { garage_name: { contains: search, mode: 'insensitive' } } },
-        { garage: { email: { contains: search, mode: 'insensitive' } } },
+        { garage: { garage_name: { contains: search } } }, // mode: 'insensitive' } } },
+        { garage: { email: { contains: search } } }, // mode: 'insensitive' } } },
       ];
     }
 

@@ -35,13 +35,13 @@ export class GarageService {
     // Handle search filter
     if (q) {
       whereClause.OR = [
-        { id: { contains: q, mode: 'insensitive' } },
-        { garage_name: { contains: q, mode: 'insensitive' } },
-        { email: { contains: q, mode: 'insensitive' } },
-        { phone_number: { contains: q, mode: 'insensitive' } },
-        { address: { contains: q, mode: 'insensitive' } },
-        { vts_number: { contains: q, mode: 'insensitive' } },
-        { primary_contact: { contains: q, mode: 'insensitive' } },
+        { id: { contains: q } }, //mode: 'insensitive' } },
+        { garage_name: { contains: q } }, // mode: 'insensitive' } },
+        { email: { contains: q } }, // mode: 'insensitive' } },
+        { phone_number: { contains: q } }, // mode: 'insensitive' } },
+        { address: { contains: q } }, // mode: 'insensitive' } },
+        { vts_number: { contains: q } }, // mode: 'insensitive' } },
+        { primary_contact: { contains: q } }, // mode: 'insensitive' } },
       ];
     }
 
