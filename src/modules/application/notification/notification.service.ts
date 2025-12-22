@@ -187,12 +187,14 @@ export class NotificationService {
         data.length > 0
           ? 'Notifications fetched successfully'
           : 'No notifications found',
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      data: {
+        notifications: data,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
       },
     };
   }

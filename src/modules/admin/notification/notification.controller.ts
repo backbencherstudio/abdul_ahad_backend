@@ -98,7 +98,7 @@ export class NotificationController {
     @Query('unread_only') unreadOnly?: string,
     @Query('type') type?: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit?: number,
-    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset?: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
   ) {
     const adminId = req.user.userId;
 
@@ -106,7 +106,7 @@ export class NotificationController {
       unreadOnly: unreadOnly === 'true',
       type,
       limit,
-      offset,
+      page,
     });
   }
 

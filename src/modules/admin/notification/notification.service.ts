@@ -313,9 +313,10 @@ export class NotificationService {
       unreadOnly?: boolean;
       type?: string;
       limit?: number;
-      offset?: number;
+      page?: number;
     },
   ) {
+    const skip = (filters?.page - 1) * filters?.limit;
     if (!adminId) return [];
     const where: any = {
       receiver_id: adminId,
@@ -333,32 +334,46 @@ export class NotificationService {
       };
     }
 
-    const notifications = await this.prisma.notification.findMany({
-      where,
-      select: {
-        id: true,
-        entity_id: true,
-        receiver_id: true,
-        read_at: true,
-        created_at: true,
-        is_action_taken: true,
-        sender_id: true,
-        status: true,
-        notification_event: {
-          select: {
-            type: true,
-            text: true,
-            actions: true,
-            status: true,
+    const [notifications, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        select: {
+          id: true,
+          entity_id: true,
+          receiver_id: true,
+          read_at: true,
+          created_at: true,
+          is_action_taken: true,
+          sender_id: true,
+          status: true,
+          notification_event: {
+            select: {
+              type: true,
+              text: true,
+              actions: true,
+              status: true,
+            },
           },
         },
-      },
-      orderBy: { created_at: 'desc' },
-      take: filters?.limit || 50,
-      skip: filters?.offset || 0,
-    });
+        orderBy: { created_at: 'desc' },
+        take: filters?.limit || 50,
+        skip,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
 
-    return notifications;
+    return {
+      success: true,
+      data: {
+        notifications,
+        pagination: {
+          total,
+          page: filters?.page || 1,
+          limit: filters?.limit || 50,
+          pages: Math.ceil(total / (filters?.limit || 50)),
+        },
+      },
+    };
   }
 
   /**
