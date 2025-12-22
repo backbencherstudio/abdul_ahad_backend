@@ -132,62 +132,62 @@ export class StripeController {
           break;
         case 'payout.paid':
           const paidPayout = event.data.object;
-          console.log(paidPayout);
+          //console.log(paidPayout);
           break;
         case 'payout.failed':
           const failedPayout = event.data.object;
-          console.log(failedPayout);
+          //console.log(failedPayout);
           break;
 
         // ✅ NEW: Subscription Events (ADDED TO YOUR EXISTING CODE)
         case 'product.created':
         case 'plan.created': // Handle both product and plan events
-          console.log('Product/Plan created:', event.data.object);
+          //console.log('Product/Plan created:', event.data.object);
           break;
 
         case 'price.created':
-          console.log('Price created:', event.data.object);
+          //console.log('Price created:', event.data.object);
           break;
 
         case 'customer.subscription.created':
-          console.log('Subscription created:', event.data.object);
+          //console.log('Subscription created:', event.data.object);
           await this.stripeService.handleSubscriptionCreated(event.data.object);
           break;
 
         case 'customer.subscription.updated':
-          console.log('Subscription updated:', event.data.object);
+          //console.log('Subscription updated:', event.data.object);
           await this.stripeService.handleSubscriptionUpdated(event.data.object);
           break;
 
         case 'customer.subscription.deleted':
-          console.log('Subscription cancelled:', event.data.object);
+          //console.log('Subscription cancelled:', event.data.object);
           await this.stripeService.handleSubscriptionCancelled(
             event.data.object,
           );
           break;
 
         case 'invoice.payment_succeeded':
-          console.log('Payment succeeded:', event.data.object);
+          //console.log('Payment succeeded:', event.data.object);
           await this.stripeService.handlePaymentSucceeded(event.data.object);
           break;
 
         case 'invoice.payment_failed':
-          console.log('Payment failed:', event.data.object);
+          //console.log('Payment failed:', event.data.object);
           await this.stripeService.handlePaymentFailed(event.data.object);
           break;
 
         case 'customer.subscription.trial_will_end':
-          console.log('Trial will end:', event.data.object);
+          //console.log('Trial will end:', event.data.object);
           await this.stripeService.handleTrialWillEnd(event.data.object);
           break;
 
         case 'billing_portal.session.created':
-          console.log('Billing portal session created:', event.data.object);
+          //console.log('Billing portal session created:', event.data.object);
           // No action needed - this is just informational
           break;
 
         default:
-          console.log(`Unhandled event type ${event.type}`);
+        //console.log(`Unhandled event type ${event.type}`);
       }
 
       return { received: true };

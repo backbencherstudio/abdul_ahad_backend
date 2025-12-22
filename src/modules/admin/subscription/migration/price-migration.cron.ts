@@ -46,7 +46,7 @@ export class PriceMigrationCron {
       this.logger.log(
         `📋 Found ${duePlanIds.length} plans for migration (bypass: ${bypassDateCheck})`,
       );
-      console.log('Due plans:', duePlanIds);
+      // console.log('Due plans:', duePlanIds);
 
       const migrationResults = [];
 

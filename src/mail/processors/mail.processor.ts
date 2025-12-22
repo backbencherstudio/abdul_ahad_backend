@@ -12,9 +12,9 @@ export class MailProcessor extends WorkerHost {
 
   @OnWorkerEvent('active')
   onActive(job: Job) {
-    console.log(
-      `Processing job ${job.id} of type ${job.name} with data ${job.data}...`,
-    );
+    // console.log(
+    //   `Processing job ${job.id} of type ${job.name} with data ${job.data}...`,
+    // );
   }
 
   @OnWorkerEvent('completed')

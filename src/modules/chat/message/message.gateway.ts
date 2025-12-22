@@ -52,7 +52,7 @@ export class MessageGateway
   onModuleInit() {}
 
   afterInit(server: Server) {
-    console.log('Websocket server started');
+    //console.log('Websocket server started');
   }
 
   // implement jwt token validation
@@ -62,7 +62,7 @@ export class MessageGateway
       const token = client.handshake.auth.token || client.handshake.query.token;
       if (!token) {
         client.disconnect();
-        console.log('No token provided');
+        //console.log('No token provided');
         return;
       }
 
@@ -72,7 +72,7 @@ export class MessageGateway
       const userId = decoded.sub;
       if (!userId) {
         client.disconnect();
-        console.log('Invalid token');
+        //console.log('Invalid token');
         return;
       }
 
@@ -85,10 +85,10 @@ export class MessageGateway
         status: 'online',
       });
 
-      console.log(`User ${userId} connected`);
+      //console.log(`User ${userId} connected`);
     } catch (error) {
       client.disconnect();
-      console.error('Error handling connection:', error);
+      //console.error('Error handling connection:', error);
     }
   }
 
@@ -113,7 +113,7 @@ export class MessageGateway
         status: 'offline',
       });
 
-      console.log(`User ${userId} disconnected`);
+      //console.log(`User ${userId} disconnected`);
     }
   }
 
@@ -181,7 +181,7 @@ export class MessageGateway
   @SubscribeMessage('join')
   handleJoin(client: Socket, { username }: { username: string }) {
     this.activeUsers.set(username, client.id);
-    console.log(`${username} joined`);
+    //console.log(`${username} joined`);
   }
 
   @SubscribeMessage('call')
@@ -244,7 +244,7 @@ export class MessageGateway
       chunk: Buffer | any;
     },
   ) {
-    console.log('Received chunk', payload.sequence, payload.chunk.length);
+    //console.log('Received chunk', payload.sequence, payload.chunk.length);
     const { recordingId, chunk } = payload;
     const filePath = path.join(this.uploadsDir, `${recordingId}.webm`);
 
@@ -269,7 +269,7 @@ export class MessageGateway
     const filePath = path.join(this.uploadsDir, `${payload.recordingId}.webm`);
     const stream = fs.createWriteStream(filePath, { flags: 'a' });
 
-    console.log(`Started writing to file ${filePath}`);
+    //console.log(`Started writing to file ${filePath}`);
     const buffer = this.chunks.get(payload.recordingId);
     if (buffer) {
       stream.write(buffer);

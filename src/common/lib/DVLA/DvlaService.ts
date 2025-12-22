@@ -102,7 +102,7 @@ export class DvlaService {
 
       // Ensure we have a valid access token
       await this.ensureValidMotToken();
-      console.log('mot token: ', this.motAccessToken);
+      // console.log('mot token: ', this.motAccessToken);
 
       const response: AxiosResponse<MotHistoryResponse> = await axios.get(
         `${this.MOT_API_BASE_URL}/${registrationNumber.toUpperCase()}`,
@@ -115,7 +115,7 @@ export class DvlaService {
           timeout: 15000, // 15 second timeout for MOT API
         },
       );
-      console.log(response.data);
+      // console.log(response.data);
 
       this.logger.log(
         `Successfully retrieved MOT history for: ${registrationNumber}`,

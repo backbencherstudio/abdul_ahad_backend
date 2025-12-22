@@ -79,7 +79,7 @@ export class NotificationService {
       }
       notification['data'] = entity;
     } catch (error) {
-      console.log(error?.message);
+      //console.log(error?.message);
     }
     return notification;
   }

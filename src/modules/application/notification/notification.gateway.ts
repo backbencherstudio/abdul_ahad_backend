@@ -56,7 +56,7 @@ export class NotificationGateway
     });
 
     this.redisSubClient.subscribe('notification', (err, count) => {
-      console.log(`Subscribed to ${count} channel(s)`);
+      //console.log(`Subscribed to ${count} channel(s)`);
     });
 
     this.redisSubClient.on('message', (channel, message) => {
@@ -67,11 +67,11 @@ export class NotificationGateway
           const targetSocketId = this.clients.get(data.userId);
           if (targetSocketId) {
             this.server.to(targetSocketId).emit('notification', data);
-            console.log(
-              `Notification sent to socket: ${targetSocketId} for user: ${data.userId}`,
-            );
+            //console.log(
+            //  `Notification sent to socket: ${targetSocketId} for user: ${data.userId}`,
+            //);
           } else {
-            console.log(`User ${data.userId} not connected`);
+            //console.log(`User ${data.userId} not connected`);
           }
         }
       }
@@ -79,7 +79,7 @@ export class NotificationGateway
   }
 
   afterInit(server: Server) {
-    console.log('Websocket server started');
+    //console.log('Websocket server started');
   }
 
   async handleConnection(client: Socket, ...args: any[]) {
@@ -87,7 +87,7 @@ export class NotificationGateway
     const userId = client.handshake.query.userId as string; // User ID passed as query parameter
     if (userId) {
       this.clients.set(userId, client.id);
-      console.log(`User ${userId} connected with socket ${client.id}`);
+      //console.log(`User ${userId} connected with socket ${client.id}`);
     }
   }
 
@@ -98,7 +98,7 @@ export class NotificationGateway
     )?.[0];
     if (userId) {
       this.clients.delete(userId);
-      console.log(`User ${userId} disconnected`);
+      //console.log(`User ${userId} disconnected`);
     }
   }
 
@@ -110,7 +110,7 @@ export class NotificationGateway
 
   @SubscribeMessage('sendNotification')
   async handleNotification(@MessageBody() data: any) {
-    console.log(`Received notification: ${JSON.stringify(data)}`);
+    //console.log(`Received notification: ${JSON.stringify(data)}`);
     // Broadcast notification to all clients
     // this.server.emit('receiveNotification', data);
 
@@ -160,7 +160,7 @@ export class NotificationGateway
   }
 
   public sendNotification(data: any) {
-    console.log(`Publishing notification to Redis: ${JSON.stringify(data)}`);
+    // console.log(`Publishing notification to Redis: ${JSON.stringify(data)}`);
     this.redisPubClient.publish('notification', JSON.stringify(data));
   }
 }

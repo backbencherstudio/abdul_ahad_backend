@@ -83,14 +83,14 @@ export class NotificationService {
       }
       notification['data'] = entity;
     } catch (error) {
-      console.log(error?.message);
+      // console.log(error?.message);
     }
     return notification;
   }
 
   async createBulkNotification(dto: CreateBulkNotificationDto) {
     try {
-      console.log(dto);
+      // console.log(dto);
       await Promise.all(
         dto.receivers.map(async ({ entity_id, receiver_id }) => {
           const notification = await this.prisma.notification.create({
@@ -135,7 +135,7 @@ export class NotificationService {
           });
         }),
       );
-      console.log('Notification sent successfully');
+      // console.log('Notification sent successfully');
       return {
         success: true,
         message: 'Notification sent successfully',

@@ -847,13 +847,20 @@ export class VehicleService {
         limit = 10,
         page = 1,
         full_response = false,
+        status,
       } = query || {};
 
       const skip = (page - 1) * limit;
 
       // If full_response is true or no fields specified, return complete response (backward compatibility)
       if (full_response || !fields) {
-        return this.getFullMotHistory(vehicle, include_defects, limit, skip);
+        return this.getFullMotHistory(
+          vehicle,
+          include_defects,
+          limit,
+          skip,
+          status,
+        );
       }
 
       // Parse requested fields
@@ -866,6 +873,7 @@ export class VehicleService {
         include_defects,
         limit,
         skip,
+        status,
       );
 
       // Build response based on requested fields
@@ -882,6 +890,7 @@ export class VehicleService {
         limit,
         page,
         full_response,
+        status,
         total_reports: reports.length,
       };
 
@@ -903,12 +912,18 @@ export class VehicleService {
     includeDefects: boolean,
     limit: number,
     skip: number,
+    status?: string,
   ) {
     // ✅ Fix: Use proper Prisma include syntax
     const includeOptions = includeDefects ? { defects: true } : undefined;
 
+    const where: any = { vehicle_id: vehicle.id };
+    if (status) {
+      where.status = status;
+    }
+
     const reports = await this.prisma.motReport.findMany({
-      where: { vehicle_id: vehicle.id },
+      where,
       include: includeOptions, // ✅ Fixed: Use undefined instead of false
       orderBy: { test_date: 'desc' },
       take: limit,
@@ -1110,6 +1125,7 @@ export class VehicleService {
     includeDefects: boolean,
     limit: number,
     skip: number,
+    status?: string,
   ) {
     const { reportFields, includeDefects: fieldsRequireDefects } =
       fieldCategories;
@@ -1119,8 +1135,13 @@ export class VehicleService {
     // ✅ Fix: Use proper Prisma include syntax
     const includeOptions = shouldIncludeDefects ? { defects: true } : undefined;
 
+    const where: any = { vehicle_id: vehicleId };
+    if (status) {
+      where.status = status;
+    }
+
     return await this.prisma.motReport.findMany({
-      where: { vehicle_id: vehicleId },
+      where,
       include: includeOptions, // ✅ Fixed: Use undefined instead of false
       orderBy: { test_date: 'desc' },
       take: limit,

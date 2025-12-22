@@ -104,15 +104,15 @@ export class SubscriptionPlanService {
           },
         });
       } catch (notificationError) {
-        console.error(
-          'Failed to send new plan created notification:',
-          notificationError,
-        );
+        //console.error(
+        //  'Failed to send new plan created notification:',
+        //  notificationError,
+        //);
       }
 
       return this.formatPlanResponse(updatedPlan);
     } catch (error) {
-      console.error('Failed to sync with Stripe:', error);
+      //console.error('Failed to sync with Stripe:', error);
 
       // Notify admins about Stripe sync failure
       try {
@@ -136,10 +136,10 @@ export class SubscriptionPlanService {
           },
         });
       } catch (notificationError) {
-        console.error(
-          'Failed to send new plan created (Stripe sync failed) notification:',
-          notificationError,
-        );
+        //console.error(
+        //  'Failed to send new plan created (Stripe sync failed) notification:',
+        //  notificationError,
+        //);
       }
 
       // Return plan without Stripe sync (you can decide if you want to throw error)
@@ -338,10 +338,10 @@ export class SubscriptionPlanService {
           },
         });
       } catch (notificationError) {
-        console.error(
-          'Failed to send plan deletion blocked notification:',
-          notificationError,
-        );
+        //console.error(
+        //  'Failed to send plan deletion blocked notification:',
+        //  notificationError,
+        //);
       }
 
       throw new BadRequestException(

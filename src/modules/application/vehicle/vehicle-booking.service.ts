@@ -263,7 +263,7 @@ export class VehicleBookingService {
           },
         ],
       });
-      console.log(booking);
+      //console.log(booking);
       return booking
         ? booking
         : {

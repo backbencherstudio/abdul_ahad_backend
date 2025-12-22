@@ -39,7 +39,7 @@ export class LocalAuthGuard extends AuthGuard('local') {
     // ✅ NEW: Check if user is admin - if so, skip type validation
     if (user.type === 'ADMIN') {
       // Admin users don't need type field
-      console.log('Admin login detected, skipping type validation');
+      //console.log('Admin login detected, skipping type validation');
     } else {
       // ✅ NEW: For non-admin users (DRIVER/GARAGE), require type field
       if (!type) {

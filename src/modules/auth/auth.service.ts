@@ -663,9 +663,9 @@ export class AuthService {
 
           // 🔒 SECURITY LOGGING: Track security events for audit trail
           if (wasBanned) {
-            console.log(
-              `🚨 SECURITY ALERT: Banned user ${user.email} attempted email verification bypass at ${new Date().toISOString()}`,
-            );
+            //console.log(
+            //  `🚨 SECURITY ALERT: Banned user ${user.email} attempted email verification bypass at ${new Date().toISOString()}`,
+            //);
             // TODO: Add to security audit log database table if needed
           }
 

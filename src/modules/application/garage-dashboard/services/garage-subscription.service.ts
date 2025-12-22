@@ -749,7 +749,7 @@ export class GarageSubscriptionService {
    */
   async validateCheckoutSession(sessionId: string) {
     try {
-      console.log(`Validating checkout session: ${sessionId}`);
+      //console.log(`Validating checkout session: ${sessionId}`);
 
       // Retrieve session from Stripe
       const session = await StripePayment.retrieveCheckoutSession(sessionId);
@@ -771,7 +771,7 @@ export class GarageSubscriptionService {
           ? session.subscription
           : session.subscription?.id;
 
-      console.log(`Validating subscription ID from session: ${subscriptionId}`);
+      // console.log(`Validating subscription ID from session: ${subscriptionId}`);
 
       if (!subscriptionId) {
         throw new BadRequestException(

@@ -29,7 +29,7 @@ export class MailService {
         },
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   }
 
@@ -51,7 +51,7 @@ export class MailService {
         },
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   }
 
@@ -75,7 +75,7 @@ export class MailService {
         },
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   }
 
@@ -110,7 +110,7 @@ export class MailService {
         },
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   }
 
@@ -144,7 +144,7 @@ export class MailService {
         },
       });
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   }
 
@@ -173,9 +173,9 @@ export class MailService {
         },
       });
 
-      console.log(`Ban notification email queued for user: ${user.email}`);
+      // console.log(`Ban notification email queued for user: ${user.email}`);
     } catch (error) {
-      console.error('Error queuing ban notification email:', error);
+      // console.error('Error queuing ban notification email:', error);
     }
   }
 
@@ -204,9 +204,9 @@ export class MailService {
         },
       });
 
-      console.log(`Unban notification email queued for user: ${user.email}`);
+      // console.log(`Unban notification email queued for user: ${user.email}`);
     } catch (error) {
-      console.error('Error queuing unban notification email:', error);
+      // console.error('Error queuing unban notification email:', error);
     }
   }
 
@@ -235,11 +235,11 @@ export class MailService {
         },
       });
 
-      console.log(
-        `Admin ban notification email queued for user: ${user.email}`,
-      );
+      // console.log(
+      //   `Admin ban notification email queued for user: ${user.email}`,
+      // );
     } catch (error) {
-      console.error('Error queuing admin ban notification email:', error);
+      // console.error('Error queuing admin ban notification email:', error);
     }
   }
 
@@ -266,11 +266,11 @@ export class MailService {
         },
       });
 
-      console.log(
-        `Admin unban notification email queued for user: ${user.email}`,
-      );
+      // console.log(
+      //   `Admin unban notification email queued for user: ${user.email}`,
+      // );
     } catch (error) {
-      console.error('Error queuing admin unban notification email:', error);
+      // console.error('Error queuing admin unban notification email:', error);
     }
   }
 
@@ -310,9 +310,9 @@ export class MailService {
         },
       });
 
-      console.log(`Trial warning email queued for garage: ${params.to}`);
+      // console.log(`Trial warning email queued for garage: ${params.to}`);
     } catch (error) {
-      console.error('Error queuing trial warning email:', error);
+      // console.error('Error queuing trial warning email:', error);
     }
   }
 
@@ -350,11 +350,11 @@ export class MailService {
         },
       });
 
-      console.log(
-        `Trial-to-paid confirmation email queued for garage: ${params.to}`,
-      );
+      // console.log(
+      //   `Trial-to-paid confirmation email queued for garage: ${params.to}`,
+      // );
     } catch (error) {
-      console.error('Error queuing trial-to-paid confirmation email:', error);
+      // console.error('Error queuing trial-to-paid confirmation email:', error);
     }
   }
 
@@ -390,9 +390,9 @@ export class MailService {
         },
       });
 
-      console.log(`Trial expiration email queued for garage: ${params.to}`);
+      // console.log(`Trial expiration email queued for garage: ${params.to}`);
     } catch (error) {
-      console.error('Error queuing trial expiration email:', error);
+      // console.error('Error queuing trial expiration email:', error);
     }
   }
 
@@ -456,11 +456,11 @@ export class MailService {
         },
       });
 
-      console.log(
-        `Payment failure notification email queued for garage: ${params.to}`,
-      );
+      // console.log(
+      //   `Payment failure notification email queued for garage: ${params.to}`,
+      // );
     } catch (error) {
-      console.error('Error queuing payment failure notification:', error);
+      // console.error('Error queuing payment failure notification:', error);
     }
   }
 
@@ -501,9 +501,9 @@ export class MailService {
         },
       });
 
-      console.log(`Subscription welcome email queued for garage: ${params.to}`);
+      // console.log(`Subscription welcome email queued for garage: ${params.to}`);
     } catch (error) {
-      console.error('Error sending subscription welcome email:', error);
+      // console.error('Error sending subscription welcome email:', error);
     }
   }
 
@@ -554,7 +554,7 @@ export class MailService {
         },
       });
 
-      console.log(`Payment success email queued for garage: ${params.to}`);
+      // console.log(`Payment success email queued for garage: ${params.to}`);
     } catch (error) {
       console.error('Error sending payment success email:', error);
     }
@@ -642,9 +642,9 @@ export class MailService {
         },
       );
 
-      console.log(`${notificationConfig.logMessage} email queued for: ${to}`);
+      // console.log(`${notificationConfig.logMessage} email queued for: ${to}`);
     } catch (error) {
-      console.error('Error queuing user notification email:', error);
+      // console.error('Error queuing user notification email:', error);
     }
   }
 
@@ -672,11 +672,11 @@ export class MailService {
         },
       });
 
-      console.log(
-        `MOT expiry reminder email queued for ${user.email} for vehicle ${vehicle.registration_number}`,
-      );
+      // console.log(
+      //   `MOT expiry reminder email queued for ${user.email} for vehicle ${vehicle.registration_number}`,
+      // );
     } catch (error) {
-      console.error('Error queuing MOT expiry reminder email:', error);
+      // console.error('Error queuing MOT expiry reminder email:', error);
     }
   }
 }

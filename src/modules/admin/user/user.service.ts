@@ -746,9 +746,9 @@ export class UserService {
       // Handle role-based actions
       if (bannedUser.type === 'ADMIN') {
         // Admin users: No Stripe actions needed (no subscriptions)
-        console.log(
-          `Admin user ${bannedUser.email} banned - skipping Stripe actions`,
-        );
+        // console.log(
+        //   `Admin user ${bannedUser.email} banned - skipping Stripe actions`,
+        // );
 
         // Send admin-specific ban notification email
         const adminBanReason = reason?.trim() || 'Administrative action';
@@ -848,9 +848,9 @@ export class UserService {
       // Handle role-based actions
       if (unbannedUser.type === 'ADMIN') {
         // Admin users: No Stripe actions needed (no subscriptions)
-        console.log(
-          `Admin user ${unbannedUser.email} unbanned - skipping Stripe actions`,
-        );
+        // console.log(
+        //   `Admin user ${unbannedUser.email} unbanned - skipping Stripe actions`,
+        // );
 
         // Send admin-specific unban notification email
         await this.mailService.sendAdminUnbannedNotification({
@@ -873,7 +873,7 @@ export class UserService {
               );
             hadSubscription = activeSubscriptions.length > 0;
           } catch (error) {
-            console.error('Error checking subscription history:', error);
+            //console.error('Error checking subscription history:', error);
             // Default to false if we can't check
           }
         }
@@ -899,7 +899,7 @@ export class UserService {
         },
       };
     } catch (error) {
-      console.error('Error unbanning user:', error);
+      //console.error('Error unbanning user:', error);
       return {
         success: false,
         message: 'Failed to unban user: ' + error.message,
@@ -915,13 +915,13 @@ export class UserService {
     try {
       // Skip if user doesn't have billing_id
       if (!user.billing_id) {
-        console.log(
-          `User ${user.email} has no billing_id, skipping Stripe actions`,
-        );
+        // console.log(
+        //   `User ${user.email} has no billing_id, skipping Stripe actions`,
+        // );
         return;
       }
 
-      console.log(`Handling Stripe actions for banned user: ${user.email}`);
+      //console.log(`Handling Stripe actions for banned user: ${user.email}`);
 
       // Get active subscriptions for the customer
       const activeSubscriptions = await StripePayment.getActiveSubscriptions(
@@ -929,27 +929,27 @@ export class UserService {
       );
 
       if (activeSubscriptions.length > 0) {
-        console.log(
-          `Found ${activeSubscriptions.length} active subscriptions for user ${user.email}`,
-        );
+        //console.log(
+        //  `Found ${activeSubscriptions.length} active subscriptions for user ${user.email}`,
+        //);
 
         // Cancel subscriptions at period end (graceful cancellation)
         for (const subscription of activeSubscriptions) {
           try {
             await StripePayment.cancelSubscriptionAtPeriodEnd(subscription.id);
-            console.log(
-              `Subscription ${subscription.id} will be cancelled at period end`,
-            );
+            //console.log(
+            //  `Subscription ${subscription.id} will be cancelled at period end`,
+            //);
           } catch (error) {
-            console.error(
-              `Error cancelling subscription ${subscription.id}:`,
-              error,
-            );
+            //console.error(
+            //  `Error cancelling subscription ${subscription.id}:`,
+            //  error,
+            //);
             // Continue with other subscriptions even if one fails
           }
         }
       } else {
-        console.log(`No active subscriptions found for user ${user.email}`);
+        //console.log(`No active subscriptions found for user ${user.email}`);
       }
 
       // Update customer metadata to mark as banned
@@ -962,14 +962,14 @@ export class UserService {
         },
       });
 
-      console.log(
-        `Successfully updated Stripe customer metadata for banned user: ${user.email}`,
-      );
+      //console.log(
+      //  `Successfully updated Stripe customer metadata for banned user: ${user.email}`,
+      //);
     } catch (error) {
-      console.error(
-        `Error handling Stripe actions for banned user ${user.email}:`,
-        error,
-      );
+      //console.error(
+      //  `Error handling Stripe actions for banned user ${user.email}:`,
+      //  error,
+      //);
       // Don't throw error to prevent ban operation from failing
       // Log the error and continue with the ban process
     }
@@ -983,13 +983,13 @@ export class UserService {
     try {
       // Skip if user doesn't have billing_id
       if (!user.billing_id) {
-        console.log(
-          `User ${user.email} has no billing_id, skipping Stripe actions`,
-        );
+        //console.log(
+        //  `User ${user.email} has no billing_id, skipping Stripe actions`,
+        //);
         return;
       }
 
-      console.log(`Handling Stripe actions for unbanned user: ${user.email}`);
+      //console.log(`Handling Stripe actions for unbanned user: ${user.email}`);
 
       // Update customer metadata to mark as active
       await StripePayment.updateCustomerMetadata({
@@ -1002,20 +1002,20 @@ export class UserService {
         },
       });
 
-      console.log(
-        `Successfully updated Stripe customer metadata for unbanned user: ${user.email}`,
-      );
+      //console.log(
+      //  `Successfully updated Stripe customer metadata for unbanned user: ${user.email}`,
+      //);
 
       // Note: We don't automatically reactivate subscriptions
       // User must manually resubscribe if they want paid features
-      console.log(
-        `User ${user.email} can manually resubscribe for paid features`,
-      );
+      // console.log(
+      //   `User ${user.email} can manually resubscribe for paid features`,
+      // );
     } catch (error) {
-      console.error(
-        `Error handling Stripe actions for unbanned user ${user.email}:`,
-        error,
-      );
+      //console.error(
+      //  `Error handling Stripe actions for unbanned user ${user.email}:`,
+      //  error,
+      //);
       // Don't throw error to prevent unban operation from failing
       // Log the error and continue with the unban process
     }

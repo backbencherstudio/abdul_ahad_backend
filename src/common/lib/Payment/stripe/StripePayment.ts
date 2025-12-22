@@ -121,7 +121,7 @@ export class StripePayment {
       });
       return customer;
     } catch (error) {
-      console.error('Error updating customer metadata:', error);
+      //console.error('Error updating customer metadata:', error);
       throw new Error('Failed to update customer metadata: ' + error.message);
     }
   }
@@ -152,7 +152,7 @@ export class StripePayment {
       });
       return subscriptions.data;
     } catch (error) {
-      console.error('Error fetching active subscriptions:', error);
+      //console.error('Error fetching active subscriptions:', error);
       throw new Error('Failed to fetch active subscriptions: ' + error.message);
     }
   }
@@ -686,7 +686,7 @@ export class StripePayment {
       );
       return event;
     } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
+      //console.error('Webhook signature verification failed:', err.message);
       throw new Error('Invalid webhook signature');
     }
   }
@@ -703,7 +703,7 @@ export class StripePayment {
       const session = await Stripe.checkout.sessions.retrieve(sessionId);
       return session;
     } catch (error) {
-      console.error(`Failed to retrieve checkout session ${sessionId}:`, error);
+      //console.error(`Failed to retrieve checkout session ${sessionId}:`, error);
       throw error;
     }
   }
@@ -720,10 +720,10 @@ export class StripePayment {
       const subscription = await Stripe.subscriptions.retrieve(subscriptionId);
       return subscription;
     } catch (error) {
-      console.error(
-        `Failed to retrieve subscription ${subscriptionId}:`,
-        error,
-      );
+      //console.error(
+      //  `Failed to retrieve subscription ${subscriptionId}:`,
+      //  error,
+      //);
       throw error;
     }
   }

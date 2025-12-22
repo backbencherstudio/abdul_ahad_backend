@@ -22,6 +22,15 @@ export class GetMotReportsQueryDto {
 
   @ApiProperty({
     required: false,
+    description: 'Filter by MOT test status (e.g., PASSED, FAILED)',
+    example: 'PASSED',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiProperty({
+    required: false,
     default: true,
     description: 'Include defects in response',
   })

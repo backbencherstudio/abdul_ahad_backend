@@ -227,7 +227,7 @@ export class VehicleController {
   })
   @ApiResponse({ status: 200, description: 'List of garages and vehicle info' })
   async searchGarages(@Req() req, @Body() dto: SearchGarageDto) {
-    console.log(dto);
+    //console.log(dto);
     return this.vehicleBookingService.searchGaragesByPostcode(
       req.user.userId,
       dto,

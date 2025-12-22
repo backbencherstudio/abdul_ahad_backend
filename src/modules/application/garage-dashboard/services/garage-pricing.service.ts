@@ -32,8 +32,6 @@ export class GaragePricingService {
   async upsertServicePrice(garageId: string, body: UpsertServicePriceDto) {
     const { mot, retest, additionals } = body;
 
-    console.log(body);
-
     // =========================
     // MOT
     // =========================
