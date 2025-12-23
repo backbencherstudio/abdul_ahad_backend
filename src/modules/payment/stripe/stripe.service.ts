@@ -214,10 +214,10 @@ export class StripeService {
       const metadata = subscription.metadata;
 
       if (!metadata?.garage_subscription_id) {
-        console.error(
-          'No garage_subscription_id in metadata for subscription:',
-          subscription.id,
-        );
+        // console.error(
+        //   'No garage_subscription_id in metadata for subscription:',
+        //   subscription.id,
+        // );
         return;
       }
 
@@ -229,10 +229,10 @@ export class StripeService {
         });
 
       if (!garageSubscription) {
-        console.error(
-          'No garage subscription found with ID:',
-          metadata.garage_subscription_id,
-        );
+        // console.error(
+        //   'No garage subscription found with ID:',
+        //   metadata.garage_subscription_id,
+        // );
         return;
       }
 
@@ -260,9 +260,9 @@ export class StripeService {
       // Update user subscription visibility status
       await this.updateUserSubscriptionStatus(garageSubscription.garage_id);
 
-      console.log(
-        `✅ Garage subscription activated: ${garageSubscription.garage.email} (Plan: ${garageSubscription.plan.name})`,
-      );
+      //console.log(
+      //  `✅ Garage subscription activated: ${garageSubscription.garage.email} (Plan: ${garageSubscription.plan.name})`,
+      //);
     } catch (error) {
       //console.error('Error handling garage subscription created:', error);
     }
@@ -1151,10 +1151,10 @@ export class StripeService {
           );
           billingPortalUrl = billingSession.url;
         } catch (error) {
-          console.warn(
-            `Could not create billing portal session for garage ${garage.id}:`,
-            error.message,
-          );
+          // console.warn(
+          //   `Could not create billing portal session for garage ${garage.id}:`,
+          //   error.message,
+          // );
         }
       }
 
@@ -1526,10 +1526,10 @@ export class StripeService {
         isValidPaymentMethod =
           customer && !!customer.invoice_settings?.default_payment_method;
       } catch (error) {
-        console.warn(
-          `Could not validate payment method for garage ${garageId}:`,
-          error.message,
-        );
+        // console.warn(
+        //   `Could not validate payment method for garage ${garageId}:`,
+        //   error.message,
+        // );
       }
 
       // If payment method is valid and subscription was PAST_DUE, reactivate it
@@ -1697,7 +1697,7 @@ export class StripeService {
         generated_at: now.toISOString(),
       };
     } catch (error) {
-      console.error('Error generating retry statistics:', error);
+      // console.error('Error generating retry statistics:', error);
       return null;
     }
   }
@@ -1904,7 +1904,7 @@ export class StripeService {
         },
       };
     } catch (error) {
-      console.error('Error generating subscription analytics:', error);
+      // console.error('Error generating subscription analytics:', error);
       return null;
     }
   }
@@ -1941,10 +1941,10 @@ export class StripeService {
           billingPortalUrl = session.url;
         }
       } catch (error) {
-        console.warn(
-          `Could not create billing portal session for garage ${garage.id}:`,
-          error.message,
-        );
+        // console.warn(
+        //   `Could not create billing portal session for garage ${garage.id}:`,
+        //   error.message,
+        // );
       }
 
       // Send email notification

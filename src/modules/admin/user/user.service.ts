@@ -193,7 +193,7 @@ export class UserService {
               });
             }
           } catch (stripeError) {
-            console.warn(
+            this.logger.warn(
               'Stripe customer creation failed:',
               stripeError.message,
             );

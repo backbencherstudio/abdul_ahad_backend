@@ -540,37 +540,45 @@ export class VehicleService {
    */
   private async createMotReports(vehicleId: string, motTests: any[]) {
     try {
-      for (const test of motTests) {
-        // 1. Create the MotReport record (one per test)
-        const report = await this.prisma.motReport.create({
-          data: {
-            vehicle_id: vehicleId,
-            test_number: test.motTestNumber,
-            test_date: test.completedDate ? new Date(test.completedDate) : null,
-            expiry_date: test.expiryDate ? new Date(test.expiryDate) : null,
-            status: test.testResult,
-            odometer_value: test.odometerValue
-              ? parseInt(test.odometerValue, 10)
-              : null,
-            odometer_unit: test.odometerUnit,
-            odometer_result_type: test.odometerResultType,
-            data_source: test.dataSource,
-            registration_at_test: test.registrationAtTimeOfTest,
-          },
-        });
+      await Promise.all(
+        motTests.map(async (test: any) => {
+          // Use a transaction for each report + defect set to ensure atomicity per test
+          return this.prisma.$transaction(async (tx) => {
+            // 1. Create the MotReport record
+            const report = await tx.motReport.create({
+              data: {
+                vehicle_id: vehicleId,
+                test_number: test.motTestNumber,
+                test_date: test.completedDate
+                  ? new Date(test.completedDate)
+                  : null,
+                expiry_date: test.expiryDate ? new Date(test.expiryDate) : null,
+                status: test.testResult || test.motTestResult, // Handle both potential field names
+                odometer_value: test.odometerValue
+                  ? parseInt(test.odometerValue, 10)
+                  : null,
+                odometer_unit: test.odometerUnit,
+                odometer_result_type: test.odometerResultType,
+                data_source: test.dataSource || 'dvsa',
+                registration_at_test: test.registrationAtTimeOfTest,
+              },
+            });
 
-        // 2. Create MotDefect records (one per defect)
-        if (Array.isArray(test.defects) && test.defects.length > 0) {
-          await this.prisma.motDefect.createMany({
-            data: test.defects.map((defect) => ({
-              mot_report_id: report.id,
-              type: defect.type,
-              text: defect.text,
-              dangerous: defect.dangerous,
-            })),
+            // 2. Create MotDefect records
+            const defects = test.defects || test.rfrAndComments; // Handle both potential field names
+            if (Array.isArray(defects) && defects.length > 0) {
+              await tx.motDefect.createMany({
+                data: defects.map((defect: any) => ({
+                  mot_report_id: report.id,
+                  type: defect.type,
+                  text: defect.text,
+                  dangerous: defect.dangerous,
+                })),
+              });
+            }
           });
-        }
-      }
+        }),
+      );
 
       this.logger.log(
         `Created ${motTests.length} MOT reports (and defects) for vehicle ${vehicleId}`,
@@ -619,6 +627,13 @@ export class VehicleService {
         };
       }
 
+      // Sort tests by completedDate descending to ensure [0] is the latest
+      const sortedTests = motHistory.motTests.sort((a, b) => {
+        const dateA = new Date(a.completedDate || 0).getTime();
+        const dateB = new Date(b.completedDate || 0).getTime();
+        return dateB - dateA;
+      });
+
       // 3. Get existing local records to check for duplicates
       const existingReports = await this.prisma.motReport.findMany({
         where: { vehicle_id: vehicleId },
@@ -630,7 +645,7 @@ export class VehicleService {
       );
 
       // 4. Filter for new tests only
-      const newTests = motHistory.motTests.filter(
+      const newTests = sortedTests.filter(
         (test) => !existingTestNumbers.has(test.motTestNumber),
       );
 
@@ -649,57 +664,25 @@ export class VehicleService {
         `Found ${newTests.length} new MOT tests for ${vehicle.registration_number}`,
       );
 
-      // 5. Insert new records concurrently using Promise.all
-      // Note: We use a transaction to ensure data integrity if needed, but for bulk independent inserts
-      // Promise.all with individual creates is sufficient and mandated by the request.
-      // However, createMotReports logic handles defects too, so we'll adapt that pattern inline for concurrency.
+      // 5. Insert new records reusing common logic
+      await this.createMotReports(vehicleId, newTests);
 
-      await Promise.all(
-        newTests.map(async (test) => {
-          // Create report with defects in a transaction to ensure report+defects consistency per test
-          return this.prisma.$transaction(async (tx) => {
-            const report = await tx.motReport.create({
-              data: {
-                vehicle_id: vehicleId,
-                test_number: test.motTestNumber,
-                test_date: test.completedDate
-                  ? new Date(test.completedDate)
-                  : null,
-                expiry_date: test.expiryDate ? new Date(test.expiryDate) : null,
-                status: test.motTestResult, // Note: API uses 'motTestResult', DB uses 'status'
-                odometer_value: test.odometerValue
-                  ? parseInt(test.odometerValue, 10)
-                  : null,
-                odometer_unit: test.odometerUnit,
-                odometer_result_type: test.odometerResultType,
-                data_source: 'dvsa', // Explicitly mark as refresh source
-                registration_at_test: test.registrationAtTimeOfTest,
-              },
-            });
+      // 6. Update local vehicle data with latest info if available
+      const updateData: any = { updated_at: new Date() };
 
-            if (
-              Array.isArray(test.rfrAndComments) &&
-              test.rfrAndComments.length > 0
-            ) {
-              // Map API 'rfrAndComments' to our DB 'MotDefect' structure
-              await tx.motDefect.createMany({
-                data: test.rfrAndComments.map((defect) => ({
-                  mot_report_id: report.id,
-                  type: defect.type,
-                  text: defect.text,
-                  dangerous: defect.dangerous,
-                })),
-              });
-            }
-          });
-        }),
-      );
+      // Check if we have a future expiry date in the latest test (which is sortedTests[0])
+      const latestTest = sortedTests[0];
+      if (latestTest?.expiryDate) {
+        const expiryDate = new Date(latestTest.expiryDate);
+        // Only update if the expiry date is in the future
+        if (expiryDate.getTime() > Date.now()) {
+          updateData.mot_expiry_date = expiryDate;
+        }
+      }
 
-      // 6. Update local vehicle data with latest info if available (optional but good for consistency)
-      // We'll update the 'updated_at' timestamp at minimum
       await this.prisma.vehicle.update({
         where: { id: vehicleId },
-        data: { updated_at: new Date() },
+        data: updateData,
       });
 
       return {
@@ -707,7 +690,7 @@ export class VehicleService {
         message: `Successfully added ${newTests.length} new MOT records`,
         data: {
           new_records: newTests.length,
-          latest_expiry: motHistory.motTests[0]?.expiryDate || null,
+          latest_expiry: sortedTests[0]?.expiryDate || null,
         },
       };
     } catch (error) {

@@ -24,7 +24,7 @@ export class PrismaService
 
     // comment out this when seeding data using command line
     if (process.env.PRISMA_ENV == '1') {
-      console.log('Prisma Middleware not called', process.env.PRISMA_ENV);
+      // console.log('Prisma Middleware not called', process.env.PRISMA_ENV);
     } else {
       // use middleware here
       this.$use(SoftdeleteMiddleware);
