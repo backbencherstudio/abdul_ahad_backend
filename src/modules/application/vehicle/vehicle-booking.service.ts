@@ -868,11 +868,11 @@ export class VehicleBookingService {
     }
     if (search) {
       where.OR = [
-        { garage: { garage_name: { contains: search } } }, // mode: 'insensitive' } },
-        { garage: { address: { contains: search } } }, // mode: 'insensitive' } },
+        { garage: { garage_name: { contains: search, mode: 'insensitive' } } },
+        { garage: { address: { contains: search, mode: 'insensitive' } } },
         {
           vehicle: {
-            registration_number: { contains: search }, // mode: 'insensitive' },
+            registration_number: { contains: search, mode: 'insensitive' },
           },
         },
       ];

@@ -30,9 +30,9 @@ export class ContactService {
       const whereClause = {};
       if (q) {
         whereClause['OR'] = [
-          { name: { contains: q } }, //mode: 'insensitive' } },
-          { email: { contains: q } }, //mode: 'insensitive' } },
-          { phone_number: { contains: q } }, //mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { phone_number: { contains: q, mode: 'insensitive' } },
         ];
       }
 

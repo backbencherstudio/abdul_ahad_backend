@@ -28,9 +28,9 @@ export class DriverService {
 
     if (search && search.trim() !== '') {
       whereClause.OR = [
-        { name: { contains: search } }, //mode: 'insensitive' } },
-        { email: { contains: search } }, // mode: 'insensitive' } },
-        { phone_number: { contains: search } }, // mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone_number: { contains: search, mode: 'insensitive' } },
       ];
     }
 

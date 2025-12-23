@@ -34,7 +34,7 @@ export class GarageBookingService {
           vehicle: {
             registration_number: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -42,7 +42,7 @@ export class GarageBookingService {
           driver: {
             name: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -50,7 +50,7 @@ export class GarageBookingService {
           vehicle: {
             make: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -58,7 +58,7 @@ export class GarageBookingService {
           vehicle: {
             model: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -66,7 +66,7 @@ export class GarageBookingService {
           vehicle: {
             color: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -74,7 +74,7 @@ export class GarageBookingService {
           vehicle: {
             fuel_type: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },
@@ -82,7 +82,7 @@ export class GarageBookingService {
           driver: {
             email: {
               contains: search,
-              // mode: 'insensitive',
+              mode: 'insensitive',
             },
           },
         },

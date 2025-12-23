@@ -357,8 +357,8 @@ export class UserService {
       const where_condition = {};
       if (q) {
         where_condition['OR'] = [
-          { name: { contains: q } }, //mode: 'insensitive' } },
-          { email: { contains: q } }, // mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
         ];
       }
 

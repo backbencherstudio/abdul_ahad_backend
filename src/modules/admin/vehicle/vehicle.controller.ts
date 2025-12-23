@@ -4,6 +4,8 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  Delete,
+  Param,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -33,6 +35,7 @@ export class VehicleController {
     @Query('search') search?: string,
     @Query('startdate') startdate?: string,
     @Query('enddate') enddate?: string,
+    @Query('sort_by_expiry') sort_by_expiry?: string,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -48,6 +51,14 @@ export class VehicleController {
       search,
       startdate,
       enddate,
+      sort_by_expiry,
     );
+  }
+
+  @ApiOperation({ summary: 'Delete a vehicle' })
+  @Delete(':id')
+  @CheckAbilities({ action: Action.Delete, subject: 'Driver' })
+  async deleteVehicle(@Param('id') id: string) {
+    return this.vehicleService.deleteVehicle(id);
   }
 }

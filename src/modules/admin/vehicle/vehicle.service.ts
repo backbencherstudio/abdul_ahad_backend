@@ -12,6 +12,7 @@ export class VehicleService {
     search?: string,
     startdate?: string,
     enddate?: string,
+    sort_by_expiry?: string,
   ) {
     const skip = (page - 1) * limit;
 
@@ -25,7 +26,7 @@ export class VehicleService {
     if (search && search.trim() !== '') {
       const searchFilter = {
         contains: search,
-        // mode: 'insensitive',
+        mode: 'insensitive',
       };
 
       whereClause.OR = [
@@ -103,7 +104,10 @@ export class VehicleService {
         },
         skip,
         take: limit,
-        orderBy: { created_at: 'desc' },
+        orderBy:
+          sort_by_expiry === 'asc' || sort_by_expiry === 'desc'
+            ? { mot_expiry_date: sort_by_expiry as 'asc' | 'desc' }
+            : { created_at: 'desc' },
       }),
       this.prisma.vehicle.count({ where: whereClause }),
     ]);
@@ -119,6 +123,18 @@ export class VehicleService {
           pages: Math.ceil(total / limit),
         },
       },
+    };
+  }
+
+  async deleteVehicle(id: string) {
+    const vehicle = await this.prisma.vehicle.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      message: 'Vehicle deleted successfully',
+      data: vehicle,
     };
   }
 }
