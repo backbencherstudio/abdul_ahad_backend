@@ -32,6 +32,8 @@ export class BookingController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('status') status?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -40,7 +42,13 @@ export class BookingController {
       throw new BadRequestException('Invalid page or limit parameters');
     }
 
-    return this.bookingService.getBookings(pageNum, limitNum, status);
+    return this.bookingService.getBookings(
+      pageNum,
+      limitNum,
+      status,
+      startDate,
+      endDate,
+    );
   }
 
   @ApiOperation({ summary: 'Get booking details by ID' })

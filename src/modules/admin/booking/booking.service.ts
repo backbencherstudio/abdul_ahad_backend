@@ -9,12 +9,28 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class BookingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getBookings(page: number, limit: number, status?: string) {
+  async getBookings(
+    page: number,
+    limit: number,
+    status?: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
     const skip = (page - 1) * limit;
 
     const whereClause: any = {};
     if (status) {
       whereClause.status = status;
+    }
+
+    if (startDate || endDate) {
+      whereClause.created_at = {};
+      if (startDate) {
+        whereClause.created_at.gte = new Date(startDate);
+      }
+      if (endDate) {
+        whereClause.created_at.lte = new Date(endDate);
+      }
     }
 
     const [bookings, total] = await Promise.all([
