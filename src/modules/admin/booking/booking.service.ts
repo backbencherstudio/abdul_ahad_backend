@@ -13,9 +13,10 @@ export class BookingService {
     page: number,
     limit: number,
     status?: string,
-    startDate?: string,
-    endDate?: string,
+    startDate?: Date,
+    endDate?: Date,
   ) {
+    // Validate dates if provided
     const skip = (page - 1) * limit;
 
     const whereClause: any = {};
@@ -26,10 +27,18 @@ export class BookingService {
     if (startDate || endDate) {
       whereClause.created_at = {};
       if (startDate) {
-        whereClause.created_at.gte = new Date(startDate);
+        const start = new Date(startDate);
+        if (isNaN(start.getTime())) {
+          throw new BadRequestException('Invalid start date');
+        }
+        whereClause.created_at.gte = start;
       }
       if (endDate) {
-        whereClause.created_at.lte = new Date(endDate);
+        const end = new Date(endDate);
+        if (isNaN(end.getTime())) {
+          throw new BadRequestException('Invalid end date');
+        }
+        whereClause.created_at.lte = end;
       }
     }
 

@@ -32,8 +32,8 @@ export class BookingController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('status') status?: string,
-    @Query('start_date') startDate?: string,
-    @Query('end_date') endDate?: string,
+    @Query('startdate') startDate?: Date,
+    @Query('enddate') endDate?: Date,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
