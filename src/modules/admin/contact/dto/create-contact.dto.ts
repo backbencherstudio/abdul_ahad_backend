@@ -26,6 +26,14 @@ export class CreateContactDto {
   })
   phone_number?: string;
 
+  @IsOptional()
+  @IsString()
+  @ApiProperty({
+    description: 'Primary contact',
+    example: 'John Doe',
+  })
+  primary_contact?: string;
+
   @IsNotEmpty()
   @IsString()
   @ApiProperty({

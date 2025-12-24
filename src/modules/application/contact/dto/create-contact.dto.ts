@@ -18,6 +18,11 @@ export class CreateContactDto {
   @IsNotEmpty()
   phone_number: string;
 
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  primary_contact?: string;
+
   @IsNotEmpty()
   @ApiProperty()
   @IsString()

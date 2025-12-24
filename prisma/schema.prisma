@@ -390,6 +390,7 @@ model Contact {
   deleted_at   DateTime?
   email        String
   phone_number String?
+  primary_contact String?
   message      String
   name         String
   user_id      String?

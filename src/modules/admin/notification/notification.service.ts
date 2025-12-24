@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateBulkNotificationDto } from './dto/create-notification.dto';
 import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
+import { MailService } from 'src/mail/mail.service';
 
 export interface CreateAdminNotificationDto {
   type: string; // e.g., 'MIGRATION_FAILED', 'PAYMENT_ERROR', 'SYSTEM_ALERT'
@@ -18,6 +19,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly mailService: MailService,
   ) {}
 
   async addAdditionalData(notification: any) {
@@ -93,6 +95,13 @@ export class NotificationService {
       // console.log(dto);
       await Promise.all(
         dto.receivers.map(async ({ entity_id, receiver_id }) => {
+          // 1. Fetch user for email
+          const user = await this.prisma.user.findUnique({
+            where: { id: receiver_id },
+            select: { email: true, name: true },
+          });
+
+          // 2. Create database notification
           const notification = await this.prisma.notification.create({
             data: {
               status: 1,
@@ -129,10 +138,21 @@ export class NotificationService {
               },
             },
           });
+
+          // 3. Emit via Gateway
           this.notificationGateway.sendNotification({
             userId: receiver_id,
             ...(await this.addAdditionalData(notification)),
           });
+
+          // 4. Send Email Alert
+          if (user?.email) {
+            await this.mailService.sendNotificationEmail({
+              to: user.email,
+              user_name: user.name || 'User',
+              message: dto.message,
+            });
+          }
         }),
       );
       // console.log('Notification sent successfully');

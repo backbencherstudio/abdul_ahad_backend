@@ -679,4 +679,67 @@ export class MailService {
       // console.error('Error queuing MOT expiry reminder email:', error);
     }
   }
+
+  /**
+   * Send contact form submission email to admin
+   */
+  async sendContactFormSubmission(params: {
+    to: string;
+    contact_name: string;
+    contact_email: string;
+    contact_phone: string;
+    contact_message: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `New Contact Form Submission - ${params.contact_name}`;
+
+      await this.queue.add('sendContactFormSubmission', {
+        to: params.to,
+        from,
+        subject,
+        template: 'contact-form-submission',
+        context: {
+          app_name: process.env.APP_NAME || appConfig().app.name,
+          contact_name: params.contact_name,
+          contact_email: params.contact_email,
+          contact_phone: params.contact_phone,
+          contact_message: params.contact_message,
+          submitted_at: new Date().toLocaleString(),
+          support_email: appConfig().mail.from,
+        },
+      });
+    } catch (error) {
+      // console.error('Error queuing contact form submission email:', error);
+    }
+  }
+
+  /**
+   * Send general notification email
+   */
+  async sendNotificationEmail(params: {
+    to: string;
+    user_name: string;
+    message: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Update from ${process.env.APP_NAME}`;
+
+      await this.queue.add('sendNotificationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'notification-alert',
+        context: {
+          app_name: process.env.APP_NAME || appConfig().app.name,
+          user_name: params.user_name,
+          message: params.message,
+          client_url: appConfig().app.client_app_url,
+        },
+      });
+    } catch (error) {
+      // console.error('Error queuing notification email:', error);
+    }
+  }
 }
