@@ -384,17 +384,17 @@ model Faq {
 }
 
 model Contact {
-  id           String    @id @default(cuid())
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @default(now())
-  deleted_at   DateTime?
-  email        String
-  phone_number String?
+  id              String    @id @default(cuid())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+  deleted_at      DateTime?
+  email           String
+  phone_number    String?
   primary_contact String?
-  message      String
-  name         String
-  user_id      String?
-  user         User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message         String
+  name            String
+  user_id         String?
+  user            User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("contacts")
 }
@@ -538,6 +538,7 @@ model Vehicle {
   engine_capacity     Int?
   co2_emissions       Int?
   mot_expiry_date     DateTime?
+  is_expired          Boolean     @default(false)
   dvla_data           String?
   mot_data            String?
   mot_reports         MotReport[]
@@ -550,8 +551,8 @@ model Order {
   updated_at           DateTime             @default(now())
   driver_id            String
   driver               User                 @relation("DriverOrders", fields: [driver_id], references: [id])
-  vehicle_id           String
-  vehicle              Vehicle              @relation(fields: [vehicle_id], references: [id])
+  vehicle_id           String?
+  vehicle              Vehicle?             @relation(fields: [vehicle_id], references: [id], onDelete: SetNull)
   garage_id            String
   garage               User                 @relation("GarageOrders", fields: [garage_id], references: [id])
   order_date           DateTime
@@ -597,7 +598,7 @@ model MotReport {
   created_at           DateTime    @default(now())
   updated_at           DateTime    @default(now())
   vehicle_id           String
-  vehicle              Vehicle     @relation(fields: [vehicle_id], references: [id])
+  vehicle              Vehicle     @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
   test_number          String?
   test_date            DateTime?
   expiry_date          DateTime?
@@ -619,7 +620,7 @@ model MotDefect {
   created_at    DateTime  @default(now())
   updated_at    DateTime  @default(now())
   mot_report_id String
-  mot_report    MotReport @relation(fields: [mot_report_id], references: [id])
+  mot_report    MotReport @relation(fields: [mot_report_id], references: [id], onDelete: Cascade)
   type          String // e.g. ADVISORY, MAJOR, FAIL, USER ENTERED
   text          String
   dangerous     Boolean

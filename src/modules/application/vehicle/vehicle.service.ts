@@ -296,38 +296,10 @@ export class VehicleService {
         throw new NotFoundException(`Vehicle not found or access denied`);
       }
 
-      // Cascade delete vehicle and all related records in a transaction
-      await this.prisma.$transaction(async (tx) => {
-        // Step 1: Get all MOT report IDs for this vehicle
-        const motReports = await tx.motReport.findMany({
-          where: { vehicle_id: vehicleId },
-          select: { id: true },
-        });
-
-        const motReportIds = motReports.map((report) => report.id);
-
-        // Step 2: Delete all MotDefects related to these MOT reports
-        if (motReportIds.length > 0) {
-          const deletedDefects = await tx.motDefect.deleteMany({
-            where: { mot_report_id: { in: motReportIds } },
-          });
-          this.logger.log(
-            `Deleted ${deletedDefects.count} MOT defects for vehicle ${vehicleId}`,
-          );
-        }
-
-        // Step 3: Delete all MotReports for this vehicle
-        const deletedReports = await tx.motReport.deleteMany({
-          where: { vehicle_id: vehicleId },
-        });
-        this.logger.log(
-          `Deleted ${deletedReports.count} MOT reports for vehicle ${vehicleId}`,
-        );
-
-        // Step 4: Finally delete the vehicle
-        await tx.vehicle.delete({
-          where: { id: vehicleId },
-        });
+      // Delete the vehicle - related records (MotReport, MotDefect)
+      // will be deleted via database cascade (onDelete: Cascade)
+      await this.prisma.vehicle.delete({
+        where: { id: vehicleId },
       });
 
       this.logger.log(`Successfully deleted vehicle ${vehicleId}`);
@@ -398,7 +370,6 @@ export class VehicleService {
 
       const vehicleData =
         await DvlaService.getCompleteVehicleData(registrationNumber);
-
       this.logger.log(
         `Successfully fetched external data for: ${registrationNumber}`,
       );
@@ -450,6 +421,9 @@ export class VehicleService {
         mot_expiry_date: vehicleData.dvlaData?.motExpiryDate
           ? new Date(vehicleData.dvlaData.motExpiryDate)
           : null,
+        is_expired: vehicleData.dvlaData?.motExpiryDate
+          ? new Date(vehicleData.dvlaData.motExpiryDate) < new Date()
+          : false,
 
         // Store raw API responses for future reference
         dvla_data: vehicleData.dvlaData
@@ -540,10 +514,10 @@ export class VehicleService {
    */
   private async createMotReports(vehicleId: string, motTests: any[]) {
     try {
-      await Promise.all(
-        motTests.map(async (test: any) => {
-          // Use a transaction for each report + defect set to ensure atomicity per test
-          return this.prisma.$transaction(async (tx) => {
+      // Use a single transaction for all reports and defects to ensure atomicity and efficiency
+      await this.prisma.$transaction(
+        async (tx) => {
+          for (const test of motTests) {
             // 1. Create the MotReport record
             const report = await tx.motReport.create({
               data: {
@@ -553,7 +527,7 @@ export class VehicleService {
                   ? new Date(test.completedDate)
                   : null,
                 expiry_date: test.expiryDate ? new Date(test.expiryDate) : null,
-                status: test.testResult || test.motTestResult, // Handle both potential field names
+                status: test.testResult || test.motTestResult,
                 odometer_value: test.odometerValue
                   ? parseInt(test.odometerValue, 10)
                   : null,
@@ -565,19 +539,22 @@ export class VehicleService {
             });
 
             // 2. Create MotDefect records
-            const defects = test.defects || test.rfrAndComments; // Handle both potential field names
+            const defects = test.defects || test.rfrAndComments;
             if (Array.isArray(defects) && defects.length > 0) {
               await tx.motDefect.createMany({
                 data: defects.map((defect: any) => ({
                   mot_report_id: report.id,
-                  type: defect.type,
-                  text: defect.text,
-                  dangerous: defect.dangerous,
+                  type: defect.type || 'ADVISORY',
+                  text: defect.text || '',
+                  dangerous: defect.dangerous || false,
                 })),
               });
             }
-          });
-        }),
+          }
+        },
+        {
+          timeout: 30000, // Increase timeout for potentially large history
+        },
       );
 
       this.logger.log(
@@ -675,8 +652,17 @@ export class VehicleService {
       if (latestTest?.expiryDate) {
         const expiryDate = new Date(latestTest.expiryDate);
         // Only update if the expiry date is in the future
-        if (expiryDate.getTime() > Date.now()) {
+        if (
+          expiryDate.getTime() > Date.now() &&
+          vehicle.mot_expiry_date?.getTime() < expiryDate.getTime()
+        ) {
+          updateData.is_expired = false;
           updateData.mot_expiry_date = expiryDate;
+        } else {
+          if (vehicle.mot_expiry_date?.getTime() > expiryDate.getTime()) {
+            updateData.mot_expiry_date = expiryDate;
+          }
+          updateData.is_expired = true;
         }
       }
 

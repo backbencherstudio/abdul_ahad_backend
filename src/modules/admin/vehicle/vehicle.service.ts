@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { VehicleExpiryStatus } from './dto/query-vehicle.dto';
+import { Prisma } from '@prisma/client';
+import { UpdateMotReminderSettingsDto } from './dto/update-mot-reminder.dto';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class VehicleService {
@@ -8,13 +12,16 @@ export class VehicleService {
   async getVehicles(
     page: number,
     limit: number,
-    status?: string,
+    expiry_status?: string,
     search?: string,
-    startdate?: string,
-    enddate?: string,
+    startdate?: Date,
+    enddate?: Date,
     sort_by_expiry?: string,
   ) {
     const skip = (page - 1) * limit;
+    let orderBy: Prisma.VehicleOrderByWithRelationInput = {
+      created_at: 'desc',
+    };
 
     const whereClause: any = {
       user: {
@@ -76,13 +83,42 @@ export class VehicleService {
       };
     }
 
-    // Handle status filter - only apply if status is a valid number, not "all" or empty
-    if (status && status !== 'all' && status !== '') {
-      const statusNum = parseInt(status, 10);
-      if (!isNaN(statusNum)) {
-        whereClause.user.status = statusNum;
+    if (expiry_status) {
+      switch (expiry_status) {
+        case VehicleExpiryStatus.EXPIRED:
+          whereClause.is_expired = true;
+          break;
+        case VehicleExpiryStatus.EXPIRED_SOON:
+          whereClause.is_expired = false;
+          whereClause.mot_expiry_date = {
+            gte: new Date(),
+            lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          };
+          whereClause.NOT = {
+            mot_expiry_date: null,
+          };
+          if (sort_by_expiry !== 'asc' && sort_by_expiry !== 'desc') {
+            orderBy = { mot_expiry_date: 'asc' };
+          }
+          break;
+        case VehicleExpiryStatus.NOT_EXPIRED:
+          whereClause.mot_expiry_date = {
+            gte: new Date(),
+          };
+          whereClause.is_expired = false;
+          whereClause.NOT = {
+            mot_expiry_date: null,
+          };
+          break;
       }
     }
+    if (sort_by_expiry) {
+      orderBy =
+        sort_by_expiry === 'asc' || sort_by_expiry === 'desc'
+          ? { mot_expiry_date: sort_by_expiry as 'asc' | 'desc' }
+          : { created_at: 'desc' };
+    }
+
     const [vehicles, total] = await Promise.all([
       this.prisma.vehicle.findMany({
         where: whereClause,
@@ -93,6 +129,7 @@ export class VehicleService {
           model: true,
           color: true,
           mot_expiry_date: true,
+          is_expired: true,
           user: {
             select: {
               id: true,
@@ -104,10 +141,7 @@ export class VehicleService {
         },
         skip,
         take: limit,
-        orderBy:
-          sort_by_expiry === 'asc' || sort_by_expiry === 'desc'
-            ? { mot_expiry_date: sort_by_expiry as 'asc' | 'desc' }
-            : { created_at: 'desc' },
+        orderBy,
       }),
       this.prisma.vehicle.count({ where: whereClause }),
     ]);
@@ -136,5 +170,80 @@ export class VehicleService {
       message: 'Vehicle deleted successfully',
       data: vehicle,
     };
+  }
+
+  private readonly logger = new Logger(VehicleService.name);
+
+  /**
+   * Get MOT reminder settings from the database
+   */
+  async getMotReminderSettings() {
+    try {
+      const [periodsSetting, activeSetting] = await Promise.all([
+        this.prisma.setting.findUnique({
+          where: { key: 'MOT_REMINDER_PERIODS' },
+        }),
+        this.prisma.setting.findUnique({
+          where: { key: 'MOT_REMINDER_ACTIVE' },
+        }),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          reminderPeriods: periodsSetting?.default_value
+            ? periodsSetting.default_value.split(',').map(Number)
+            : [7],
+          autoReminder: activeSetting?.default_value === 'true',
+        },
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch MOT reminder settings:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch MOT reminder settings',
+      };
+    }
+  }
+
+  /**
+   * Update MOT reminder settings in the database
+   */
+  async updateMotReminderSettings(dto: UpdateMotReminderSettingsDto) {
+    try {
+      await Promise.all([
+        this.prisma.setting.upsert({
+          where: { key: 'MOT_REMINDER_PERIODS' },
+          update: { default_value: dto.reminderPeriods.join(',') },
+          create: {
+            key: 'MOT_REMINDER_PERIODS',
+            category: 'VEHICLE',
+            label: 'MOT Reminder Periods',
+            default_value: dto.reminderPeriods.join(','),
+          },
+        }),
+        this.prisma.setting.upsert({
+          where: { key: 'MOT_REMINDER_ACTIVE' },
+          update: { default_value: String(dto.autoReminder) },
+          create: {
+            key: 'MOT_REMINDER_ACTIVE',
+            category: 'VEHICLE',
+            label: 'MOT Reminder Active',
+            default_value: String(dto.autoReminder),
+          },
+        }),
+      ]);
+
+      return {
+        success: true,
+        message: 'MOT reminder settings updated successfully',
+      };
+    } catch (error) {
+      this.logger.error('Failed to update MOT reminder settings:', error);
+      return {
+        success: false,
+        message: 'Failed to update MOT reminder settings',
+      };
+    }
   }
 }

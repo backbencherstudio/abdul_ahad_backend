@@ -19,10 +19,26 @@ export class MotReminderProcessor {
   async handleCron() {
     this.logger.debug('Checking for MOT expiry reminders...');
 
-    const today = new Date();
+    const [periodsSetting, activeSetting] = await Promise.all([
+      this.prisma.setting.findUnique({
+        where: { key: 'MOT_REMINDER_PERIODS' },
+      }),
+      this.prisma.setting.findUnique({
+        where: { key: 'MOT_REMINDER_ACTIVE' },
+      }),
+    ]);
 
-    // ✅ Only 15 & 7 days reminder
-    const reminderPeriods = [15, 7];
+    const autoReminder = activeSetting?.default_value === 'true';
+
+    if (!autoReminder) {
+      this.logger.debug('MOT reminders are disabled.');
+      return;
+    }
+
+    const reminderPeriods = periodsSetting?.default_value
+      ? periodsSetting.default_value.split(',').map(Number)
+      : [15, 7];
+    const today = new Date();
 
     for (const days of reminderPeriods) {
       const expiryDate = new Date(today);
