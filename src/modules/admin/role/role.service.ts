@@ -132,6 +132,16 @@ export class RoleService {
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
 
+    // Prevent modifying system roles (updated for new seeding system)
+    const protectedRoles = ['super_admin', 'system_admin'];
+    if (protectedRoles.includes(role.name)) {
+      if (dto.name && dto.name !== role.name) {
+        throw new BadRequestException(
+          `Protected role '${role.title}' cannot be renamed`,
+        );
+      }
+    }
+
     if (dto.name) {
       const dup = await this.prisma.role.findFirst({
         where: { name: dto.name, id: { not: id } },
@@ -160,7 +170,7 @@ export class RoleService {
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
 
-    // Prevent deleting protected system roles by name (updated for new seeding system)
+    // Prevent deleting protected system roles by name
     const protectedRoles = ['super_admin', 'system_admin'];
     if (protectedRoles.includes(role.name)) {
       throw new BadRequestException(

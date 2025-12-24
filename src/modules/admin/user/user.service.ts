@@ -646,6 +646,28 @@ export class UserService {
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     try {
+      // ✅ SECURITY: Protect Super Admin user from critical changes
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: { email: true, type: true },
+      });
+
+      if (
+        existingUser &&
+        existingUser.email === appConfig().defaultUser.system.email
+      ) {
+        if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+          throw new BadRequestException(
+            'Cannot change system administrator email',
+          );
+        }
+        if (updateUserDto.type && updateUserDto.type !== 'ADMIN') {
+          throw new BadRequestException(
+            'Cannot change system administrator user type',
+          );
+        }
+      }
+
       const user = await UserRepository.updateUser(id, updateUserDto);
 
       if (user.success) {
@@ -1097,6 +1119,28 @@ export class UserService {
           throw new BadRequestException(
             'Cannot assign critical roles to yourself. Use system administrator tools.',
           );
+        }
+      }
+
+      // ✅ SECURITY: Protect Super Admin user's roles
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+
+      if (targetUser?.email === appConfig().defaultUser.system.email) {
+        // Ensure super_admin role is always included for the system user
+        const hasSuperAdminInNewRoles = validRoles.some(
+          (r) => r.name === 'super_admin',
+        );
+        if (!hasSuperAdminInNewRoles) {
+          // Find the super_admin role to add it back
+          const saRole = await this.prisma.role.findFirst({
+            where: { name: 'super_admin' },
+          });
+          if (saRole) {
+            validRoles.push(saRole);
+          }
         }
       }
 

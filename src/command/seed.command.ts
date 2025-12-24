@@ -142,7 +142,7 @@ export class SeedCommand extends CommandRunner {
     // Define permission groups for MOT system (removed unnecessary groups)
     const permissionGroups: PermissionGroupData[] = [
       // System level permissions
-      { title: 'system_tenant_management', subject: 'SystemTenant' },
+      { title: 'tenant_management', subject: 'Tenant' },
 
       // Core management permissions
       { title: 'user_management', subject: 'User' },
@@ -169,6 +169,12 @@ export class SeedCommand extends CommandRunner {
       },
       { title: 'analytics', subject: 'Analytics' },
       { title: 'reports', subject: 'Reports', scope: ['generate'] },
+
+      // Additional system modules
+      { title: 'faq_management', subject: 'User' }, // Using User as base for generic modules
+      { title: 'contact_management', subject: 'User' },
+      { title: 'website_info_management', subject: 'User' },
+      { title: 'notification_management', subject: 'User' },
     ];
 
     console.log(
@@ -238,7 +244,7 @@ export class SeedCommand extends CommandRunner {
     // Configuration-driven permission assignment
     const rolePermissionMap: RolePermissionMap = {
       super_admin: [
-        'system_tenant_management',
+        'tenant_management',
         'user_management',
         'role_management',
         'dashboard',
@@ -249,6 +255,10 @@ export class SeedCommand extends CommandRunner {
         'payment_management',
         'analytics',
         'reports',
+        'faq_management',
+        'contact_management',
+        'website_info_management',
+        'notification_management',
       ],
       system_admin: [
         'user_management',
