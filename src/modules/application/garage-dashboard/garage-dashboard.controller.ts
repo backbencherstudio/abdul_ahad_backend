@@ -37,7 +37,11 @@ import { GaragePaymentService } from './services/garage-payment.service';
 import { GarageInvoiceService } from './services/garage-invoice.service';
 import { memoryStorage } from 'multer';
 import { ManualSlotDto } from './dto/manual-slot.dto';
-import { ScheduleDto, SetWeeklyPatternDto } from './dto/schedule.dto';
+import {
+  RestrictionDto,
+  ScheduleDto,
+  SetWeeklyPatternDto,
+} from './dto/schedule.dto';
 import { UpsertServicePriceDto } from './dto/upsert-service-price.dto';
 import { SlotModificationDto } from './dto/slot-modification.dto';
 import { ModifySlotTimeDto } from './dto/modify-slot-time.dto';
@@ -150,11 +154,35 @@ export class GarageDashboardController {
     return this.garageScheduleService.getSchedule(req.user.userId);
   }
 
-  @ApiOperation({ summary: 'Set garage schedule' })
+  // @ApiOperation({ summary: 'Set garage schedule' })
+  // @Post('schedule')
+  // async setSchedule(@Req() req, @Body() dto: ScheduleDto) {
+  //   return this.garageScheduleService.setSchedule(req.user.userId, dto);
+  // }
+
+  // **************************************** New Updated APIs By Najim Start  ****************************************
+
   @Post('schedule')
   async setSchedule(@Req() req, @Body() dto: ScheduleDto) {
     return this.garageScheduleService.setSchedule(req.user.userId, dto);
   }
+
+  @Post('schedule/holiday')
+  async setHoliday(@Req() req, @Body() dto: RestrictionDto) {
+    return this.garageScheduleService.setHoliday(req.user.userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Delete holiday' })
+  @Delete('schedule/holiday')
+  async deleteHoliday(@Req() req, @Body() dto: { month: number; day: number }) {
+    return this.garageScheduleService.deleteHoliday(req.user.userId, dto);
+  }
+
+  @Get('schedule/holidays')
+  async getHolidays(@Req() req) {
+    return this.garageScheduleService.getHolidays(req.user.userId);
+  }
+  // **************************************** New Updated APIs By Najim End  ****************************************
 
   @ApiOperation({ summary: 'Set weekly pattern (legacy support)' })
   @Post('schedule/weekly')

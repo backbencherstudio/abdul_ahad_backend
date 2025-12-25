@@ -165,74 +165,74 @@ export class GarageProfileService {
   /**
    * Upload garage avatar
    */
-  async uploadAvatar(userId: string, file: Express.Multer.File) {
-    try {
-      this.logger.log(`Uploading avatar for garage user ${userId}`);
+  // async uploadAvatar(userId: string, file: Express.Multer.File) {
+  //   try {
+  //     this.logger.log(`Uploading avatar for garage user ${userId}`);
 
-      // Validate user exists and is a garage
-      const existingUser = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { type: true, avatar: true },
-      });
+  //     // Validate user exists and is a garage
+  //     const existingUser = await this.prisma.user.findUnique({
+  //       where: { id: userId },
+  //       select: { type: true, avatar: true },
+  //     });
 
-      if (!existingUser) {
-        throw new NotFoundException('User not found');
-      }
+  //     if (!existingUser) {
+  //       throw new NotFoundException('User not found');
+  //     }
 
-      if (existingUser.type !== 'GARAGE') {
-        throw new BadRequestException('User is not a garage');
-      }
+  //     if (existingUser.type !== 'GARAGE') {
+  //       throw new BadRequestException('User is not a garage');
+  //     }
 
-      // Delete old avatar if exists
-      if (existingUser.avatar) {
-        await SojebStorage.delete(
-          appConfig().storageUrl.avatar + existingUser.avatar,
-        );
-      }
+  //     // Delete old avatar if exists
+  //     if (existingUser.avatar) {
+  //       await SojebStorage.delete(
+  //         appConfig().storageUrl.avatar + existingUser.avatar,
+  //       );
+  //     }
 
-      // Generate a random file name
-      const randomName = Array(32)
-        .fill(null)
-        .map(() => Math.round(Math.random() * 16).toString(16))
-        .join('');
-      const fileName = `${randomName}${file.originalname}`;
+  //     // Generate a random file name
+  //     const randomName = Array(32)
+  //       .fill(null)
+  //       .map(() => Math.round(Math.random() * 16).toString(16))
+  //       .join('');
+  //     const fileName = `${randomName}${file.originalname}`;
 
-      // Upload file to storage
-      await SojebStorage.put(
-        appConfig().storageUrl.avatar + fileName,
-        file.buffer,
-      );
+  //     // Upload file to storage
+  //     await SojebStorage.put(
+  //       appConfig().storageUrl.avatar + fileName,
+  //       file.buffer,
+  //     );
 
-      // Update user avatar (save only the file name or path)
-      const updatedUser = await this.prisma.user.update({
-        where: { id: userId },
-        data: { avatar: fileName },
-        select: {
-          id: true,
-          avatar: true,
-          updated_at: true,
-        },
-      });
+  //     // Update user avatar (save only the file name or path)
+  //     const updatedUser = await this.prisma.user.update({
+  //       where: { id: userId },
+  //       data: { avatar: fileName },
+  //       select: {
+  //         id: true,
+  //         avatar: true,
+  //         updated_at: true,
+  //       },
+  //     });
 
-      // Get public URL
-      const avatarUrl = SojebStorage.url(
-        appConfig().storageUrl.avatar + fileName,
-      );
+  //     // Get public URL
+  //     const avatarUrl = SojebStorage.url(
+  //       appConfig().storageUrl.avatar + fileName,
+  //     );
 
-      this.logger.log(`Avatar uploaded successfully for user ${userId}`);
+  //     this.logger.log(`Avatar uploaded successfully for user ${userId}`);
 
-      return {
-        success: true,
-        message: 'Avatar uploaded successfully',
-        data: {
-          avatar_url: avatarUrl,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Failed to upload avatar for user ${userId}:`, error);
-      throw error;
-    }
-  }
+  //     return {
+  //       success: true,
+  //       message: 'Avatar uploaded successfully',
+  //       data: {
+  //         avatar_url: avatarUrl,
+  //       },
+  //     };
+  //   } catch (error) {
+  //     this.logger.error(`Failed to upload avatar for user ${userId}:`, error);
+  //     throw error;
+  //   }
+  // }
 
   /**
    * Calculate total amount from completed orders

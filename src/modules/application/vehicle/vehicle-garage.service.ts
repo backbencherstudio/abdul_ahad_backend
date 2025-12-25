@@ -214,11 +214,27 @@ export class VehicleGarageService {
         select: {
           id: true,
           // Add subscription check when implemented
-          // subscription_active: true,
+          has_subscription: true,
+          subscription_expires_at: true,
         },
       });
 
-      return !!garage;
+      if (!garage) {
+        return false;
+      }
+
+      if (!garage.has_subscription) {
+        return false;
+      }
+
+      if (garage.subscription_expires_at) {
+        const now = new Date();
+        if (garage.subscription_expires_at < now) {
+          return false;
+        }
+      }
+
+      return true;
     } catch (error) {
       this.logger.error(
         `Error validating garage availability: ${error.message}`,

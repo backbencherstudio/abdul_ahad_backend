@@ -606,7 +606,9 @@ export class VehicleBookingService {
     const isHoliday = restrictions.some((r) => {
       if (r.type !== 'HOLIDAY') return false;
       if (r.date === dateStr) return true;
-      if (r.month === month && r.day === day) return true;
+      if (r.month !== undefined && r.day !== undefined) {
+        if (r.month === month && r.day === day) return true;
+      }
       return this.matchesDayOfWeek(r.day_of_week, dayOfWeek);
     });
 

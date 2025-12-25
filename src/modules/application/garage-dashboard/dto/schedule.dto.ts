@@ -7,6 +7,7 @@ import {
   Min,
   Max,
   IsEnum,
+  IsEmpty,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -96,21 +97,28 @@ export type DailyHoursDto = Record<string, DailyHoursDayDto>;
 
 export class ScheduleDto {
   @ApiProperty({ description: 'Start time in HH:mm format', example: '08:00' })
+  @IsOptional()
+  @IsEmpty()
   @IsString()
-  start_time: string;
+  start_time?: string;
 
   @ApiProperty({ description: 'End time in HH:mm format', example: '18:00' })
+  @IsOptional()
+  @IsEmpty()
   @IsString()
-  end_time: string;
+  end_time?: string;
 
   @ApiProperty({ description: 'Slot duration in minutes', example: 60 })
+  @IsOptional()
+  @IsEmpty()
   @IsNumber()
   @Min(15)
   @Max(480) // 8 hours max
-  slot_duration: number;
+  slot_duration?: number;
 
   @ApiProperty({ description: 'Whether schedule is active', example: true })
   @IsOptional()
+  @IsEmpty()
   @IsBoolean()
   is_active?: boolean;
 

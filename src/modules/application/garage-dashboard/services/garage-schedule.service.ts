@@ -94,6 +94,8 @@ export class GarageScheduleService {
   // ✅ FIXED: Enhanced day restriction check with debug
   private isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
     const dayOfWeek = date.getDay();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
 
     // Ensure restrictions is an array
     if (!Array.isArray(restrictions)) {
@@ -103,6 +105,13 @@ export class GarageScheduleService {
     const result = restrictions.some((r) => {
       if (r.type !== 'HOLIDAY') {
         return false;
+      }
+
+      // Handle specific date (month/day)
+      if (r.month !== undefined && r.day !== undefined) {
+        if (r.month === month && r.day === day) {
+          return true;
+        }
       }
 
       // Handle both single day and array of days
@@ -269,8 +278,10 @@ export class GarageScheduleService {
   async setSchedule(garageId: string, dto: ScheduleDto) {
     // ✅ FIXED: Enhanced 24-hour format validation
     if (
-      !this.isValidTimeFormat(dto.start_time) ||
-      !this.isValidTimeFormat(dto.end_time)
+      dto.start_time &&
+      dto.end_time &&
+      (!this.isValidTimeFormat(dto.start_time) ||
+        !this.isValidTimeFormat(dto.end_time))
     ) {
       throw new BadRequestException(
         'Invalid time format. Use 24-hour HH:mm format (e.g., 08:00, 18:00).',
@@ -278,12 +289,19 @@ export class GarageScheduleService {
     }
 
     // Validate start time is before end time
-    if (!this.isStartBeforeEnd(dto.start_time, dto.end_time)) {
+    if (
+      dto.start_time &&
+      dto.end_time &&
+      !this.isStartBeforeEnd(dto.start_time, dto.end_time)
+    ) {
       throw new BadRequestException('Start time must be before end time.');
     }
 
     // Validate slot duration
-    if (dto.slot_duration < 15 || dto.slot_duration > 480) {
+    if (
+      dto.slot_duration &&
+      (dto.slot_duration < 15 || dto.slot_duration > 480)
+    ) {
       throw new BadRequestException(
         'Slot duration must be between 15 and 480 minutes.',
       );
@@ -394,6 +412,207 @@ export class GarageScheduleService {
       },
     };
   }
+
+  // ************************** NEW BY NAJIM **************************
+
+  async setHoliday(garageId: string, dto: RestrictionDto) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Schedule not found');
+    }
+
+    let restrictions: any[] = [];
+    if (schedule.restrictions) {
+      restrictions =
+        typeof schedule.restrictions === 'string'
+          ? JSON.parse(schedule.restrictions)
+          : (schedule.restrictions as any[]);
+    }
+
+    // Filter out holiday restrictions to count and find match
+    const holidayRestrictions = restrictions.filter(
+      (r) => r.type === 'HOLIDAY',
+    );
+
+    // 1. Check for existing bookings
+    // To check bookings, we need the year. Defaulting to current year.
+    const year = new Date().getFullYear();
+    const dateToCheck = new Date(year, dto.month! - 1, dto.day!);
+    const startOfDay = new Date(dateToCheck);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(dateToCheck);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingBookingsCount = await this.prisma.order.count({
+      where: {
+        garage_id: garageId,
+        order_date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+      },
+    });
+
+    if (existingBookingsCount > 0) {
+      throw new BadRequestException(
+        'There are already bookings on this date. Please cancel the bookings first, then set the holiday.',
+      );
+    }
+
+    // 2. No bookings exist, delete all existing TimeSlots for that date
+    await this.prisma.timeSlot.deleteMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    // Find if a holiday for this specific date or day_of_week already exists
+    let existingIndex = -1;
+    if (dto.month !== undefined && dto.day !== undefined) {
+      existingIndex = restrictions.findIndex(
+        (r) =>
+          r.type === 'HOLIDAY' && r.month === dto.month && r.day === dto.day,
+      );
+    } else if (dto.day_of_week !== undefined) {
+      existingIndex = restrictions.findIndex(
+        (r) =>
+          r.type === 'HOLIDAY' &&
+          r.day_of_week === dto.day_of_week &&
+          r.month === undefined,
+      );
+    } else {
+      throw new BadRequestException(
+        'Holiday must have month/day or day_of_week',
+      );
+    }
+
+    // Check 365 limit
+    if (existingIndex === -1 && holidayRestrictions.length >= 365) {
+      throw new BadRequestException('Cannot add more than 365 holidays');
+    }
+
+    const newHoliday: any = {
+      type: 'HOLIDAY',
+      description: dto.description || 'Holiday',
+      is_recurring: dto.is_recurring ?? true,
+    };
+
+    if (dto.month !== undefined && dto.day !== undefined) {
+      newHoliday.month = dto.month;
+      newHoliday.day = dto.day;
+    } else if (dto.day_of_week !== undefined) {
+      newHoliday.day_of_week = dto.day_of_week;
+    }
+
+    if (existingIndex > -1) {
+      restrictions[existingIndex] = newHoliday;
+    } else {
+      restrictions.push(newHoliday);
+    }
+
+    const updatedSchedule = await this.prisma.schedule.update({
+      where: { garage_id: garageId },
+      data: {
+        restrictions: restrictions,
+      },
+    });
+
+    return {
+      success: true,
+      message:
+        existingIndex > -1
+          ? 'Holiday updated successfully'
+          : 'Holiday added successfully',
+      data: updatedSchedule,
+    };
+  }
+
+  async deleteHoliday(garageId: string, dto: { month: number; day: number }) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Schedule not found');
+    }
+
+    if (dto.month === undefined || dto.day === undefined) {
+      throw new BadRequestException(
+        'Month and day are required to delete a holiday',
+      );
+    }
+
+    let restrictions: any[] = [];
+    if (schedule.restrictions) {
+      restrictions =
+        typeof schedule.restrictions === 'string'
+          ? JSON.parse(schedule.restrictions)
+          : (schedule.restrictions as any[]);
+    }
+
+    const initialLength = restrictions.length;
+    restrictions = restrictions.filter(
+      (r) =>
+        !(r.type === 'HOLIDAY' && r.month === dto.month && r.day === dto.day),
+    );
+
+    if (restrictions.length === initialLength) {
+      throw new NotFoundException(
+        `Holiday for date ${dto.month}/${dto.day} not found`,
+      );
+    }
+
+    const updatedSchedule = await this.prisma.schedule.update({
+      where: { garage_id: garageId },
+      data: {
+        restrictions: restrictions,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Holiday deleted successfully',
+      data: updatedSchedule,
+    };
+  }
+
+  async getHolidays(garageId: string) {
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Schedule not found');
+    }
+
+    let restrictions: any[] = [];
+    if (schedule.restrictions) {
+      restrictions =
+        typeof schedule.restrictions === 'string'
+          ? JSON.parse(schedule.restrictions)
+          : (schedule.restrictions as any[]);
+    }
+
+    const holidayRestrictions = restrictions.filter(
+      (r) => r.type === 'HOLIDAY',
+    );
+
+    return {
+      success: true,
+      message: 'Holidays retrieved successfully',
+      data: holidayRestrictions,
+    };
+  }
+
+  // ************************** NEW BY NAJIM **************************
 
   // Set weekly pattern (legacy support)
   async setWeeklyPattern(garageId: string, dto: SetWeeklyPatternDto) {
@@ -594,6 +813,23 @@ export class GarageScheduleService {
     const date = new Date(dto.date + 'T00:00:00');
     // Guard: disallow past dates
     this.ensureNotPast(date);
+
+    const schedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Schedule not found');
+    }
+
+    const restrictions = Array.isArray(schedule.restrictions)
+      ? (schedule.restrictions as any[])
+      : JSON.parse((schedule.restrictions as string) || '[]');
+
+    if (this.isDayRestricted(restrictions, date)) {
+      throw new BadRequestException('Cannot add slots on a holiday');
+    }
+
     const slots = dto.slots;
 
     // Validate all slot times are in 24-hour format
@@ -1239,12 +1475,89 @@ export class GarageScheduleService {
 
   // ✅ ENHANCED: View available slots with status array support
   async viewAvailableSlots(garageId: string, date: string) {
-    const schedule = await this.prisma.schedule.findUnique({
+    let schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
     });
 
-    if (!schedule || !schedule.is_active) {
-      throw new BadRequestException('No active schedule found.');
+    if (!schedule) {
+      // Create default schedule
+      // new added by najim
+      schedule = await this.prisma.schedule.create({
+        data: {
+          garage_id: garageId,
+          daily_hours: {
+            0: { is_closed: true },
+            1: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            2: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            3: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            4: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            5: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            6: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+          },
+          restrictions: [
+            {
+              type: 'BREAK',
+              day_of_week: [1],
+              start_time: '13:00',
+              end_time: '14:00',
+              description: 'Lunch',
+            },
+            {
+              type: 'BREAK',
+              day_of_week: [2],
+              start_time: '14:00',
+              end_time: '15:00',
+              description: 'Lunch',
+            },
+            {
+              type: 'BREAK',
+              day_of_week: [3],
+              start_time: '15:00',
+              end_time: '16:00',
+              description: 'Lunch',
+            },
+            {
+              type: 'BREAK',
+              day_of_week: [4],
+              start_time: '16:00',
+              end_time: '17:00',
+              description: 'Lunch',
+            },
+            {
+              type: 'BREAK',
+              day_of_week: [5],
+              start_time: '17:00',
+              end_time: '18:00',
+              description: 'Lunch',
+            },
+            {
+              type: 'BREAK',
+              day_of_week: [6],
+              start_time: '18:00',
+              end_time: '19:00',
+              description: 'Lunch',
+            },
+          ],
+        },
+      });
     }
 
     const restrictions = Array.isArray(schedule.restrictions)
@@ -1278,6 +1591,7 @@ export class GarageScheduleService {
     if (isHoliday && existingSlots.length === 0) {
       return {
         success: true,
+        message: 'No slots found for holiday',
         data: {
           garage_id: garageId,
           date,
@@ -1626,7 +1940,7 @@ export class GarageScheduleService {
         data: {
           year,
           month,
-          month_name: this.getMonthName(month),
+          month_name: getMonthName(month),
           holidays: [],
         },
       };
@@ -1650,7 +1964,7 @@ export class GarageScheduleService {
       data: {
         year,
         month,
-        month_name: this.getMonthName(month),
+        month_name: getMonthName(month),
         holidays,
       },
     };
@@ -1812,79 +2126,62 @@ export class GarageScheduleService {
     };
   }
 
-  // ✅ NEW: Get month name helper
-  private getMonthName(month: number): string {
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return monthNames[month - 1];
-  }
+  // ✅ Use imported getMonthName from calendar-view.helper
 
   // Add these helper methods
-  private getBreakInfo(
-    restrictions: any[],
-    dayOfWeek: number,
-    slotStartTime: string,
-  ) {
-    const breakRestriction = restrictions.find(
-      (r) =>
-        r.type === 'BREAK' &&
-        r.day_of_week?.includes(dayOfWeek) &&
-        r.start_time === slotStartTime,
-    );
+  // private getBreakInfo(
+  //   restrictions: any[],
+  //   dayOfWeek: number,
+  //   slotStartTime: string,
+  // ) {
+  //   const breakRestriction = restrictions.find(
+  //     (r) =>
+  //       r.type === 'BREAK' &&
+  //       r.day_of_week?.includes(dayOfWeek) &&
+  //       r.start_time === slotStartTime,
+  //   );
 
-    return {
-      description: breakRestriction?.description || 'Break Time',
-    };
-  }
+  //   return {
+  //     description: breakRestriction?.description || 'Break Time',
+  //   };
+  // }
 
   // Add these helper methods at the class level
-  private getLocalDateTime(date: string, time: string): Date {
-    const [hours, minutes] = time.split(':').map(Number);
-    const dateTime = new Date(date);
-    dateTime.setHours(hours, minutes, 0, 0);
-    return dateTime;
-  }
+  // private getLocalDateTime(date: string, time: string): Date {
+  //   const [hours, minutes] = time.split(':').map(Number);
+  //   const dateTime = new Date(date);
+  //   dateTime.setHours(hours, minutes, 0, 0);
+  //   return dateTime;
+  // }
 
-  private convertToUTC(localDate: Date): Date {
-    return new Date(
-      Date.UTC(
-        localDate.getFullYear(),
-        localDate.getMonth(),
-        localDate.getDate(),
-        localDate.getHours(),
-        localDate.getMinutes(),
-        0,
-        0,
-      ),
-    );
-  }
+  // private convertToUTC(localDate: Date): Date {
+  //   return new Date(
+  //     Date.UTC(
+  //       localDate.getFullYear(),
+  //       localDate.getMonth(),
+  //       localDate.getDate(),
+  //       localDate.getHours(),
+  //       localDate.getMinutes(),
+  //       0,
+  //       0,
+  //     ),
+  //   );
+  // }
 
-  private convertToLocal(utcDate: Date): Date {
-    const localDate = new Date(utcDate);
-    localDate.setMinutes(
-      localDate.getMinutes() + localDate.getTimezoneOffset(),
-    );
-    return localDate;
-  }
+  // private convertToLocal(utcDate: Date): Date {
+  //   const localDate = new Date(utcDate);
+  //   localDate.setMinutes(
+  //     localDate.getMinutes() + localDate.getTimezoneOffset(),
+  //   );
+  //   return localDate;
+  // }
 
-  private debugTimeRange(d: Date) {
-    return `${this.formatTime24Hour(d)}`;
-  }
-  private debugSlotRange(s: { start_datetime: Date; end_datetime: Date }) {
-    return `${this.debugTimeRange(s.start_datetime)}-${this.debugTimeRange(s.end_datetime)}`;
-  }
+  // private debugTimeRange(d: Date) {
+  //   return `${this.formatTime24Hour(d)}`;
+  // }
+  // private debugSlotRange(s: { start_datetime: Date; end_datetime: Date }) {
+  //   return `${this.debugTimeRange(s.start_datetime)}-${this.debugTimeRange(s.end_datetime)}`;
+  // }
 
   // ========== Chapter 3: Core helpers for per-day hours ==========
   // Date guard helpers (prevent past manipulations)
@@ -2493,16 +2790,46 @@ export class GarageScheduleService {
 
   // Get schedule for garage
   async getSchedule(garageId: string) {
-    const schedule = await this.prisma.schedule.findUnique({
+    let schedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
     });
 
     if (!schedule) {
-      return {
-        success: true,
-        data: null,
-        message: 'No schedule configured',
-      };
+      // Create default schedule
+      // new added by najim
+      schedule = await this.prisma.schedule.create({
+        data: {
+          garage_id: garageId,
+          daily_hours: {
+            0: { is_closed: true },
+            1: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            2: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            3: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            4: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            5: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+            6: {
+              intervals: [{ start_time: '09:00', end_time: '17:00' }],
+              slot_duration: 60,
+            },
+          },
+          restrictions: [],
+        },
+      });
     }
 
     // Parse restrictions to ensure they're in the correct format

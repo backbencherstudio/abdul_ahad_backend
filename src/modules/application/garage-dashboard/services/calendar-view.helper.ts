@@ -161,6 +161,8 @@ export function getDayName(dayOfWeek: number): string {
  */
 function isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
   const dayOfWeek = date.getDay();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
 
   if (!Array.isArray(restrictions)) {
     return false;
@@ -169,6 +171,13 @@ function isDayRestricted(restrictions: RestrictionDto[], date: Date): boolean {
   return restrictions.some((r) => {
     if (r.type !== 'HOLIDAY') {
       return false;
+    }
+
+    // Handle specific date (month/day)
+    if (r.month !== undefined && r.day !== undefined) {
+      if (r.month === month && r.day === day) {
+        return true;
+      }
     }
 
     // Handle both single day and array of days
@@ -311,6 +320,7 @@ export function generateHolidaysForMonth(
         date: ymd,
         day_of_week: dayOfWeek,
         description: 'Closed',
+        type: 'CLOSED',
       });
       added.add(ymd);
     }
@@ -319,15 +329,12 @@ export function generateHolidaysForMonth(
     const holidayRestriction = restrictions.find((r) => {
       if (r.type !== 'HOLIDAY') return false;
 
-      // Recurring by weekday
-      if (r.is_recurring) {
-        if (Array.isArray(r.day_of_week))
-          return r.day_of_week.includes(dayOfWeek);
-        if (r.day_of_week !== undefined && r.day_of_week === dayOfWeek)
-          return true;
+      // Check for specific date (YYYY-MM-DD)
+      if (r.date === ymd) {
+        return true;
       }
 
-      // Specific date (month/day)
+      // Check for specific date (month/day)
       if (
         r.month !== undefined &&
         r.month === month &&
@@ -344,6 +351,7 @@ export function generateHolidaysForMonth(
         date: ymd,
         day_of_week: dayOfWeek,
         description: holidayRestriction.description || 'Holiday',
+        type: 'HOLIDAY',
       });
       added.add(ymd);
     }
