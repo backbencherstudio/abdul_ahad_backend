@@ -570,7 +570,7 @@ export class GarageInvoiceService {
       <tr>
         <th>QTY</th>
         <th>Description</th>
-        <th class="right">Unit Price</th>
+        <th class="center">Unit Price</th>
         <th class="right">Amount</th>
       </tr>
     </thead>
