@@ -487,6 +487,7 @@ export class GarageInvoiceService {
   }
   td { border-bottom: 1px solid #e5e7eb; }
   th.right, td.right { text-align: right; }
+  td.center { text-align: center; }
 
   .totals {
     width: 300px;
@@ -500,11 +501,10 @@ export class GarageInvoiceService {
     font-size: 13px;
   }
   .totals .grand {
-    border-top: 2px solid var(--brand);
+    border-top: 1px solid #e5e7eb;
     margin-top: 10px;
     padding-top: 10px;
-    font-weight: 800;
-    color: var(--brand);
+    font-weight: 600;
   }
 
   .invoice-footer {
@@ -525,6 +525,7 @@ export class GarageInvoiceService {
     color: #374151;
   }
   .footer-note {
+    text-align: left;
     margin: 0;
     font-size: 11px;
   }
@@ -537,11 +538,17 @@ export class GarageInvoiceService {
   <div class="header">
     <div class="company">
       <h2>simplymot.co.uk</h2>
-      <p>support@simplymot.co.uk</p>
+      <p>124 City Road, London, EC1V 2NX</p>
+      <p>info@simplymot.co.uk</p>
     </div>
-    <div class="invoice-title">
+    <div class="meta">
+      <p><span>Invoice #</span>${data.invoice_number}</p>
+      <p><span>Invoice date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
+      <p><span>Due date</span>${format(new Date(data.due_date), 'dd/MM/yyyy')}</p>
+    </div>
+    <!-- <div class="invoice-title">
       <h1>INVOICE</h1>
-    </div>
+    </div> -->
   </div>
 
   <div class="bill">
@@ -555,11 +562,7 @@ export class GarageInvoiceService {
       ${data.garage.phone_number ? `<p>${data.garage.phone_number}</p>` : ''}
     </div>
 
-    <div class="meta">
-      <p><span>Invoice #</span><strong>${data.invoice_number}</strong></p>
-      <p><span>Invoice date</span><strong>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</strong></p>
-      <p><span>Due date</span><strong>${format(new Date(data.due_date), 'dd/MM/yyyy')}</strong></p>
-    </div>
+    
   </div>
 
   <table>
@@ -573,9 +576,9 @@ export class GarageInvoiceService {
     </thead>
     <tbody>
       <tr>
-        <td>1</td>
-        <td>${data.subscription.planName} (${data.subscription.billingCycle} Subscription)</td>
-        <td class="right">${formatCurrency(subtotal)}</td>
+        <td class="center">1</td>
+        <td class="center">${data.subscription.planName} (${data.subscription.billingCycle} Subscription)</td>
+        <td class="center">${formatCurrency(subtotal)}</td>
         <td class="right">${formatCurrency(subtotal)}</td>
       </tr>
     </tbody>
@@ -598,9 +601,9 @@ export class GarageInvoiceService {
 
   <div class="invoice-footer">
     <div class="footer-line"></div>
-    <p class="footer-title">Thank you for your business!</p>
+    <!-- <p class="footer-title">Thank you for your business!</p> -->
     <p class="footer-note">
-      This is a computer-generated invoice. No signature required.
+      simplymot.co.uk is an independent online MOT booking platform. This invoice relates to subscription services for garage listings and booking management only. Garage subscriptions are subject to the simplymot.co.uk Terms and Conditions for Garages, available at www.simplymot.co.uk and related platform policies. Legal Entity: A. Ahad (Sole Trader) trading as simplymot.co.uk | 124 City Road, London, EC1V 2NX | info@simplymot.co.uk 
     </p>
   </div>
 
