@@ -8,7 +8,7 @@ import { AuthController } from './auth.controller';
 import appConfig from '../../config/app.config';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { MailModule } from '../../mail/mail.module';
-import { GoogleStrategy } from './strategies/google.strategy';
+// import { GoogleStrategy } from './strategies/google.strategy';
 import { SubscriptionVisibilityModule } from '../../common/lib/subscription/subscription-visibility.module';
 
 @Module({
@@ -29,7 +29,7 @@ import { SubscriptionVisibilityModule } from '../../common/lib/subscription/subs
     SubscriptionVisibilityModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, GoogleStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy /*GoogleStrategy*/],
   exports: [AuthService],
 })
 export class AuthModule {}
