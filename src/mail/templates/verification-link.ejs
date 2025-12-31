@@ -1,4 +1,105 @@
-<p>Hello <%= name %>,</p>
-<p>Please click the link below to verify your email:</p>
-<a href="<%= verificationLink %>">Verify Email</a>
-<p>This link will expire in 24 hours.</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+        .note {
+            font-size: 13px;
+            color: #666;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Verify Your Email</div>
+        </div>
+
+        <div class="content">
+            <p>Hello <strong><%= name %></strong>,</p>
+            
+            <p>Thanks for joining simplymot.co.uk! To get started, please verify your email address by clicking the button below:</p>
+
+            <div style="text-align: center;">
+                <a href="<%= verificationLink %>" class="button">Verify Email Address</a>
+            </div>
+
+            <p>This verification link will expire in <strong>24 hours</strong>. If you did not create an account, you can safely ignore this email.</p>
+
+            <div class="divider"></div>
+
+            <p class="note">
+                If you're having trouble clicking the button, copy and paste the URL below into your web browser:<br>
+                <span style="word-break: break-all; color: #00D00A;"><%= verificationLink %></span>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+        </div>
+    </div>
+</body>
+</html>

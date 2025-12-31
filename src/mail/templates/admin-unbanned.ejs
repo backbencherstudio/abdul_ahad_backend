@@ -28,144 +28,68 @@
         }
         .logo {
             font-size: 24px;
-            font-weight: 600;
-            margin: 0;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
         }
         .content {
-            padding: 30px;
+            padding: 25px;
         }
         .success-box {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
             border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            color: #155724;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+            color: #00D00A;
         }
-        .success-icon {
-            font-size: 24px;
-            margin-right: 10px;
-        }
-        .admin-info {
-            background-color: #e7f3ff;
-            border-radius: 8px;
-            padding: 20px;
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
         .footer {
-            background-color: #f8f9fa;
-            padding: 20px;
             text-align: center;
-            color: #6c757d;
-            font-size: 14px;
-        }
-        .contact-item {
-            margin: 8px 0;
-        }
-        .contact-item strong {
-            color: #495057;
-        }
-        .checkmark {
-            color: #00D00A;
-            font-weight: bold;
-        }
-        .admin-badge {
-            display: inline-block;
-            background-color: #6f42c1;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            margin-left: 10px;
-        }
-        .privileges-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
             padding: 20px;
-            margin: 20px 0;
-            color: #856404;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">Simply MOT</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px;">Administrative Access Restored</p>
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Administrative Account Status</div>
         </div>
-        
+
         <div class="content">
-            <h2 style="color: #00D00A; margin-top: 0;">
-                Administrative Access Restored
-                <span class="admin-badge">ADMIN</span>
-            </h2>
-            
             <p>Dear <strong><%= user.name %></strong>,</p>
             
             <div class="success-box">
-                <span class="success-icon">✅</span>
-                <strong>Your administrative access to Simply MOT has been restored.</strong>
+                <strong>Your administrative access to simplymot.co.uk has been restored.</strong>
             </div>
-            
-            <h3>You can now access:</h3>
+
+            <p><strong>You can now access:</strong></p>
             <ul>
-                <li><span class="checkmark">✅</span> Admin dashboard and control panel</li>
-                <li><span class="checkmark">✅</span> User management and role administration</li>
-                <li><span class="checkmark">✅</span> System settings and configuration</li>
-                <li><span class="checkmark">✅</span> All administrative functions</li>
+                <li>Admin dashboard and control panel</li>
+                <li>User management and role administration</li>
+                <li>System settings and configuration</li>
             </ul>
-            
-            <div class="privileges-box">
-                <h3 style="margin-top: 0; color: #856404;">🔐 Administrative Privileges Restored</h3>
-                <p><strong>Full administrative access has been reinstated to your account.</strong></p>
-                <p>You can now perform all administrative functions including:</p>
-                <ul>
-                    <li>User account management</li>
-                    <li>Role and permission administration</li>
-                    <li>System configuration and settings</li>
-                    <li>Security and access control</li>
-                </ul>
-            </div>
-            
-            <div class="admin-info">
-                <h3 style="margin-top: 0; color: #007bff;">Welcome Back to Administration</h3>
-                <p>Your administrative access has been fully restored. You can now log in and resume your administrative duties.</p>
-                <p>All your previous administrative privileges and permissions have been reinstated.</p>
-            </div>
-            
-            <h3>Getting Started:</h3>
-            <ol>
-                <li>Log in to your admin account using your existing credentials</li>
-                <li>Review any system changes that occurred during your suspension</li>
-                <li>Verify your administrative permissions and access levels</li>
-                <li>Contact system administrator if you need any assistance</li>
-            </ol>
-            
-            <div class="admin-info">
-                <h3 style="margin-top: 0; color: #007bff;">Need Administrative Assistance?</h3>
-                <p>If you encounter any issues with your restored access:</p>
-                <div class="contact-item">
-                    <strong>📧 Email:</strong> admin@simplymot.com
-                </div>
-                <div class="contact-item">
-                    <strong>📞 Phone:</strong> +1 (555) 123-4567
-                </div>
-                <div class="contact-item">
-                    <strong>🕒 Hours:</strong> Monday - Friday, 9 AM - 6 PM
-                </div>
-            </div>
-            
-            <p>Thank you for your patience, and welcome back to the Simply MOT administrative team!</p>
-            
-            <p>Best regards,<br>
-            <strong>Simply MOT System Administration</strong></p>
+
+            <div class="divider"></div>
+
+            <p>Welcome back! You can now log in to your account and resume your administrative duties.</p>
         </div>
-        
+
         <div class="footer">
-            <p>This is an automated administrative notification. Please do not reply to this email.</p>
-            <p>Simply MOT - Administrative Security Protocol</p>
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
         </div>
     </div>
 </body>

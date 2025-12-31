@@ -1,209 +1,135 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Successful - <%= app_name %></title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #333333;
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 0;
+            background-color: #f9f9f9;
         }
         .container {
             background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
         }
         .header {
+            background-color: #00D00A;
+            padding: 25px;
             text-align: center;
-            border-bottom: 3px solid #28a745;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            color: white;
         }
         .logo {
-            font-size: 28px;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-        .success-title {
-            color: #28a745;
             font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
         }
-        .success-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
         }
-        .payment-details {
-            background: #f8f9fa;
-            border-left: 4px solid #28a745;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 5px;
+        .content {
+            padding: 25px;
         }
-        .payment-amount {
-            font-size: 24px;
-            font-weight: bold;
-            color: #28a745;
-            margin-bottom: 10px;
-        }
-        .payment-info {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
-        }
-        .payment-info strong {
-            color: #007bff;
-        }
-        .receipt-details {
-            background: #e7f3ff;
-            border: 1px solid #007bff;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .receipt-details h3 {
-            color: #007bff;
-            margin: 0 0 15px 0;
-        }
-        .receipt-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .receipt-row:last-child {
-            border-bottom: none;
-            font-weight: bold;
-            color: #28a745;
-            border-top: 2px solid #28a745;
-            margin-top: 10px;
-            padding-top: 10px;
-        }
-        .next-billing {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .next-billing h3 {
-            color: #856404;
-            margin: 0 0 10px 0;
-        }
-        .cta-button {
-            display: inline-block;
-            background: #007bff;
-            color: white;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            margin: 20px 0;
+        .success-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
             text-align: center;
         }
-        .cta-button:hover {
-            background: #0056b3;
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
         }
-        .support {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            padding: 15px;
-            border-radius: 5px;
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
         .footer {
             text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            color: #666;
-            font-size: 14px;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+        .info-row {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .label {
+            font-weight: 600;
+            color: #00D00A;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo"><%= app_name %></div>
-            <div class="success-icon">✅</div>
-            <div class="success-title">Payment Successful!</div>
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Payment Successful</div>
         </div>
 
-        <p>Hello <strong><%= garage_name %></strong>,</p>
+        <div class="content">
+            <p>Hello <strong><%= garage_name %></strong>,</p>
+            
+            <p>Great news! Your payment has been processed successfully. Thank you for your continued subscription.</p>
 
-        <p>Great news! Your payment has been processed successfully. Thank you for your continued subscription to our service.</p>
+            <div class="success-box">
+                <div style="font-size: 24px; font-weight: 700; color: #00D00A; margin-bottom: 10px;">
+                    <%= amount_paid %> <%= currency %>
+                </div>
+                <div class="info-row">
+                    <span>Plan:</span>
+                    <strong><%= plan_name %></strong>
+                </div>
+                <div class="info-row">
+                    <span>Date:</span>
+                    <strong><%= payment_date %></strong>
+                </div>
+            </div>
 
-        <div class="payment-details">
-            <div class="payment-amount"><%= amount_paid %> <%= currency %></div>
-            <div class="payment-info">
-                <span>Plan:</span>
-                <span><strong><%= plan_name %></strong></span>
+            <p><strong>Receipt Details:</strong></p>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 14px;">
+                <div class="info-row"><span>Billing Period:</span> <span><%= billing_period %></span></div>
+                <div class="info-row"><span>Payment Method:</span> <span><%= payment_method %></span></div>
+                <div class="info-row"><span>Transaction ID:</span> <span><%= transaction_id %></span></div>
             </div>
-            <div class="payment-info">
-                <span>Payment Date:</span>
-                <span><strong><%= payment_date %></strong></span>
+
+            <% if (next_billing_date) { %>
+            <p style="font-size: 14px; margin-top: 15px;">
+                📅 Next billing: <strong><%= next_billing_amount %> <%= currency %></strong> on <strong><%= next_billing_date %></strong>.
+            </p>
+            <% } %>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
             </div>
+
+            <div class="divider"></div>
+
+            <p>Thank you for being a valued customer!</p>
         </div>
-
-        <div class="receipt-details">
-            <h3>📋 Receipt Details</h3>
-            <div class="receipt-row">
-                <span>Subscription Plan:</span>
-                <span><%= plan_name %></span>
-            </div>
-            <div class="receipt-row">
-                <span>Billing Period:</span>
-                <span><%= billing_period %></span>
-            </div>
-            <div class="receipt-row">
-                <span>Payment Method:</span>
-                <span><%= payment_method %></span>
-            </div>
-            <div class="receipt-row">
-                <span>Transaction ID:</span>
-                <span><%= transaction_id %></span>
-            </div>
-            <div class="receipt-row">
-                <span>Total Paid:</span>
-                <span><%= amount_paid %> <%= currency %></span>
-            </div>
-        </div>
-
-        <% if (next_billing_date) { %>
-        <div class="next-billing">
-            <h3>📅 Next Billing Date</h3>
-            <p>Your next payment of <strong><%= next_billing_amount %> <%= currency %></strong> will be charged on <strong><%= next_billing_date %></strong>.</p>
-        </div>
-        <% } %>
-
-        <div style="text-align: center;">
-            <a href="<%= billing_portal_url %>" class="cta-button">Manage Subscription</a>
-        </div>
-
-        <div class="support">
-            <h3>💬 Questions About Your Payment?</h3>
-            <p>If you have any questions about this payment or need assistance, our support team is here to help:</p>
-            <p>📧 Email: <a href="mailto:<%= support_email %>"><%= support_email %></a></p>
-            <p>💳 Billing Portal: <a href="<%= billing_portal_url %>">Manage Your Subscription</a></p>
-        </div>
-
-        <p>Thank you for being a valued customer of <strong><%= app_name %></strong>!</p>
-
-        <p>Best regards,<br>
-        The <%= app_name %> Team</p>
 
         <div class="footer">
-            <p>This email was sent to <%= garage_email %> regarding your payment confirmation.</p>
-            <p>&copy; <%= new Date().getFullYear() %> <%= app_name %>. All rights reserved.</p>
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
         </div>
     </div>
 </body>

@@ -1,56 +1,116 @@
-<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
-  <h2 style="margin:0 0 12px; color: #27ae60;">🎉 Welcome to <%= plan_name %>!</h2>
-  <p>Hi <%= garage_name %>,</p>
-  <p>
-    <strong>Congratulations!</strong> Your free trial has successfully converted to a paid subscription.
-  </p>
-  
-  <div style="background: #e8f5e8; border-left: 4px solid #27ae60; padding: 16px; margin: 16px 0;">
-    <h3 style="margin: 0 0 8px; color: #27ae60;">Subscription Details:</h3>
-    <ul style="margin: 0; padding-left: 20px;">
-      <li><strong>Plan:</strong> <%= plan_name %></li>
-      <li><strong>Price:</strong> <%= price_formatted %> per month</li>
-      <li><strong>Next billing date:</strong> <%= next_billing_date %></li>
-      <li><strong>Status:</strong> <span style="color: #27ae60; font-weight: bold;">Active</span></li>
-    </ul>
-  </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .success-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Subscription Activated! 🎉</div>
+        </div>
 
-  <p>
-    <strong>What's next?</strong><br/>
-    You now have full access to all features of your <%= plan_name %> plan. Your service will continue uninterrupted.
-  </p>
+        <div class="content">
+            <p>Hi <strong><%= garage_name %></strong>,</p>
+            
+            <p><strong>Congratulations!</strong> Your free trial has successfully converted to a paid subscription.</p>
 
-  <p>
-    <strong>Billing Information:</strong><br/>
-    You'll be automatically charged <strong><%= price_formatted %></strong> on <strong><%= next_billing_date %></strong> for your next billing period.
-  </p>
+            <div class="success-box">
+                <div style="font-size: 18px; font-weight: 700; color: #00D00A;">Subscription Active</div>
+                <div style="margin-top: 5px;">Plan: <strong><%= plan_name %></strong></div>
+                <div>Price: <strong><%= price_formatted %> / month</strong></div>
+            </div>
 
-  <% if (billing_portal_url) { %>
-  <p>
-    <strong>Need to make changes?</strong><br/>
-    You can manage your subscription, update payment methods, or view billing history anytime:
-  </p>
-  
-  <p>
-    <a href="<%= billing_portal_url %>" style="background:#27ae60;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin:8px 0;">Manage Subscription</a>
-  </p>
-  <% } %>
+            <p><strong>What's next?</strong><br>
+            You now have full access to all features of your plan. Your service will continue uninterrupted.</p>
 
-  <div style="background: #e8f4fd; border: 1px solid #bee5eb; padding: 12px; margin: 16px 0; border-radius: 4px;">
-    <p style="margin: 0; font-size: 14px; color: #0c5460;">
-      <strong>💡 Pro Tip:</strong> Keep your payment method up to date to avoid any service interruptions.
-    </p>
-  </div>
+            <p><strong>Billing Information:</strong><br>
+            You'll be automatically charged <strong><%= price_formatted %></strong> on <strong><%= next_billing_date %></strong> for your next billing period.</p>
 
-  <p>
-    Thank you for choosing <%= app_name %>! We're excited to help grow your garage business.
-  </p>
+            <% if (billing_portal_url) { %>
+            <div style="text-align: center;">
+                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+            </div>
+            <% } %>
 
-  <p>
-    If you have any questions or need assistance, our support team is here to help at 
-    <a href="mailto:<%= support_email %>"><%= support_email %></a>.
-  </p>
+            <div class="divider"></div>
 
-  <p>Best regards,<br/>
-  <strong>The <%= app_name %> Team</strong></p>
-</div>
+            <p style="font-size: 14px; color: #666;">
+                <strong>💡 Pro Tip:</strong> Keep your payment method up to date to avoid any service interruptions.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+        </div>
+    </div>
+</body>
+</html>

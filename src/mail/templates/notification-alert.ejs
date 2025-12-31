@@ -1,103 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Notification Update - <%= app_name %></title>
+<html>
+<head>
     <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        line-height: 1.6;
-        color: #333;
-        max-width: 600px;
-        margin: 0 auto;
-        padding: 20px;
-        background-color: #f4f4f4;
-      }
-      .container {
-        background: white;
-        border-radius: 10px;
-        padding: 30px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      }
-      .header {
-        text-align: center;
-        border-bottom: 3px solid #007bff;
-        padding-bottom: 20px;
-        margin-bottom: 30px;
-      }
-      .logo {
-        font-size: 28px;
-        font-weight: bold;
-        color: #007bff;
-        margin-bottom: 10px;
-      }
-      .title {
-        color: #333;
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 20px;
-      }
-      .content {
-        background: #f8f9fa;
-        border-left: 4px solid #007bff;
-        padding: 20px;
-        margin: 20px 0;
-        border-radius: 5px;
-        font-size: 16px;
-      }
-      .cta-button {
-        display: inline-block;
-        background: #007bff;
-        color: white;
-        padding: 12px 30px;
-        text-decoration: none;
-        border-radius: 5px;
-        font-weight: bold;
-        margin: 20px 0;
-        text-align: center;
-      }
-      .footer {
-        text-align: center;
-        margin-top: 30px;
-        padding-top: 20px;
-        border-top: 1px solid #eee;
-        color: #666;
-        font-size: 14px;
-      }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .alert-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+            color: #333;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <div class="header">
-        <div class="logo"><%= app_name %></div>
-        <div class="title">New Notification</div>
-      </div>
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Stay Updated</div>
+        </div>
 
-      <p>Hello <%= user_name %>,</p>
+        <div class="content">
+            <p>Hello <strong><%= user_name %></strong>,</p>
+            
+            <p>You have received a new update from <strong>simplymot.co.uk</strong>:</p>
 
-      <p>
-        You have received a new update from <strong><%= app_name %></strong>:
-      </p>
+            <div class="alert-box">
+                <%= message %>
+            </div>
 
-      <div class="content"><%= message %></div>
+            <div style="text-align: center;">
+                <a href="<%= client_url %>" class="button">View in Dashboard</a>
+            </div>
 
-      <div style="text-align: center">
-        <a href="<%= client_url %>" class="cta-button">View in Dashboard</a>
-      </div>
+            <div class="divider"></div>
 
-      <p>
-        If you have any questions, feel free to reply to this email or contact
-        support.
-      </p>
+            <p>If you have any questions, feel free to reply to this email or contact support.</p>
+        </div>
 
-      <div class="footer">
-        <p>This is an automated notification from <%= app_name %>.</p>
-        <p>
-          &copy; <%= new Date().getFullYear() %> <%= app_name %>. All rights
-          reserved.
-        </p>
-      </div>
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+        </div>
     </div>
-  </body>
+</body>
 </html>

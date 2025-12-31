@@ -1,178 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Your Subscription - <%= app_name %></title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #333333;
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 0;
+            background-color: #f9f9f9;
         }
         .container {
             background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
         }
         .header {
+            background-color: #00D00A;
+            padding: 25px;
             text-align: center;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            color: white;
         }
         .logo {
-            font-size: 28px;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-        .welcome-title {
-            color: #28a745;
             font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
         }
-        .plan-details {
-            background: #f8f9fa;
-            border-left: 4px solid #007bff;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 5px;
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
         }
-        .plan-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 10px;
+        .content {
+            padding: 25px;
         }
-        .plan-price {
-            font-size: 18px;
-            color: #28a745;
-            font-weight: bold;
-        }
-        .features {
-            margin: 20px 0;
-        }
-        .features h3 {
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-        .features ul {
-            list-style: none;
-            padding: 0;
-        }
-        .features li {
-            padding: 5px 0;
-            position: relative;
-            padding-left: 25px;
-        }
-        .features li:before {
-            content: "✓";
-            color: #28a745;
-            font-weight: bold;
-            position: absolute;
-            left: 0;
-        }
-        .next-billing {
-            background: #e7f3ff;
-            border: 1px solid #007bff;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .next-billing h3 {
-            color: #007bff;
-            margin: 0 0 10px 0;
-        }
-        .cta-button {
-            display: inline-block;
-            background: #007bff;
-            color: white;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            margin: 20px 0;
+        .success-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
             text-align: center;
         }
-        .cta-button:hover {
-            background: #0056b3;
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
         }
-        .support {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            padding: 15px;
-            border-radius: 5px;
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
         .footer {
             text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            color: #666;
-            font-size: 14px;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+        .feature-list {
+            margin: 15px 0;
+            padding: 0;
+            list-style: none;
+        }
+        .feature-item {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .feature-item:before {
+            content: "✓";
+            color: #00D00A;
+            font-weight: 700;
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo"><%= app_name %></div>
-            <div class="welcome-title">🎉 Welcome to Your Subscription!</div>
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Welcome to Your Subscription! 🎉</div>
         </div>
 
-        <p>Hello <strong><%= garage_name %></strong>,</p>
+        <div class="content">
+            <p>Hello <strong><%= garage_name %></strong>,</p>
+            
+            <p>Congratulations! Your subscription has been successfully activated. You now have access to all the premium features of <strong><%= plan_name %></strong>.</p>
 
-        <p>Congratulations! Your subscription has been successfully activated. You now have access to all the premium features of your chosen plan.</p>
+            <div class="success-box">
+                <div style="font-size: 20px; font-weight: 700; color: #00D00A;">
+                    <%= plan_name %>
+                </div>
+                <div style="font-size: 16px; color: #666; margin-top: 5px;">
+                    <%= price_formatted %> <%= currency %> / month
+                </div>
+            </div>
 
-        <div class="plan-details">
-            <div class="plan-name"><%= plan_name %></div>
-            <div class="plan-price"><%= price_formatted %> <%= currency %></div>
-        </div>
-
-        <div class="features">
-            <h3>🚀 What's Included:</h3>
-            <ul>
-                <li>Premium garage management tools</li>
-                <li>Advanced booking management</li>
-                <li>Priority customer support</li>
-                <li>Detailed analytics and reporting</li>
-                <li>Custom branding options</li>
+            <p><strong>🚀 What's Included:</strong></p>
+            <ul class="feature-list">
+                <li class="feature-item">Premium garage management tools</li>
+                <li class="feature-item">Advanced booking management</li>
+                <li class="feature-item">Priority customer support</li>
+                <li class="feature-item">Detailed analytics and reporting</li>
+                <li class="feature-item">Custom branding options</li>
             </ul>
+
+            <% if (next_billing_date) { %>
+            <p style="font-size: 14px; margin-top: 15px;">
+                📅 Next billing: <strong><%= price_formatted %> <%= currency %></strong> on <strong><%= next_billing_date %></strong>.
+            </p>
+            <% } %>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+            </div>
+
+            <div class="divider"></div>
+
+            <p>We're excited to help you grow your garage business!</p>
         </div>
-
-        <% if (next_billing_date) { %>
-        <div class="next-billing">
-            <h3>📅 Next Billing Date</h3>
-            <p>Your next payment of <strong><%= price_formatted %> <%= currency %></strong> will be charged on <strong><%= next_billing_date %></strong>.</p>
-        </div>
-        <% } %>
-
-        <div style="text-align: center;">
-            <a href="<%= billing_portal_url %>" class="cta-button">Manage Subscription</a>
-        </div>
-
-        <div class="support">
-            <h3>💬 Need Help?</h3>
-            <p>If you have any questions about your subscription or need assistance, our support team is here to help:</p>
-            <p>📧 Email: <a href="mailto:<%= support_email %>"><%= support_email %></a></p>
-        </div>
-
-        <p>Thank you for choosing <strong><%= app_name %></strong>. We're excited to help you grow your garage business!</p>
-
-        <p>Best regards,<br>
-        The <%= app_name %> Team</p>
 
         <div class="footer">
-            <p>This email was sent to <%= garage_email %> regarding your subscription.</p>
-            <p>&copy; <%= new Date().getFullYear() %> <%= app_name %>. All rights reserved.</p>
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
         </div>
     </div>
 </body>

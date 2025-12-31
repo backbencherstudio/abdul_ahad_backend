@@ -1,30 +1,109 @@
-<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222">
-  <h2 style="margin: 0 0 12px">Your Subscription Has Been Updated</h2>
-  <p>Hi <%= garage_name %>,</p>
-  <p>
-    Your subscription for <strong><%= plan_name %></strong> has been updated to
-    <strong><%= new_price %></strong> per month.
-  </p>
-  <ul>
-    <li>Effective date: <strong><%= effective_date %></strong></li>
-    <li>Next billing date: <strong><%= next_billing_date %></strong></li>
-  </ul>
-  <p>
-    You can review or manage your subscription any time from your billing
-    portal:
-  </p>
-  <p>
-    <a
-      href="<%= billing_portal_url %>"
-      style="
-        background: #2d6cdf;
-        color: #fff;
-        padding: 8px 12px;
-        text-decoration: none;
-        border-radius: 4px;
-      "
-      >Open Billing Portal</a
-    >
-  </p>
-  <p>Thank you,<br /><%= app_name %></p>
-</div>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .info-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Subscription Updated</div>
+        </div>
+
+        <div class="content">
+            <p>Hi <strong><%= garage_name %></strong>,</p>
+            
+            <p>Your subscription for <strong><%= plan_name %></strong> has been updated.</p>
+
+            <div class="info-box">
+                <p style="margin: 0;">New Price: <strong><%= new_price %></strong> per month</p>
+                <div style="font-size: 14px; color: #666; margin-top: 10px;">
+                    <div>Effective date: <strong><%= effective_date %></strong></div>
+                    <div>Next billing date: <strong><%= next_billing_date %></strong></div>
+                </div>
+            </div>
+
+            <p>You can review or manage your subscription any time from your billing portal:</p>
+
+            <div style="text-align: center;">
+                <a href="<%= billing_portal_url %>" class="button">Open Billing Portal</a>
+            </div>
+
+            <div class="divider"></div>
+
+            <p>Thank you for choosing simplymot.co.uk!</p>
+        </div>
+
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+        </div>
+    </div>
+</body>
+</html>

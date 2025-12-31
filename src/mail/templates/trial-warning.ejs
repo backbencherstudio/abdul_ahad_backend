@@ -1,52 +1,113 @@
-<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
-  <h2 style="margin:0 0 12px; color: #e74c3c;">⚠️ Trial Ending Soon</h2>
-  <p>Hi <%= garage_name %>,</p>
-  <p>
-    Your free trial for the <strong><%= plan_name %></strong> plan is ending soon!
-  </p>
-  
-  <div style="background: #f8f9fa; border-left: 4px solid #e74c3c; padding: 16px; margin: 16px 0;">
-    <h3 style="margin: 0 0 8px; color: #e74c3c;">Trial Details:</h3>
-    <ul style="margin: 0; padding-left: 20px;">
-      <li><strong>Plan:</strong> <%= plan_name %></li>
-      <li><strong>Price:</strong> <%= price_formatted %> per month</li>
-      <li><strong>Trial ends:</strong> <%= trial_end_date %></li>
-      <li><strong>Days remaining:</strong> <span style="color: #e74c3c; font-weight: bold;"><%= days_remaining %></span></li>
-    </ul>
-  </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #00D00A;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .info-box {
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .button {
+            background-color: #00D00A;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Trial Ending Soon ⚠️</div>
+        </div>
 
-  <p>
-    <strong>What happens next?</strong><br/>
-    After your trial ends, you'll be automatically charged <strong><%= price_formatted %></strong> per month to continue using our services.
-  </p>
+        <div class="content">
+            <p>Hi <strong><%= garage_name %></strong>,</p>
+            
+            <p>Your free trial for the <strong><%= plan_name %></strong> plan is ending soon!</p>
 
-  <p>
-    <strong>Want to continue?</strong><br/>
-    No action needed! Your subscription will automatically continue after the trial period.
-  </p>
+            <div class="info-box">
+                <div style="font-size: 18px; font-weight: 700; color: #00D00A;">Time Remaining</div>
+                <div style="font-size: 24px; font-weight: 700; margin: 10px 0;"><%= days_remaining %> Days</div>
+                <div style="color: #666; font-size: 14px;">Trial ends on: <strong><%= trial_end_date %></strong></div>
+            </div>
 
-  <p>
-    <strong>Want to cancel or update payment method?</strong><br/>
-    You can manage your subscription anytime through our billing portal:
-  </p>
-  
-  <% if (billing_portal_url) { %>
-  <p>
-    <a href="<%= billing_portal_url %>" style="background:#2d6cdf;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin:8px 0;">Manage Subscription</a>
-  </p>
-  <% } %>
+            <p><strong>What happens next?</strong><br>
+            After your trial ends, you'll be automatically charged <strong><%= price_formatted %></strong> per month for your chosen plan. No action is needed if you wish to continue.</p>
 
-  <div style="background: #e8f4fd; border: 1px solid #bee5eb; padding: 12px; margin: 16px 0; border-radius: 4px;">
-    <p style="margin: 0; font-size: 14px; color: #0c5460;">
-      <strong>💡 Pro Tip:</strong> Update your payment method now to avoid any service interruption when your trial ends.
-    </p>
-  </div>
+            <% if (billing_portal_url) { %>
+            <div style="text-align: center;">
+                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+            </div>
+            <% } %>
 
-  <p>
-    If you have any questions or need assistance, don't hesitate to contact our support team at 
-    <a href="mailto:<%= support_email %>"><%= support_email %></a>.
-  </p>
+            <div class="divider"></div>
 
-  <p>Thank you for trying <%= app_name %>!<br/>
-  <strong>The <%= app_name %> Team</strong></p>
-</div>
+            <p style="font-size: 14px; color: #666;">
+                <strong>💡 Pro Tip:</strong> Ensure your payment method is correct to avoid any interruptions.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+        </div>
+    </div>
+</body>
+</html>

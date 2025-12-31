@@ -1,72 +1,123 @@
-<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
-  <h2 style="margin:0 0 12px; color: #e74c3c;">💳 Payment Failed - Action Required</h2>
-  <p>Hi <%= garage_name %>,</p>
-  <p>
-    We were unable to process your payment for your <strong><%= plan_name %></strong> subscription.
-  </p>
-  
-  <div style="background: #fdf2f2; border-left: 4px solid #e74c3c; padding: 16px; margin: 16px 0;">
-    <h3 style="margin: 0 0 8px; color: #e74c3c;">Payment Details:</h3>
-    <ul style="margin: 0; padding-left: 20px;">
-      <li><strong>Plan:</strong> <%= plan_name %></li>
-      <li><strong>Amount:</strong> <%= currency %><%= amount_due %></li>
-      <li><strong>Failure Reason:</strong> <span style="color: #e74c3c;"><%= failure_reason %></span></li>
-      <li><strong>Status:</strong> <span style="color: #e74c3c; font-weight: bold;">Payment Failed</span></li>
-    </ul>
-  </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        .header {
+            background-color: #dc3545;
+            padding: 25px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 25px;
+        }
+        .alert-box {
+            background-color: #fff5f5;
+            border: 1px dashed #dc3545;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            text-align: center;
+            color: #dc3545;
+        }
+        .button {
+            background-color: #dc3545;
+            color: white !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            margin: 15px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
+        }
+        .info-row {
+            margin: 5px 0;
+        }
+        .label {
+            font-weight: 600;
+            color: #dc3545;
+            display: inline-block;
+            width: 120px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Payment Failed - Action Required</div>
+        </div>
 
-  <p>
-    <strong>What happened?</strong><br/>
-    <%= failure_reason %>. This is a common issue that can usually be resolved quickly.
-  </p>
+        <div class="content">
+            <p>Hi <strong><%= garage_name %></strong>,</p>
+            
+            <p>We were unable to process your payment for your <strong><%= plan_name %></strong> subscription.</p>
 
-  <p>
-    <strong>Impact on your service:</strong><br/>
-    Your garage is temporarily hidden from driver searches until payment is resolved. You won't receive new bookings during this time.
-  </p>
+            <div class="alert-box">
+                <div class="info-row"><span class="label">Amount:</span> <%= currency %><%= amount_due %></div>
+                <div class="info-row"><span class="label">Reason:</span> <%= failure_reason %></div>
+            </div>
 
-  <p>
-    <strong>What you need to do:</strong><br/>
-    Please update your payment method or resolve the payment issue as soon as possible.
-  </p>
+            <p><strong>Impact on your service:</strong><br>
+            Your garage is temporarily hidden from driver searches until payment is resolved. You won't receive new bookings during this time.</p>
 
-  <% if (billing_portal_url) { %>
-  <p>
-    <strong>Quick Fix:</strong><br/>
-    Click the button below to update your payment method in just a few clicks:
-  </p>
-  
-  <p>
-    <a href="<%= billing_portal_url %>" style="background:#e74c3c;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin:8px 0;">Update Payment Method</a>
-  </p>
-  <% } %>
+            <% if (billing_portal_url) { %>
+            <div style="text-align: center;">
+                <a href="<%= billing_portal_url %>" class="button">Update Payment Method</a>
+            </div>
+            <% } %>
 
-  <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 12px; margin: 16px 0; border-radius: 4px;">
-    <p style="margin: 0; font-size: 14px; color: #856404;">
-      <strong>⏰ Grace Period:</strong> You have 3 days to resolve this payment issue before your subscription is suspended. Your data remains safe during this time.
-    </p>
-  </div>
+            <div class="divider"></div>
 
-  <div style="background: #e8f4fd; border: 1px solid #bee5eb; padding: 12px; margin: 16px 0; border-radius: 4px;">
-    <p style="margin: 0; font-size: 14px; color: #0c5460;">
-      <strong>💡 Common Solutions:</strong><br/>
-      • Update your card details if it has expired<br/>
-      • Ensure sufficient funds are available<br/>
-      • Check that your billing address is correct<br/>
-      • Contact your bank if the card was declined
-    </p>
-  </div>
+            <p style="font-size: 14px; color: #666;">
+                <strong>⏰ Grace Period:</strong> You have 3 days to resolve this before your subscription is suspended.<br>
+                We'll automatically retry your payment in 24 hours.
+            </p>
+        </div>
 
-  <p>
-    <strong>Need help?</strong><br/>
-    Our support team is here to assist you. Contact us at 
-    <a href="mailto:<%= support_email %>"><%= support_email %></a> or reply to this email.
-  </p>
-
-  <p>
-    We'll automatically retry your payment in 24 hours. Once resolved, your service will be restored immediately.
-  </p>
-
-  <p>Best regards,<br/>
-  <strong>The <%= app_name %> Team</strong></p>
-</div>
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #dc3545;">info@simplymot.co.uk</a></p>
+        </div>
+    </div>
+</body>
+</html>

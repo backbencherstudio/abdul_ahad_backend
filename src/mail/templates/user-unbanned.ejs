@@ -28,143 +28,97 @@
         }
         .logo {
             font-size: 24px;
-            font-weight: 600;
-            margin: 0;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
         }
         .content {
-            padding: 30px;
+            padding: 25px;
         }
         .success-box {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
+            background-color: #f5f9f5;
+            border: 1px dashed #00D00A;
             border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            color: #155724;
-        }
-        .success-icon {
-            font-size: 24px;
-            margin-right: 10px;
-        }
-        .features-box {
-            background-color: #e7f3ff;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .subscription-info {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            color: #856404;
-        }
-        .footer {
-            background-color: #f8f9fa;
-            padding: 20px;
+            padding: 18px;
+            margin: 25px 0;
             text-align: center;
-            color: #6c757d;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
             font-size: 14px;
         }
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
+        .button {
             background-color: #00D00A;
-            color: white;
+            color: white !important;
+            padding: 12px 24px;
             text-decoration: none;
             border-radius: 6px;
+            display: inline-block;
             font-weight: 500;
-            margin: 10px 5px;
+            margin: 15px 0;
         }
-        .btn:hover {
-            background-color: #00b308;
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
+            margin: 20px 0;
         }
-        .contact-item {
-            margin: 8px 0;
-        }
-        .contact-item strong {
-            color: #495057;
-        }
-        .checkmark {
-            color: #00D00A;
-            font-weight: bold;
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #888;
+            background: #f9f9f9;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">Simply MOT</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px;">Account Status Update</p>
+            <div class="logo">simplymot.co.uk</div>
+            <div class="tagline">Account Restored</div>
         </div>
-        
+
         <div class="content">
-            <h2 style="color: #00D00A; margin-top: 0;">Account Restored</h2>
-            
             <p>Dear <strong><%= user.name %></strong>,</p>
             
             <div class="success-box">
-                <span class="success-icon">✅</span>
-                <strong>Great news! Your account has been restored and is now active again.</strong>
+                <div style="font-size: 18px; font-weight: 700; color: #00D00A;">Account Active</div>
             </div>
-            
-            <h3>You can now:</h3>
-            <ul>
-                <li><span class="checkmark">✅</span> Log in to your account</li>
-                <li><span class="checkmark">✅</span> Access all free features</li>
-                <li><span class="checkmark">✅</span> Manage your profile and settings</li>
-                <li><span class="checkmark">✅</span> Contact our support team</li>
-            </ul>
-            
-            <div class="features-box">
-                <h3 style="margin-top: 0; color: #007bff;">Welcome Back!</h3>
-                <p>We're glad to have you back on Simply MOT. Your account is fully restored and ready to use.</p>
-                <p>You can now access all the features you had before your account was temporarily suspended.</p>
+
+            <p>Great news! Your account has been restored and is now active again. You can now log in and access all simplymot.co.uk services.</p>
+
+            <div class="info-box">
+                <p style="margin: 0;"><strong>Welcome Back!</strong></p>
+                <p style="margin-top: 10px;">Your account is fully restored and ready to use. You can now access all the features you had before.</p>
             </div>
-            
+
             <% if (hadSubscription) { %>
-            <div class="subscription-info">
-                <h3 style="margin-top: 0; color: #856404;">📋 Subscription Status</h3>
-                <p><strong>Important:</strong> Your previous subscription was cancelled when your account was banned.</p>
-                <p>To access premium features, you'll need to resubscribe from your dashboard.</p>
-                <p>This ensures you have full control over your subscription and billing.</p>
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeaa7; margin: 20px 0; font-size: 14px; color: #856404;">
+                <p style="margin: 0;"><strong>📋 Note on Subscription:</strong></p>
+                <p style="margin-top: 5px;">Your previous subscription was cancelled. To access premium features, please resubscribe from your dashboard.</p>
             </div>
             <% } %>
-            
-            <h3>Getting Started:</h3>
-            <ol>
-                <li>Log in to your account using your existing credentials</li>
-                <li>Review your profile and update any necessary information</li>
-                <% if (hadSubscription) { %>
-                <li>Visit the subscription section to resubscribe for premium features</li>
-                <% } %>
-                <li>Contact support if you need any assistance</li>
-            </ol>
-            
-            <div class="features-box">
-                <h3 style="margin-top: 0; color: #007bff;">Need Assistance?</h3>
-                <p>Our support team is here to help you get back on track:</p>
-                <div class="contact-item">
-                    <strong>📧 Email:</strong> support@simplymot.com
-                </div>
-                <div class="contact-item">
-                    <strong>📞 Phone:</strong> +1 (555) 123-4567
-                </div>
-                <div class="contact-item">
-                    <strong>🕒 Hours:</strong> Monday - Friday, 9 AM - 6 PM
-                </div>
+
+            <div style="text-align: center;">
+                <a href="<%= process.env.CLIENT_URL %>/login" class="button">Log In to Your Account</a>
             </div>
-            
-            <p>Thank you for your patience, and welcome back to Simply MOT!</p>
-            
-            <p>Best regards,<br>
-            <strong>Simply MOT Support Team</strong></p>
+
+            <div class="divider"></div>
+
+            <p style="font-size: 14px; color: #666;">
+                Thank you for your patience. We're glad to have you back!
+            </p>
         </div>
-        
+
         <div class="footer">
-            <p>This is an automated message. Please do not reply to this email.</p>
-            <p>Simply MOT - Your Trusted MOT Management Platform</p>
+            <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+            <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
         </div>
     </div>
 </body>
