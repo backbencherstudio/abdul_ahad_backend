@@ -27,15 +27,16 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: [
+      '*',
       'https://simplymot.co.uk',
       appConfig().app.client_app_url,
-      // 'http://localhost:3000',
-      // 'http://localhost:3001',
-      // 'http://localhost:3002',
-      // 'http://localhost:3003',
-      // 'http://localhost:3004',
-      // 'http://localhost:3005',
-      // 'http://localhost:3006',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'http://localhost:3004',
+      'http://localhost:3005',
+      'http://localhost:3006',
       // 'http://localhost:3007',
       // 'https://simplymot.vercel.app',
       // 'https://simplymot.vercel.app/',
