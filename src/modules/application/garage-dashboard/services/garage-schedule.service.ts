@@ -350,22 +350,111 @@ export class GarageScheduleService {
       this.validateDailyHours((dto as any).daily_hours);
     }
 
-    // ✅ NEW: Gate — block schedule change if any future booked slot exists
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const futureBookedCount = await this.prisma.timeSlot.count({
-      where: {
-        garage_id: garageId,
-        start_datetime: { gte: todayStart },
-        order_id: { not: null },
-      },
+    // ✅ NEW: Detect which days of the week are being modified to check for bookings selectively
+    const modifiedDaysSet = new Set<number>();
+
+    // Fetch existing schedule to compare (if it exists)
+    const existingSchedule = await this.prisma.schedule.findUnique({
+      where: { garage_id: garageId },
     });
 
-    if (futureBookedCount > 0) {
-      throw new BadRequestException(
-        `Cannot change schedule: ${futureBookedCount} future booking(s) exist.`,
-      );
+    if (existingSchedule) {
+      // 1. Check global fields: start_time, end_time, slot_duration
+      const isGlobalTimeModified =
+        (dto.start_time !== undefined &&
+          dto.start_time !== existingSchedule.start_time) ||
+        (dto.end_time !== undefined &&
+          dto.end_time !== existingSchedule.end_time) ||
+        (dto.slot_duration !== undefined &&
+          dto.slot_duration !== existingSchedule.slot_duration);
+
+      if (isGlobalTimeModified) {
+        // Global update affects all days 0-6
+        for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+      }
+
+      // 2. Check daily_hours: Compare existing vs new
+      const oldDailyHours = existingSchedule.daily_hours
+        ? typeof existingSchedule.daily_hours === 'string'
+          ? JSON.parse(existingSchedule.daily_hours)
+          : (existingSchedule.daily_hours as Record<string, any>)
+        : {};
+      const newDailyHours = (dto as any).daily_hours || {};
+
+      // If daily_hours object as a whole is provided, we check for differences
+      for (let i = 0; i < 7; i++) {
+        const dayKey = i.toString();
+        const oldDayConfig = oldDailyHours[dayKey];
+        const newDayConfig = newDailyHours[dayKey];
+
+        // If config for this day is different, mark it as modified
+        if (JSON.stringify(oldDayConfig) !== JSON.stringify(newDayConfig)) {
+          modifiedDaysSet.add(i);
+        }
+      }
+
+      // 3. Check restrictions: If they changed, mark those days as modified
+      const oldRestrictions = existingSchedule.restrictions
+        ? typeof existingSchedule.restrictions === 'string'
+          ? JSON.parse(existingSchedule.restrictions)
+          : (existingSchedule.restrictions as any[])
+        : [];
+      const newRestrictions = dto.restrictions || [];
+
+      if (JSON.stringify(oldRestrictions) !== JSON.stringify(newRestrictions)) {
+        // Find which specific days are affected by restriction changes
+        // For simplicity, if restrictions change, we check the days involved in the new/old restrictions
+        const allTargetedDays = new Set<number>();
+
+        [...oldRestrictions, ...newRestrictions].forEach((r) => {
+          if (typeof r.day_of_week === 'number') {
+            allTargetedDays.add(r.day_of_week);
+          } else if (r.day && r.month) {
+            // Specific date: add its day of week
+            const year = new Date().getFullYear();
+            const d = new Date(year, r.month - 1, r.day);
+            allTargetedDays.add(d.getDay());
+          } else {
+            // General (Holiday/Break without day?): affect all days
+            for (let i = 0; i < 7; i++) allTargetedDays.add(i);
+          }
+        });
+
+        allTargetedDays.forEach((d) => modifiedDaysSet.add(d));
+      }
+    } else {
+      // New schedule: everything is modified
+      for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+    }
+
+    // ✅ NEW: Gate — block schedule change ONLY if future booked slots exist on MODIFIED days
+    if (modifiedDaysSet.size > 0) {
+      // Get all future booked slots for this garage
+      const futureBookedSlots = await this.prisma.timeSlot.findMany({
+        where: {
+          garage_id: garageId,
+          start_datetime: { gte: todayStart },
+          order_id: { not: null },
+        },
+        select: {
+          start_datetime: true,
+        },
+      });
+
+      // Filter slots to find those matching the day of week '0' (Sunday) .. '6' (Saturday)
+      const conflictingBookings = futureBookedSlots.filter((slot) => {
+        const dayOfWeek = new Date(slot.start_datetime).getDay();
+        return modifiedDaysSet.has(dayOfWeek);
+      });
+
+      if (conflictingBookings.length > 0) {
+        throw new BadRequestException(
+          `Cannot change schedule: ${conflictingBookings.length} future booking(s) exist on modified days of the week.`,
+        );
+      }
     }
 
     const schedule = await this.prisma.schedule.upsert({
