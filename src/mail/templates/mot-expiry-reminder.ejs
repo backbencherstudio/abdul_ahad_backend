@@ -81,7 +81,11 @@
         <div class="content">
             <p>Dear <strong><%= user_name %></strong>,</p>
             
-            <p>This is a reminder that your vehicle's MOT is expiring soon.</p>
+            <% if (typeof custom_message !== 'undefined' && custom_message) { %>
+                <p><%= custom_message %></p>
+            <% } else { %>
+                <p>This is a reminder that your vehicle's MOT is expiring soon.</p>
+            <% } %>
 
             <div class="info-box">
                 <p style="margin: 0; font-size: 18px;"><strong><%= vehicle_make %> <%= vehicle_model %></strong></p>

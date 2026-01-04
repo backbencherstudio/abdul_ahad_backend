@@ -651,7 +651,12 @@ export class MailService {
   /**
    * Send MOT expiry reminder email
    */
-  async sendMotExpiryReminder(user: any, vehicle: any, daysRemaining: number) {
+  async sendMotExpiryReminder(
+    user: any,
+    vehicle: any,
+    daysRemaining: number,
+    customMessage?: string,
+  ) {
     try {
       const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
       const subject = `MOT Expiry Reminder - ${vehicle.registration_number}`;
@@ -668,6 +673,7 @@ export class MailService {
           vehicle_model: vehicle.model,
           mot_expiry_date: vehicle.mot_expiry_date.toLocaleDateString(),
           days_remaining: daysRemaining,
+          custom_message: customMessage,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
       });

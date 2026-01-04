@@ -1,4 +1,10 @@
-import { IsArray, IsBoolean, IsInt } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateMotReminderSettingsDto {
@@ -17,4 +23,14 @@ export class UpdateMotReminderSettingsDto {
   })
   @IsBoolean()
   autoReminder: boolean;
+
+  @ApiProperty({
+    description: 'Custom message for MOT reminders',
+    example:
+      'Your vehicle {make} {model} ({registration}) has an MOT expiring in {days} days.',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  reminderMessage?: string;
 }

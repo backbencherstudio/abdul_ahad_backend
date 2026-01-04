@@ -19,12 +19,15 @@ export class MotReminderProcessor {
   async handleCron() {
     this.logger.debug('Checking for MOT expiry reminders...');
 
-    const [periodsSetting, activeSetting] = await Promise.all([
+    const [periodsSetting, activeSetting, messageSetting] = await Promise.all([
       this.prisma.setting.findUnique({
         where: { key: 'MOT_REMINDER_PERIODS' },
       }),
       this.prisma.setting.findUnique({
         where: { key: 'MOT_REMINDER_ACTIVE' },
+      }),
+      this.prisma.setting.findUnique({
+        where: { key: 'MOT_REMINDER_MESSAGE' },
       }),
     ]);
 
@@ -68,7 +71,16 @@ export class MotReminderProcessor {
         try {
           const { user } = vehicle;
 
-          const message = `Your vehicle ${vehicle.make} ${vehicle.model} (${vehicle.registration_number}) has an MOT expiring in ${days} days.`;
+          const defaultMessage = `Your vehicle ${vehicle.make} ${vehicle.model} (${vehicle.registration_number}) has an MOT expiring in ${days} days.`;
+          const customTemplate = messageSetting?.default_value;
+          const message = customTemplate
+            ? this.formatMessage(customTemplate, {
+                make: vehicle.make,
+                model: vehicle.model,
+                registration: vehicle.registration_number,
+                days: days.toString(),
+              })
+            : defaultMessage;
 
           // 🔔 In-app notification
           await this.notificationService.create({
@@ -79,7 +91,12 @@ export class MotReminderProcessor {
           });
 
           // 📧 Email reminder
-          await this.mailService.sendMotExpiryReminder(user, vehicle, days);
+          await this.mailService.sendMotExpiryReminder(
+            user,
+            vehicle,
+            days,
+            message,
+          );
 
           this.logger.log(
             `MOT reminder sent (${days} days) → ${user.email} | ${vehicle.registration_number}`,
@@ -93,5 +110,21 @@ export class MotReminderProcessor {
         }
       }
     }
+  }
+
+  private formatMessage(
+    template: string,
+    placeholders: {
+      make?: string;
+      model?: string;
+      registration?: string;
+      days?: string;
+    },
+  ): string {
+    return template
+      .replace(/{make}/g, placeholders.make || '')
+      .replace(/{model}/g, placeholders.model || '')
+      .replace(/{registration}/g, placeholders.registration || '')
+      .replace(/{days}/g, placeholders.days || '');
   }
 }

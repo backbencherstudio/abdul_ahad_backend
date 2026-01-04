@@ -186,6 +186,9 @@ export class VehicleService {
         this.prisma.setting.findUnique({
           where: { key: 'MOT_REMINDER_ACTIVE' },
         }),
+        this.prisma.setting.findUnique({
+          where: { key: 'MOT_REMINDER_MESSAGE' },
+        }),
       ]);
 
       return {
@@ -195,6 +198,9 @@ export class VehicleService {
             ? periodsSetting.default_value.split(',').map(Number)
             : [7],
           autoReminder: activeSetting?.default_value === 'true',
+          reminderMessage:
+            activeSetting?.default_value ||
+            'Your vehicle {make} {model} ({registration}) has an MOT expiring in {days} days.',
         },
       };
     } catch (error) {
@@ -230,6 +236,16 @@ export class VehicleService {
             category: 'VEHICLE',
             label: 'MOT Reminder Active',
             default_value: String(dto.autoReminder),
+          },
+        }),
+        this.prisma.setting.upsert({
+          where: { key: 'MOT_REMINDER_MESSAGE' },
+          update: { default_value: dto.reminderMessage || '' },
+          create: {
+            key: 'MOT_REMINDER_MESSAGE',
+            category: 'VEHICLE',
+            label: 'MOT Reminder Message',
+            default_value: dto.reminderMessage || '',
           },
         }),
       ]);
