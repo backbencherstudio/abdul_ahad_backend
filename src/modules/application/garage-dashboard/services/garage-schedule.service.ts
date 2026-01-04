@@ -275,29 +275,255 @@ export class GarageScheduleService {
 
   // Create or update schedule (FIXED: No auto-generation)
   // Create or update schedule (FIXED: No auto-generation)
+  // async setSchedule(garageId: string, dto: ScheduleDto) {
+  //   // ✅ FIXED: Enhanced 24-hour format validation
+  //   if (
+  //     dto.start_time &&
+  //     dto.end_time &&
+  //     (!this.isValidTimeFormat(dto.start_time) ||
+  //       !this.isValidTimeFormat(dto.end_time))
+  //   ) {
+  //     throw new BadRequestException(
+  //       'Invalid time format. Use 24-hour HH:mm format (e.g., 08:00, 18:00).',
+  //     );
+  //   }
+
+  //   // Validate start time is before end time
+  //   if (
+  //     dto.start_time &&
+  //     dto.end_time &&
+  //     !this.isStartBeforeEnd(dto.start_time, dto.end_time)
+  //   ) {
+  //     throw new BadRequestException('Start time must be before end time.');
+  //   }
+
+  //   // Validate slot duration
+  //   if (
+  //     dto.slot_duration &&
+  //     (dto.slot_duration < 15 || dto.slot_duration > 480)
+  //   ) {
+  //     throw new BadRequestException(
+  //       'Slot duration must be between 15 and 480 minutes.',
+  //     );
+  //   }
+
+  //   // ✅ FIXED: Validate restrictions have valid 24-hour times
+  //   if (dto.restrictions) {
+  //     for (const restriction of dto.restrictions) {
+  //       if (restriction.type === 'BREAK') {
+  //         if (
+  //           restriction.start_time &&
+  //           !this.isValidTimeFormat(restriction.start_time)
+  //         ) {
+  //           throw new BadRequestException(
+  //             `Invalid break start time: ${restriction.start_time}. Use 24-hour HH:mm format.`,
+  //           );
+  //         }
+  //         if (
+  //           restriction.end_time &&
+  //           !this.isValidTimeFormat(restriction.end_time)
+  //         ) {
+  //           throw new BadRequestException(
+  //             `Invalid break end time: ${restriction.end_time}. Use 24-hour HH:mm format.`,
+  //           );
+  //         }
+  //         if (
+  //           restriction.start_time &&
+  //           restriction.end_time &&
+  //           !this.isStartBeforeEnd(restriction.start_time, restriction.end_time)
+  //         ) {
+  //           throw new BadRequestException(
+  //             `Break start time must be before end time: ${restriction.start_time} - ${restriction.end_time}`,
+  //           );
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // Convert restrictions to JSON for Prisma
+  //   const restrictionsJson = dto.restrictions
+  //     ? JSON.parse(JSON.stringify(dto.restrictions))
+  //     : [];
+
+  //   // ✅ NEW: Validate optional daily_hours (per-day intervals)
+  //   if ((dto as any).daily_hours) {
+  //     this.validateDailyHours((dto as any).daily_hours);
+  //   }
+
+  //   const todayStart = new Date();
+  //   todayStart.setHours(0, 0, 0, 0);
+
+  //   // ✅ NEW: Detect which days of the week are being modified to check for bookings selectively
+  //   const modifiedDaysSet = new Set<number>();
+
+  //   // Fetch existing schedule to compare (if it exists)
+  //   const existingSchedule = await this.prisma.schedule.findUnique({
+  //     where: { garage_id: garageId },
+  //   });
+
+  //   if (existingSchedule) {
+  //     // 1. Check global fields: start_time, end_time, slot_duration
+  //     const isGlobalTimeModified =
+  //       (dto.start_time !== undefined &&
+  //         dto.start_time !== existingSchedule.start_time) ||
+  //       (dto.end_time !== undefined &&
+  //         dto.end_time !== existingSchedule.end_time) ||
+  //       (dto.slot_duration !== undefined &&
+  //         dto.slot_duration !== existingSchedule.slot_duration);
+
+  //     if (isGlobalTimeModified) {
+  //       // Global update affects all days 0-6
+  //       for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+  //     }
+
+  //     // 2. Check daily_hours: Compare existing vs new
+  //     const oldDailyHours = existingSchedule.daily_hours
+  //       ? typeof existingSchedule.daily_hours === 'string'
+  //         ? JSON.parse(existingSchedule.daily_hours)
+  //         : (existingSchedule.daily_hours as Record<string, any>)
+  //       : {};
+  //     const newDailyHours = (dto as any).daily_hours || {};
+
+  //     // If daily_hours object as a whole is provided, we check for differences
+  //     for (let i = 0; i < 7; i++) {
+  //       const dayKey = i.toString();
+  //       const oldDayConfig = oldDailyHours[dayKey];
+  //       const newDayConfig = newDailyHours[dayKey];
+
+  //       // If config for this day is different, mark it as modified
+  //       if (JSON.stringify(oldDayConfig) !== JSON.stringify(newDayConfig)) {
+  //         modifiedDaysSet.add(i);
+  //       }
+  //     }
+
+  //     // 3. Check restrictions: If they changed, mark those days as modified
+  //     const oldRestrictions = existingSchedule.restrictions
+  //       ? typeof existingSchedule.restrictions === 'string'
+  //         ? JSON.parse(existingSchedule.restrictions)
+  //         : (existingSchedule.restrictions as any[])
+  //       : [];
+  //     const newRestrictions = dto.restrictions || [];
+
+  //     if (JSON.stringify(oldRestrictions) !== JSON.stringify(newRestrictions)) {
+  //       // Find which specific days are affected by restriction changes
+  //       // For simplicity, if restrictions change, we check the days involved in the new/old restrictions
+  //       const allTargetedDays = new Set<number>();
+
+  //       [...oldRestrictions, ...newRestrictions].forEach((r) => {
+  //         if (typeof r.day_of_week === 'number') {
+  //           allTargetedDays.add(r.day_of_week);
+  //         } else if (r.day && r.month) {
+  //           // Specific date: add its day of week
+  //           const year = new Date().getFullYear();
+  //           const d = new Date(year, r.month - 1, r.day);
+  //           allTargetedDays.add(d.getDay());
+  //         } else {
+  //           // General (Holiday/Break without day?): affect all days
+  //           for (let i = 0; i < 7; i++) allTargetedDays.add(i);
+  //         }
+  //       });
+
+  //       allTargetedDays.forEach((d) => modifiedDaysSet.add(d));
+  //     }
+  //   } else {
+  //     // New schedule: everything is modified
+  //     for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+  //   }
+
+  //   // ✅ NEW: Gate — block schedule change ONLY if future booked slots exist on MODIFIED days
+  //   if (modifiedDaysSet.size > 0) {
+  //     // Get all future booked slots for this garage
+  //     const futureBookedSlots = await this.prisma.timeSlot.findMany({
+  //       where: {
+  //         garage_id: garageId,
+  //         start_datetime: { gte: todayStart },
+  //         order_id: { not: null },
+  //       },
+  //       select: {
+  //         start_datetime: true,
+  //       },
+  //     });
+
+  //     // Filter slots to find those matching the day of week '0' (Sunday) .. '6' (Saturday)
+  //     const conflictingBookings = futureBookedSlots.filter((slot) => {
+  //       const dayOfWeek = new Date(slot.start_datetime).getDay();
+  //       return modifiedDaysSet.has(dayOfWeek);
+  //     });
+
+  //     if (conflictingBookings.length > 0) {
+  //       throw new BadRequestException(
+  //         `Cannot change schedule: ${conflictingBookings.length} future booking(s) exist on modified days of the week.`,
+  //       );
+  //     }
+  //   }
+
+  //   const schedule = await this.prisma.schedule.upsert({
+  //     where: { garage_id: garageId },
+  //     update: {
+  //       start_time: dto.start_time,
+  //       end_time: dto.end_time,
+  //       slot_duration: dto.slot_duration,
+  //       restrictions: restrictionsJson,
+  //       // ✅ NEW: persist daily_hours when provided
+  //       daily_hours: (dto as any).daily_hours ?? undefined,
+  //       is_active: dto.is_active ?? true,
+  //       updated_at: new Date(),
+  //     },
+  //     create: {
+  //       garage_id: garageId,
+  //       start_time: dto.start_time,
+  //       end_time: dto.end_time,
+  //       slot_duration: dto.slot_duration,
+  //       restrictions: restrictionsJson,
+  //       // ✅ NEW: persist daily_hours when provided
+  //       daily_hours: (dto as any).daily_hours ?? undefined,
+  //       is_active: dto.is_active ?? true,
+  //     },
+  //   });
+
+  //   // ✅ NEW: Cleanup — remove all future unbooked DB slots so templates reflect latest rules
+  //   const cleanupResult = await this.prisma.timeSlot.deleteMany({
+  //     where: {
+  //       garage_id: garageId,
+  //       start_datetime: { gte: todayStart },
+  //       order_id: null, // keep booked
+  //     },
+  //   });
+
+  //   // ✅ FIXED: NO auto-generation! Only create schedule
+  //   return {
+  //     success: true,
+  //     message: 'Schedule updated successfully',
+  //     data: schedule,
+  //     cleanup: {
+  //       deleted_unbooked_future_slots: cleanupResult.count,
+  //       note: 'All future unbooked modified slots were removed. Booked slots were preserved. Views will reflect the latest schedule.',
+  //     },
+  //   };
+  // }
+
+  // ************************** NEW BY NAJIM **************************
+
   async setSchedule(garageId: string, dto: ScheduleDto) {
-    // ✅ FIXED: Enhanced 24-hour format validation
-    if (
-      dto.start_time &&
-      dto.end_time &&
-      (!this.isValidTimeFormat(dto.start_time) ||
-        !this.isValidTimeFormat(dto.end_time))
-    ) {
-      throw new BadRequestException(
-        'Invalid time format. Use 24-hour HH:mm format (e.g., 08:00, 18:00).',
-      );
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    // 1️⃣ Validate global times
+    if (dto.start_time && dto.end_time) {
+      if (
+        !this.isValidTimeFormat(dto.start_time) ||
+        !this.isValidTimeFormat(dto.end_time)
+      ) {
+        throw new BadRequestException(
+          'Invalid time format. Use 24-hour HH:mm format (e.g., 08:00, 18:00).',
+        );
+      }
+      if (!this.isStartBeforeEnd(dto.start_time, dto.end_time)) {
+        throw new BadRequestException('Start time must be before end time.');
+      }
     }
 
-    // Validate start time is before end time
-    if (
-      dto.start_time &&
-      dto.end_time &&
-      !this.isStartBeforeEnd(dto.start_time, dto.end_time)
-    ) {
-      throw new BadRequestException('Start time must be before end time.');
-    }
-
-    // Validate slot duration
+    // 2️⃣ Validate slot duration
     if (
       dto.slot_duration &&
       (dto.slot_duration < 15 || dto.slot_duration > 480)
@@ -307,165 +533,145 @@ export class GarageScheduleService {
       );
     }
 
-    // ✅ FIXED: Validate restrictions have valid 24-hour times
-    if (dto.restrictions) {
-      for (const restriction of dto.restrictions) {
-        if (restriction.type === 'BREAK') {
-          if (
-            restriction.start_time &&
-            !this.isValidTimeFormat(restriction.start_time)
-          ) {
-            throw new BadRequestException(
-              `Invalid break start time: ${restriction.start_time}. Use 24-hour HH:mm format.`,
-            );
-          }
-          if (
-            restriction.end_time &&
-            !this.isValidTimeFormat(restriction.end_time)
-          ) {
-            throw new BadRequestException(
-              `Invalid break end time: ${restriction.end_time}. Use 24-hour HH:mm format.`,
-            );
-          }
-          if (
-            restriction.start_time &&
-            restriction.end_time &&
-            !this.isStartBeforeEnd(restriction.start_time, restriction.end_time)
-          ) {
-            throw new BadRequestException(
-              `Break start time must be before end time: ${restriction.start_time} - ${restriction.end_time}`,
-            );
-          }
-        }
-      }
+    // 3️⃣ Validate daily_hours
+    const newDailyHours = (dto as any).daily_hours || {};
+    if (newDailyHours) this.validateDailyHours(newDailyHours);
+
+    // 4️⃣ Validate restrictions
+    const newRestrictions = dto.restrictions || [];
+    for (const r of newRestrictions) {
+      if (r.start_time && !this.isValidTimeFormat(r.start_time))
+        throw new BadRequestException(
+          `Invalid restriction start time: ${r.start_time}`,
+        );
+      if (r.end_time && !this.isValidTimeFormat(r.end_time))
+        throw new BadRequestException(
+          `Invalid restriction end time: ${r.end_time}`,
+        );
+      if (
+        r.start_time &&
+        r.end_time &&
+        !this.isStartBeforeEnd(r.start_time, r.end_time)
+      )
+        throw new BadRequestException(
+          `Restriction start must be before end: ${r.start_time}-${r.end_time}`,
+        );
     }
 
-    // Convert restrictions to JSON for Prisma
-    const restrictionsJson = dto.restrictions
-      ? JSON.parse(JSON.stringify(dto.restrictions))
-      : [];
-
-    // ✅ NEW: Validate optional daily_hours (per-day intervals)
-    if ((dto as any).daily_hours) {
-      this.validateDailyHours((dto as any).daily_hours);
-    }
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    // ✅ NEW: Detect which days of the week are being modified to check for bookings selectively
-    const modifiedDaysSet = new Set<number>();
-
-    // Fetch existing schedule to compare (if it exists)
+    // 5️⃣ Fetch existing schedule
     const existingSchedule = await this.prisma.schedule.findUnique({
       where: { garage_id: garageId },
     });
+    const modifiedDaysSet = new Set<number>();
 
-    if (existingSchedule) {
-      // 1. Check global fields: start_time, end_time, slot_duration
-      const isGlobalTimeModified =
-        (dto.start_time !== undefined &&
-          dto.start_time !== existingSchedule.start_time) ||
-        (dto.end_time !== undefined &&
-          dto.end_time !== existingSchedule.end_time) ||
-        (dto.slot_duration !== undefined &&
-          dto.slot_duration !== existingSchedule.slot_duration);
+    // --- Daily hours detection ---
+    const oldDailyHours = existingSchedule?.daily_hours
+      ? typeof existingSchedule.daily_hours === 'string'
+        ? JSON.parse(existingSchedule.daily_hours)
+        : (existingSchedule.daily_hours as Record<string, any>)
+      : {};
 
-      if (isGlobalTimeModified) {
-        // Global update affects all days 0-6
-        for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+    for (let i = 0; i < 7; i++) {
+      const dayKey = i.toString();
+      if (
+        JSON.stringify(oldDailyHours[dayKey]) !==
+        JSON.stringify(newDailyHours[dayKey])
+      ) {
+        modifiedDaysSet.add(i);
       }
-
-      // 2. Check daily_hours: Compare existing vs new
-      const oldDailyHours = existingSchedule.daily_hours
-        ? typeof existingSchedule.daily_hours === 'string'
-          ? JSON.parse(existingSchedule.daily_hours)
-          : (existingSchedule.daily_hours as Record<string, any>)
-        : {};
-      const newDailyHours = (dto as any).daily_hours || {};
-
-      // If daily_hours object as a whole is provided, we check for differences
-      for (let i = 0; i < 7; i++) {
-        const dayKey = i.toString();
-        const oldDayConfig = oldDailyHours[dayKey];
-        const newDayConfig = newDailyHours[dayKey];
-
-        // If config for this day is different, mark it as modified
-        if (JSON.stringify(oldDayConfig) !== JSON.stringify(newDayConfig)) {
-          modifiedDaysSet.add(i);
-        }
-      }
-
-      // 3. Check restrictions: If they changed, mark those days as modified
-      const oldRestrictions = existingSchedule.restrictions
-        ? typeof existingSchedule.restrictions === 'string'
-          ? JSON.parse(existingSchedule.restrictions)
-          : (existingSchedule.restrictions as any[])
-        : [];
-      const newRestrictions = dto.restrictions || [];
-
-      if (JSON.stringify(oldRestrictions) !== JSON.stringify(newRestrictions)) {
-        // Find which specific days are affected by restriction changes
-        // For simplicity, if restrictions change, we check the days involved in the new/old restrictions
-        const allTargetedDays = new Set<number>();
-
-        [...oldRestrictions, ...newRestrictions].forEach((r) => {
-          if (typeof r.day_of_week === 'number') {
-            allTargetedDays.add(r.day_of_week);
-          } else if (r.day && r.month) {
-            // Specific date: add its day of week
-            const year = new Date().getFullYear();
-            const d = new Date(year, r.month - 1, r.day);
-            allTargetedDays.add(d.getDay());
-          } else {
-            // General (Holiday/Break without day?): affect all days
-            for (let i = 0; i < 7; i++) allTargetedDays.add(i);
-          }
-        });
-
-        allTargetedDays.forEach((d) => modifiedDaysSet.add(d));
-      }
-    } else {
-      // New schedule: everything is modified
-      for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
     }
 
-    // ✅ NEW: Gate — block schedule change ONLY if future booked slots exist on MODIFIED days
+    // --- Global time detection ---
+    const isGlobalModified =
+      (dto.start_time !== undefined &&
+        dto.start_time !== existingSchedule?.start_time) ||
+      (dto.end_time !== undefined &&
+        dto.end_time !== existingSchedule?.end_time) ||
+      (dto.slot_duration !== undefined &&
+        dto.slot_duration !== existingSchedule?.slot_duration);
+    if (isGlobalModified) for (let i = 0; i < 7; i++) modifiedDaysSet.add(i);
+
+    // --- Restriction detection (type-wise) ---
+    const oldRestrictions = existingSchedule?.restrictions
+      ? typeof existingSchedule.restrictions === 'string'
+        ? JSON.parse(existingSchedule.restrictions)
+        : (existingSchedule.restrictions as any[])
+      : [];
+
+    const restrictionTypes = Array.from(
+      new Set(newRestrictions.map((r) => r.type)),
+    );
+    const updatedRestrictions: any[] = [
+      ...oldRestrictions.filter((r) => !restrictionTypes.includes(r.type)),
+      ...newRestrictions,
+    ];
+
+    // Mark affected days
+    for (const r of newRestrictions) {
+      if (r.day_of_week && Array.isArray(r.day_of_week))
+        r.day_of_week.forEach((d: number) => modifiedDaysSet.add(d));
+    }
+
+    // 6️⃣ Conflict detection: only future booked slots
     if (modifiedDaysSet.size > 0) {
-      // Get all future booked slots for this garage
       const futureBookedSlots = await this.prisma.timeSlot.findMany({
         where: {
           garage_id: garageId,
           start_datetime: { gte: todayStart },
           order_id: { not: null },
         },
-        select: {
-          start_datetime: true,
-        },
+        select: { start_datetime: true, end_datetime: true },
       });
 
-      // Filter slots to find those matching the day of week '0' (Sunday) .. '6' (Saturday)
-      const conflictingBookings = futureBookedSlots.filter((slot) => {
-        const dayOfWeek = new Date(slot.start_datetime).getDay();
-        return modifiedDaysSet.has(dayOfWeek);
-      });
+      // --- Check conflict with restrictions ---
+      for (const slot of futureBookedSlots) {
+        const slotDate = new Date(slot.start_datetime);
+        const day = slotDate.getDay();
+        if (!modifiedDaysSet.has(day)) continue;
 
-      if (conflictingBookings.length > 0) {
-        throw new BadRequestException(
-          `Cannot change schedule: ${conflictingBookings.length} future booking(s) exist on modified days of the week.`,
-        );
+        for (const r of newRestrictions) {
+          if (!Array.isArray(r.day_of_week) || !r.day_of_week.includes(day))
+            continue;
+
+          // Convert restriction start/end to today's datetime for comparison
+          const [sh, sm] = r.start_time.split(':').map(Number);
+          const [eh, em] = r.end_time.split(':').map(Number);
+
+          const rStart = new Date(slotDate);
+          rStart.setHours(sh, sm, 0, 0);
+          const rEnd = new Date(slotDate);
+          rEnd.setHours(eh, em, 0, 0);
+
+          const slotEnd = slot.end_datetime
+            ? new Date(slot.end_datetime)
+            : new Date(slot.start_datetime);
+          if (slotDate < rEnd && slotEnd > rStart) {
+            throw new BadRequestException(
+              `Cannot apply restriction "${r.type}" on day ${day}: slot booked during ${r.start_time}-${r.end_time}`,
+            );
+          }
+        }
       }
     }
 
+    // 7️⃣ Cleanup: delete only future unbooked slots for modified days
+    await this.prisma.timeSlot.deleteMany({
+      where: {
+        garage_id: garageId,
+        start_datetime: { gte: todayStart },
+        order_id: null,
+      },
+    });
+
+    // 8️⃣ Upsert schedule with updated daily_hours + restrictions
     const schedule = await this.prisma.schedule.upsert({
       where: { garage_id: garageId },
       update: {
         start_time: dto.start_time,
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
-        restrictions: restrictionsJson,
-        // ✅ NEW: persist daily_hours when provided
-        daily_hours: (dto as any).daily_hours ?? undefined,
+        restrictions: updatedRestrictions,
+        daily_hours: newDailyHours,
         is_active: dto.is_active ?? true,
         updated_at: new Date(),
       },
@@ -474,35 +680,21 @@ export class GarageScheduleService {
         start_time: dto.start_time,
         end_time: dto.end_time,
         slot_duration: dto.slot_duration,
-        restrictions: restrictionsJson,
-        // ✅ NEW: persist daily_hours when provided
-        daily_hours: (dto as any).daily_hours ?? undefined,
+        restrictions: updatedRestrictions,
+        daily_hours: newDailyHours,
         is_active: dto.is_active ?? true,
       },
     });
 
-    // ✅ NEW: Cleanup — remove all future unbooked DB slots so templates reflect latest rules
-    const cleanupResult = await this.prisma.timeSlot.deleteMany({
-      where: {
-        garage_id: garageId,
-        start_datetime: { gte: todayStart },
-        order_id: null, // keep booked
-      },
-    });
-
-    // ✅ FIXED: NO auto-generation! Only create schedule
     return {
       success: true,
       message: 'Schedule updated successfully',
       data: schedule,
       cleanup: {
-        deleted_unbooked_future_slots: cleanupResult.count,
-        note: 'All future unbooked modified slots were removed. Booked slots were preserved. Views will reflect the latest schedule.',
+        note: 'All future unbooked slots removed, booked slots preserved. Past slots untouched.',
       },
     };
   }
-
-  // ************************** NEW BY NAJIM **************************
 
   async setHoliday(garageId: string, dto: RestrictionDto) {
     const schedule = await this.prisma.schedule.findUnique({

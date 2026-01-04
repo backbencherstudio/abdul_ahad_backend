@@ -58,6 +58,7 @@ import {
   CancelSubscriptionDto,
   CancelSubscriptionResponseDto,
 } from './dto/billing-portal.dto';
+import { OrderStatus } from '@prisma/client';
 
 @ApiTags('Garage Dashboard')
 @Controller('garage-dashboard')
@@ -397,7 +398,7 @@ export class GarageDashboardController {
   async updateBookingStatus(
     @Req() req,
     @Param('id') id: string,
-    @Body() dto: { status: string },
+    @Body() dto: { status: OrderStatus },
   ) {
     return this.garageBookingService.updateBookingStatus(
       req.user.userId,

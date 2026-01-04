@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { GetBookingsDto, BookingStatusFilter } from '../dto/get-bookings.dto';
 import { OrderStatus, Prisma } from '@prisma/client';
@@ -220,8 +225,11 @@ export class GarageBookingService {
     };
   }
 
-  async updateBookingStatus(userId: string, bookingId: string, status: string) {
-    // Verify booking exists and belongs to this garage
+  async updateBookingStatus(
+    userId: string,
+    bookingId: string,
+    status: OrderStatus,
+  ) {
     const booking = await this.prisma.order.findFirst({
       where: {
         id: bookingId,
@@ -229,11 +237,12 @@ export class GarageBookingService {
       },
       select: {
         id: true,
+        status: true,
         driver_id: true,
         order_date: true,
+        slot_id: true,
         garage: {
           select: {
-            id: true,
             garage_name: true,
           },
         },
@@ -244,25 +253,48 @@ export class GarageBookingService {
       throw new NotFoundException('Booking not found');
     }
 
-    // Update status
-    const updatedBooking = await this.prisma.order.update({
-      where: { id: bookingId },
-      data: { status: status as OrderStatus },
-      include: {
-        driver: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
+    // ❌ Already rejected → no further update allowed
+    if (booking.status === OrderStatus.REJECTED) {
+      throw new BadRequestException('Rejected booking cannot be updated');
+    }
+
+    const updatedBooking = await this.prisma.$transaction(async (tx) => {
+      // Update order status
+      const order = await tx.order.update({
+        where: { id: bookingId },
+        data: {
+          status,
+          ...(status === OrderStatus.REJECTED && { slot: null }),
+        },
+        include: {
+          driver: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+          vehicle: {
+            select: {
+              registration_number: true,
+            },
           },
         },
-        vehicle: {
-          select: {
-            registration_number: true,
+      });
+
+      // Only when rejected → free slot
+      if (status === OrderStatus.REJECTED && booking.slot_id) {
+        await tx.timeSlot.update({
+          where: { id: booking.slot_id },
+          data: {
+            order: null,
+            is_available: true,
           },
-        },
-      },
+        });
+      }
+
+      return order;
     });
 
     await this.notificationService.create({
@@ -270,11 +302,12 @@ export class GarageBookingService {
       sender_id: userId,
       type: NotificationType.BOOKING,
       text:
-        status == OrderStatus.ACCEPTED
+        status === OrderStatus.ACCEPTED
           ? `Your booking with ${booking.garage.garage_name} has been accepted on ${booking.order_date.toISOString().split('T')[0]} at ${booking.order_date.toISOString().split('T')[1]}.`
           : `Your booking with ${booking.garage.garage_name} has been rejected on ${booking.order_date.toISOString().split('T')[0]} at ${booking.order_date.toISOString().split('T')[1]}.`,
       entity_id: booking.id,
     });
+
     return {
       success: true,
       message: 'Booking status updated successfully',
