@@ -179,17 +179,19 @@ export class VehicleService {
    */
   async getMotReminderSettings() {
     try {
-      const [periodsSetting, activeSetting] = await Promise.all([
-        this.prisma.setting.findUnique({
-          where: { key: 'MOT_REMINDER_PERIODS' },
-        }),
-        this.prisma.setting.findUnique({
-          where: { key: 'MOT_REMINDER_ACTIVE' },
-        }),
-        this.prisma.setting.findUnique({
-          where: { key: 'MOT_REMINDER_MESSAGE' },
-        }),
-      ]);
+      const [periodsSetting, activeSetting, messageSetting] = await Promise.all(
+        [
+          this.prisma.setting.findUnique({
+            where: { key: 'MOT_REMINDER_PERIODS' },
+          }),
+          this.prisma.setting.findUnique({
+            where: { key: 'MOT_REMINDER_ACTIVE' },
+          }),
+          this.prisma.setting.findUnique({
+            where: { key: 'MOT_REMINDER_MESSAGE' },
+          }),
+        ],
+      );
 
       return {
         success: true,
@@ -199,7 +201,7 @@ export class VehicleService {
             : [7],
           autoReminder: activeSetting?.default_value === 'true',
           reminderMessage:
-            activeSetting?.default_value ||
+            messageSetting?.default_value ||
             'Your vehicle {make} {model} ({registration}) has an MOT expiring in {days} days.',
         },
       };
@@ -217,7 +219,7 @@ export class VehicleService {
    */
   async updateMotReminderSettings(dto: UpdateMotReminderSettingsDto) {
     try {
-      await Promise.all([
+      await this.prisma.$transaction([
         this.prisma.setting.upsert({
           where: { key: 'MOT_REMINDER_PERIODS' },
           update: { default_value: dto.reminderPeriods.join(',') },
