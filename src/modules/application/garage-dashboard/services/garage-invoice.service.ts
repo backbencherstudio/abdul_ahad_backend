@@ -478,7 +478,7 @@ export class GarageInvoiceService {
     margin-top: 24px;
   }
   thead {
-    background: #5f8f7c;
+    background: var(--brand);
     color: #fff;
   }
   th, td {
@@ -577,7 +577,7 @@ export class GarageInvoiceService {
     <tbody>
       <tr>
         <td class="center">1</td>
-        <td class="center">${data.subscription.planName} (${data.subscription.billingCycle} Subscription)</td>
+        <td class="center">${data.subscription.billingCycle} Subscription</td>
         <td class="center">${formatCurrency(subtotal)}</td>
         <td class="right">${formatCurrency(subtotal)}</td>
       </tr>
@@ -588,10 +588,6 @@ export class GarageInvoiceService {
     <div>
       <span>Subtotal</span>
       <span>${formatCurrency(subtotal)}</span>
-    </div>
-    <div>
-      <span>VAT (${vatRate * 100}%)</span>
-      <span>${formatCurrency(vat)}</span>
     </div>
     <div class="grand">
       <span>Total</span>
