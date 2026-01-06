@@ -418,22 +418,28 @@ export class GarageInvoiceService {
   }
   * { box-sizing: border-box; }
 
-  body {
+  /* ---- PRINT SAFE BASE ---- */
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+
+  html, body {
     margin: 0;
     padding: 0;
     font-family: Arial, sans-serif;
     color: #111827;
-    background: #f3f4f6;
+    background: #ffffff;
   }
 
-  /* A4-like canvas */
   .invoice-page {
-    width: 794px;
-    min-height: 1123px;
-    margin: 24px auto;
+    /* IMPORTANT: no external margin for PDF */
+    width: 100%;
     background: #fff;
-    padding: 48px 56px;
+    padding: 0;
 
+    /* footer stick */
+    min-height: calc(297mm - 32mm); /* A4 height minus @page top+bottom margins */
     display: flex;
     flex-direction: column;
   }
@@ -442,7 +448,7 @@ export class GarageInvoiceService {
     display: flex;
     justify-content: space-between;
     gap: 20px;
-    margin-bottom: 30px;
+    margin-bottom: 18px;
   }
 
   .company h2 {
@@ -470,7 +476,7 @@ export class GarageInvoiceService {
   .bill {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
   }
   .bill h4 {
     margin: 0 0 8px;
@@ -482,14 +488,14 @@ export class GarageInvoiceService {
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 8px;
   }
   thead {
     background: var(--brand);
     color: #fff;
   }
   th, td {
-    padding: 12px;
+    padding: 10px 12px;
     font-size: 13px;
   }
   td { border-bottom: 1px solid #e5e7eb; }
@@ -499,12 +505,12 @@ export class GarageInvoiceService {
   .totals {
     width: 300px;
     margin-left: auto;
-    margin-top: 18px;
+    margin-top: 14px;
   }
   .totals div {
     display: flex;
     justify-content: space-between;
-    padding: 8px 0;
+    padding: 7px 0;
     font-size: 13px;
   }
   .totals .grand {
@@ -514,24 +520,23 @@ export class GarageInvoiceService {
     font-weight: 700;
   }
 
-  /* This section can grow, footer stays pinned at bottom */
   .content {
     flex: 1 1 auto;
   }
 
   .invoice-footer {
     margin-top: auto;
-    padding-top: 18px;
+    padding-top: 14px;
   }
   .footer-line {
     width: 100%;
     height: 1px;
     background: #e5e7eb;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .thankyou {
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     text-align: center;
     font-weight: 700;
     color: var(--brand);
@@ -542,9 +547,12 @@ export class GarageInvoiceService {
     margin: 0;
     font-size: 11px;
     color: #6b7280;
-    line-height: 1.5;
+    line-height: 1.45;
     text-align: justify;
   }
+
+  /* Optional: prevent awkward breaks */
+  .header, .bill, table, .totals, .invoice-footer { break-inside: avoid; page-break-inside: avoid; }
 </style>
 </head>
 
