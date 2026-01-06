@@ -13,7 +13,7 @@ export class MailService {
 
   async sendMemberInvitation({ user, member, url }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `${user.fname} is inviting you to ${appConfig().app.name}`;
 
       // add to queue
@@ -36,7 +36,7 @@ export class MailService {
   // send otp code for email verification
   async sendOtpCodeToEmail({ name, email, otp }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Email Verification';
 
       // add to queue
@@ -90,7 +90,7 @@ export class MailService {
     billing_portal_url: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Upcoming subscription price update';
 
       await this.queue.add('sendSubscriptionPriceNoticeEmail', {
@@ -125,7 +125,7 @@ export class MailService {
     billing_portal_url: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Your subscription has been updated';
 
       await this.queue.add('sendSubscriptionMigrationConfirmationEmail', {
@@ -155,7 +155,7 @@ export class MailService {
    */
   async sendUserBannedNotification({ user, reason }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Account Banned - Simply MOT';
 
       // add to queue
@@ -186,7 +186,7 @@ export class MailService {
    */
   async sendUserUnbannedNotification({ user, hadSubscription = false }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Account Restored - Simply MOT';
 
       // add to queue
@@ -217,7 +217,7 @@ export class MailService {
    */
   async sendAdminBannedNotification({ user, reason }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Administrative Access Revoked - Simply MOT';
 
       // add to queue
@@ -249,7 +249,7 @@ export class MailService {
    */
   async sendAdminUnbannedNotification({ user }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = 'Administrative Access Restored - Simply MOT';
 
       // add to queue
@@ -290,7 +290,7 @@ export class MailService {
     billing_portal_url?: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Trial Ending Soon - ${params.days_remaining} day${params.days_remaining !== 1 ? 's' : ''} remaining`;
 
       await this.queue.add('sendTrialWarningEmail', {
@@ -331,7 +331,7 @@ export class MailService {
     billing_portal_url?: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Welcome to ${params.plan_name} - Your trial has converted to paid!`;
 
       await this.queue.add('sendTrialToPaidConfirmationEmail', {
@@ -372,7 +372,7 @@ export class MailService {
     billing_portal_url?: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Your trial has ended - Resubscribe to continue`;
 
       await this.queue.add('sendTrialExpirationEmail', {
@@ -417,7 +417,7 @@ export class MailService {
     retryInfo?: any;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Payment Failed - Action Required`;
 
       await this.queue.add('sendPaymentFailureNotification', {
@@ -480,7 +480,7 @@ export class MailService {
     billing_portal_url?: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Welcome to Your Subscription - ${process.env.APP_NAME}`;
 
       await this.queue.add('sendSubscriptionWelcomeEmail', {
@@ -528,7 +528,7 @@ export class MailService {
     billing_portal_url?: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Payment Successful - ${process.env.APP_NAME}`;
 
       await this.queue.add('sendPaymentSuccessEmail', {
@@ -608,7 +608,7 @@ export class MailService {
       };
 
       const notificationConfig = config[userType][actionType];
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
 
       // Build context based on user type
       const context: any = {
@@ -658,7 +658,7 @@ export class MailService {
     customMessage?: string,
   ) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `MOT Expiry Reminder - ${vehicle.registration_number}`;
 
       await this.queue.add('sendMotExpiryReminder', {
@@ -697,7 +697,7 @@ export class MailService {
     contact_message: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `New Contact Form Submission - ${params.contact_name}`;
 
       await this.queue.add('sendContactFormSubmission', {
@@ -729,7 +729,7 @@ export class MailService {
     message: string;
   }) {
     try {
-      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
       const subject = `Update from ${process.env.APP_NAME}`;
 
       await this.queue.add('sendNotificationEmail', {
