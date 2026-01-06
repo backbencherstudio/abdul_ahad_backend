@@ -398,7 +398,7 @@ export class GarageInvoiceService {
   private generateInvoiceHTML(data: any): string {
     const vatRate = data.vatRate ?? 0;
 
-    const subtotal = data.subscription.unitPrice;
+    const subtotal = Number(data?.subscription?.unitPrice ?? 0);
     const vat = subtotal * vatRate;
     const total = subtotal + vat;
 
@@ -417,23 +417,34 @@ export class GarageInvoiceService {
     --muted: #6b7280;
   }
   * { box-sizing: border-box; }
+
   body {
     margin: 0;
     padding: 0;
     font-family: Arial, sans-serif;
     color: #111827;
+    background: #f3f4f6;
   }
+
+  /* A4-like canvas */
   .invoice-page {
     width: 794px;
-    margin: auto;
+    min-height: 1123px;
+    margin: 24px auto;
     background: #fff;
     padding: 48px 56px;
+
+    display: flex;
+    flex-direction: column;
   }
+
   .header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 40px;
+    gap: 20px;
+    margin-bottom: 30px;
   }
+
   .company h2 {
     margin: 0;
     font-size: 20px;
@@ -445,17 +456,21 @@ export class GarageInvoiceService {
     font-size: 12px;
     color: var(--muted);
   }
-  .invoice-title { text-align: right; }
-  .invoice-title h1 {
-    margin: 0;
-    letter-spacing: 4px;
-    font-size: 18px;
-    color: var(--brand);
+
+  .meta p {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin: 4px 0;
+    font-size: 13px;
+    min-width: 260px;
   }
+  .meta span { color: var(--muted); }
+
   .bill {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 32px;
+    margin-bottom: 18px;
   }
   .bill h4 {
     margin: 0 0 8px;
@@ -463,19 +478,11 @@ export class GarageInvoiceService {
     color: var(--brand);
   }
   .bill p { margin: 4px 0; font-size: 13px; }
-  .meta p {
-    display: flex;
-    justify-content: space-between;
-    gap: 24px;
-    margin: 4px 0;
-    font-size: 13px;
-  }
-  .meta span { color: var(--muted); }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 24px;
+    margin-top: 10px;
   }
   thead {
     background: var(--brand);
@@ -487,12 +494,12 @@ export class GarageInvoiceService {
   }
   td { border-bottom: 1px solid #e5e7eb; }
   th.right, td.right { text-align: right; }
-  td.center { text-align: center; }
+  td.center, th.center { text-align: center; }
 
   .totals {
     width: 300px;
     margin-left: auto;
-    margin-top: 24px;
+    margin-top: 18px;
   }
   .totals div {
     display: flex;
@@ -504,106 +511,127 @@ export class GarageInvoiceService {
     border-top: 1px solid #e5e7eb;
     margin-top: 10px;
     padding-top: 10px;
-    font-weight: 600;
+    font-weight: 700;
+  }
+
+  /* This section can grow, footer stays pinned at bottom */
+  .content {
+    flex: 1 1 auto;
   }
 
   .invoice-footer {
-    margin-top: 40px;
-    text-align: center;
-    font-size: 12px;
-    color: #6b7280;
+    margin-top: auto;
+    padding-top: 18px;
   }
   .footer-line {
     width: 100%;
     height: 1px;
     background: #e5e7eb;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
   }
-  .footer-title {
-    margin: 0 0 6px 0;
-    font-weight: 600;
-    color: #374151;
+
+  .thankyou {
+    margin: 0 0 10px 0;
+    text-align: center;
+    font-weight: 700;
+    color: var(--brand);
+    font-size: 13px;
   }
+
   .footer-note {
-    text-align: left;
     margin: 0;
     font-size: 11px;
+    color: #6b7280;
+    line-height: 1.5;
+    text-align: justify;
   }
 </style>
 </head>
 
 <body>
-<div class="invoice-page">
+  <div class="invoice-page">
 
-  <div class="header">
-    <div class="company">
-      <h2>simplymot.co.uk</h2>
-      <p>124 City Road, London, EC1V 2NX</p>
-      <p>info@simplymot.co.uk</p>
+    <div class="header">
+      <div class="company">
+        <h2>simplymot.co.uk</h2>
+        <p>124 City Road, London, EC1V 2NX</p>
+        <p>info@simplymot.co.uk</p>
+      </div>
+
+      <div class="meta">
+        <p><span>Invoice #</span>${data.invoice_number ?? ''}</p>
+        <p><span>Invoice date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
+        <p><span>Due date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
+      </div>
     </div>
-    <div class="meta">
-      <p><span>Invoice #</span>${data.invoice_number}</p>
-      <p><span>Invoice date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
-      <p><span>Due date</span>${format(new Date(data.due_date), 'dd/MM/yyyy')}</p>
+
+    <div class="content">
+      <div class="bill">
+        <div>
+          <h4>Bill To</h4>
+          <p><strong>${data?.garage?.garage_name ?? ''}</strong></p>
+          ${data?.garage?.vts_number ? `<p>VTS Number: ${data.garage.vts_number}</p>` : ''}
+          ${data?.garage?.address ? `<p>${data.garage.address}</p>` : ''}
+          ${
+            data?.garage?.city
+              ? `<p>${data.garage.city}${data?.garage?.zip_code ? `, ${data.garage.zip_code}` : ''}</p>`
+              : ''
+          }
+          ${data?.garage?.email ? `<p>${data.garage.email}</p>` : ''}
+          ${data?.garage?.phone_number ? `<p>${data.garage.phone_number}</p>` : ''}
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="center">QTY</th>
+            <th>Description</th>
+            <th class="center">Unit Price</th>
+            <th class="right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="center">1</td>
+            <td>${data?.subscription?.billingCycle ?? ''} Subscription</td>
+            <td class="center">${formatCurrency(subtotal)}</td>
+            <td class="right">${formatCurrency(subtotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div>
+          <span>Subtotal</span>
+          <span>${formatCurrency(subtotal)}</span>
+        </div>
+
+        ${
+          vatRate > 0
+            ? `<div>
+                <span>VAT (${Math.round(vatRate * 100)}%)</span>
+                <span>${formatCurrency(vat)}</span>
+              </div>`
+            : ''
+        }
+
+        <div class="grand">
+          <span>Total</span>
+          <span>${formatCurrency(total)}</span>
+        </div>
+      </div>
     </div>
-    <!-- <div class="invoice-title">
-      <h1>INVOICE</h1>
-    </div> -->
+
+    <div class="invoice-footer">
+      <div class="footer-line"></div>
+      <p class="thankyou">Thank you for your business.​</p>
+      <p class="footer-note">
+        simplymot.co.uk is an independent online MOT booking platform. This invoice relates to subscription services for garage listings and booking management only. Garage subscriptions are subject to the simplymot.co.uk Terms and Conditions for Garages, available at www.simplymot.co.uk and related platform policies. Legal Entity: A. Ahad (Sole Trader) trading as simplymot.co.uk | 124 City Road, London, EC1V 2NX | info@simplymot.co.uk
+      </p>
+    </div>
+
   </div>
-
-  <div class="bill">
-    <div>
-      <h4>Bill To</h4>
-      <p><strong>${data.garage.garage_name}</strong></p>
-      ${data.garage.vts_number ? `<p>VTS Number: ${data.garage.vts_number}</p>` : ''}
-      ${data.garage.address ? `<p>${data.garage.address}</p>` : ''}
-      ${data.garage.city ? `<p>${data.garage.city}, ${data.garage.zip_code ?? ''}</p>` : ''}
-      ${data.garage.email ? `<p>${data.garage.email}</p>` : ''}
-      ${data.garage.phone_number ? `<p>${data.garage.phone_number}</p>` : ''}
-    </div>
-
-    
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>QTY</th>
-        <th>Description</th>
-        <th class="center">Unit Price</th>
-        <th class="right">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="center">1</td>
-        <td class="center">${data.subscription.billingCycle} Subscription</td>
-        <td class="center">${formatCurrency(subtotal)}</td>
-        <td class="right">${formatCurrency(subtotal)}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="totals">
-    <div>
-      <span>Subtotal</span>
-      <span>${formatCurrency(subtotal)}</span>
-    </div>
-    <div class="grand">
-      <span>Total</span>
-      <span>${formatCurrency(total)}</span>
-    </div>
-  </div>
-
-  <div class="invoice-footer">
-    <div class="footer-line"></div>
-    <!-- <p class="footer-title">Thank you for your business!</p> -->
-    <p class="footer-note">
-      simplymot.co.uk is an independent online MOT booking platform. This invoice relates to subscription services for garage listings and booking management only. Garage subscriptions are subject to the simplymot.co.uk Terms and Conditions for Garages, available at www.simplymot.co.uk and related platform policies. Legal Entity: A. Ahad (Sole Trader) trading as simplymot.co.uk | 124 City Road, London, EC1V 2NX | info@simplymot.co.uk 
-    </p>
-  </div>
-
-</div>
 </body>
 </html>
 `;
