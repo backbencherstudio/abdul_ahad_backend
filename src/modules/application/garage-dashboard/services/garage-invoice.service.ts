@@ -567,9 +567,9 @@ export class GarageInvoiceService {
       </div>
 
       <div class="meta">
-        <p><span>Invoice #</span>${data.invoice_number ?? ''}</p>
-        <p><span>Invoice date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
-        <p><span>Due date</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
+        <p><span>Invoice :</span>${data.invoice_number ?? ''}</p>
+        <p><span>Invoice Date :</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
+        <p><span>Due Date :</span>${format(new Date(data.issue_date), 'dd/MM/yyyy')}</p>
       </div>
     </div>
 
