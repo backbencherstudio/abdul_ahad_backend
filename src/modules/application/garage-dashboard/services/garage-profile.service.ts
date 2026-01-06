@@ -33,7 +33,7 @@ export class GarageProfileService {
           zip_code: true,
           email: true,
           vts_number: true,
-          primary_contact: true,
+          // primary_contact: true,
           phone_number: true,
           avatar: true,
           first_name: true,

@@ -2,6 +2,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import appConfig from 'src/config/app.config';
 
 @Processor('mail-queue')
 export class MailProcessor extends WorkerHost {
@@ -25,12 +26,13 @@ export class MailProcessor extends WorkerHost {
   async process(job: Job): Promise<any> {
     this.logger.log(`Processing job ${job.id} with name ${job.name}`);
     try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
       switch (job.name) {
         case 'sendMemberInvitation':
           this.logger.log('Sending member invitation email');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -40,7 +42,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending OTP code to email');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -50,6 +52,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending verification link');
           await this.mailerService.sendMail({
             to: job.data.to,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -59,7 +62,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending subscription price notice');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -69,7 +72,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending subscription migration confirmation');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -79,7 +82,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending user ban notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -89,7 +92,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending user unban notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -99,7 +102,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending admin ban notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -109,7 +112,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending admin unban notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -119,7 +122,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending driver approval notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -129,7 +132,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending driver rejection notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -139,7 +142,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending driver deletion notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -149,7 +152,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending garage approval notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -159,7 +162,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending garage rejection notification');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -169,7 +172,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending contact form submission email');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,
@@ -179,7 +182,7 @@ export class MailProcessor extends WorkerHost {
           this.logger.log('Sending general notification email');
           await this.mailerService.sendMail({
             to: job.data.to,
-            from: job.data.from,
+            from: from,
             subject: job.data.subject,
             template: job.data.template,
             context: job.data.context,

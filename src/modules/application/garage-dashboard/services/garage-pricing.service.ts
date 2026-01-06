@@ -74,10 +74,10 @@ export class GaragePricingService {
         !retest.name ||
         retest.price === undefined ||
         retest.price === null ||
-        retest.price <= 0
+        retest.price < 0
       ) {
         throw new BadRequestException(
-          'Retest requires name and valid price > 0',
+          'Retest requires name and valid price >= 0',
         );
       }
 
