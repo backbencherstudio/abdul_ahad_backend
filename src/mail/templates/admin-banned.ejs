@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #dc3545;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .alert-box {
             background-color: #fff5f5;
             border: 1px dashed #dc3545;
@@ -47,11 +54,13 @@
             text-align: center;
             color: #dc3545;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -59,6 +68,7 @@
             color: #888;
             background: #f9f9f9;
         }
+
         .reason-box {
             background-color: #f8f9fa;
             border-left: 4px solid #dc3545;
@@ -68,36 +78,44 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Administrative Account Status</div>
         </div>
 
         <div class="content">
-            <p>Dear <strong><%= user.name %></strong>,</p>
-            
+            <p>Dear <strong>
+                    <%= user.name %>
+                </strong>,</p>
+
             <div class="alert-box">
                 <strong>Your administrative access to simplymot.co.uk has been revoked.</strong>
             </div>
 
-            <% if (reason && reason !== 'Administrative action') { %>
-            <div class="reason-box">
-                <p style="margin: 0;"><strong>Reason:</strong> <%= reason %></p>
-            </div>
-            <% } %>
+            <% if (reason && reason !=='Administrative action' ) { %>
+                <div class="reason-box">
+                    <p style="margin: 0;"><strong>Reason:</strong>
+                        <%= reason %>
+                    </p>
+                </div>
+                <% } %>
 
-            <p><strong>What this means:</strong></p>
-            <ul>
-                <li>You cannot log in to your admin account</li>
-                <li>You cannot access the admin dashboard</li>
-                <li>All administrative privileges have been suspended</li>
-            </ul>
+                    <p><strong>What this means:</strong></p>
+                    <ul>
+                        <li>You cannot log in to your admin account</li>
+                        <li>You cannot access the admin dashboard</li>
+                        <li>All administrative privileges have been suspended</li>
+                    </ul>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p>If you believe this action was taken in error, please contact the system administrator directly.</p>
+                    <p>If you believe this action was taken in error, please contact the system administrator directly.
+                    </p>
         </div>
 
         <div class="footer">
@@ -106,4 +124,5 @@
         </div>
     </div>
 </body>
+
 </html>

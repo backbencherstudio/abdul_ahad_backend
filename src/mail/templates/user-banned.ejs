@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #dc3545;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .alert-box {
             background-color: #fff5f5;
             border: 1px dashed #dc3545;
@@ -47,6 +54,7 @@
             text-align: center;
             color: #dc3545;
         }
+
         .reason-box {
             background: #f8f9fa;
             border-left: 4px solid #dc3545;
@@ -54,11 +62,13 @@
             margin: 20px 0;
             font-size: 14px;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -68,41 +78,46 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Account Status Notification</div>
         </div>
 
         <div class="content">
-            <p>Dear <strong><%= user.name %></strong>,</p>
-            
+            <p>Dear <strong>
+                    <%= user.name %>
+                </strong>,</p>
+
             <div class="alert-box">
                 <div style="font-size: 18px; font-weight: 700;">Account Banned</div>
             </div>
 
             <p>We're writing to inform you that your account has been banned from simplymot.co.uk.</p>
 
-            <% if (reason && reason !== 'Administrative action') { %>
-            <div class="reason-box">
-                <strong>Reason:</strong><br>
-                <%= reason %>
-            </div>
-            <% } %>
+            <% if (reason && reason !=='Administrative action' ) { %>
+                <div class="reason-box">
+                    <strong>Reason:</strong><br>
+                    <%= reason %>
+                </div>
+                <% } %>
 
-            <p><strong>What this means:</strong></p>
-            <ul style="font-size: 14px; padding-left: 20px;">
-                <li>You cannot log in or access any services.</li>
-                <li>Active subscriptions have been cancelled.</li>
-                <li>All premium features are now disabled.</li>
-            </ul>
+                    <p><strong>What this means:</strong></p>
+                    <ul style="font-size: 14px; padding-left: 20px;">
+                        <li>You cannot log in or access any services.</li>
+                        <li>Active subscriptions have been cancelled.</li>
+                        <li>All premium features are now disabled.</li>
+                    </ul>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p style="font-size: 14px; color: #666;">
-                If you believe this was a mistake, please contact our support team.
-            </p>
+                    <p style="font-size: 14px; color: #666;">
+                        If you believe this was a mistake, please contact our support team.
+                    </p>
         </div>
 
         <div class="footer">
@@ -111,4 +126,5 @@
         </div>
     </div>
 </body>
+
 </html>

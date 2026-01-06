@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .info-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -45,6 +52,7 @@
             padding: 18px;
             margin: 25px 0;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -55,11 +63,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -69,23 +79,36 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Subscription Updated</div>
         </div>
 
         <div class="content">
-            <p>Hi <strong><%= garage_name %></strong>,</p>
-            
-            <p>Your subscription for <strong><%= plan_name %></strong> has been updated.</p>
+            <p>Hi <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
+            <p>Your subscription for <strong>
+                    <%= plan_name %>
+                </strong> has been updated.</p>
 
             <div class="info-box">
-                <p style="margin: 0;">New Price: <strong><%= new_price %></strong> per month</p>
+                <p style="margin: 0;">New Price: <strong>
+                        <%= new_price %>
+                    </strong> per month</p>
                 <div style="font-size: 14px; color: #666; margin-top: 10px;">
-                    <div>Effective date: <strong><%= effective_date %></strong></div>
-                    <div>Next billing date: <strong><%= next_billing_date %></strong></div>
+                    <div>Effective date: <strong>
+                            <%= effective_date %>
+                        </strong></div>
+                    <div>Next billing date: <strong>
+                            <%= next_billing_date %>
+                        </strong></div>
                 </div>
             </div>
 
@@ -106,4 +129,5 @@
         </div>
     </div>
 </body>
+
 </html>

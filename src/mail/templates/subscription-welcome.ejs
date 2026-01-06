@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .success-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -46,6 +53,7 @@
             margin: 25px 0;
             text-align: center;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -56,11 +64,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -68,16 +78,19 @@
             color: #888;
             background: #f9f9f9;
         }
+
         .feature-list {
             margin: 15px 0;
             padding: 0;
             list-style: none;
         }
+
         .feature-item {
             margin-bottom: 8px;
             display: flex;
             align-items: center;
         }
+
         .feature-item:before {
             content: "✓";
             color: #00D00A;
@@ -86,24 +99,33 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Welcome to Your Subscription! 🎉</div>
         </div>
 
         <div class="content">
-            <p>Hello <strong><%= garage_name %></strong>,</p>
-            
-            <p>Congratulations! Your subscription has been successfully activated. You now have access to all the premium features of <strong><%= plan_name %></strong>.</p>
+            <p>Hello <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
+            <p>Congratulations! Your subscription has been successfully activated. You now have access to all the
+                premium features of <strong>
+                    <%= plan_name %>
+                </strong>.</p>
 
             <div class="success-box">
                 <div style="font-size: 20px; font-weight: 700; color: #00D00A;">
                     <%= plan_name %>
                 </div>
                 <div style="font-size: 16px; color: #666; margin-top: 5px;">
-                    <%= price_formatted %> <%= currency %> / month
+                    <%= price_formatted %>
+                        <%= currency %> / month
                 </div>
             </div>
 
@@ -117,18 +139,23 @@
             </ul>
 
             <% if (next_billing_date) { %>
-            <p style="font-size: 14px; margin-top: 15px;">
-                📅 Next billing: <strong><%= price_formatted %> <%= currency %></strong> on <strong><%= next_billing_date %></strong>.
-            </p>
-            <% } %>
+                <p style="font-size: 14px; margin-top: 15px;">
+                    📅 Next billing: <strong>
+                        <%= price_formatted %>
+                            <%= currency %>
+                    </strong> on <strong>
+                        <%= next_billing_date %>
+                    </strong>.
+                </p>
+                <% } %>
 
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
-            </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+                    </div>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p>We're excited to help you grow your garage business!</p>
+                    <p>We're excited to help you grow your garage business!</p>
         </div>
 
         <div class="footer">
@@ -137,4 +164,5 @@
         </div>
     </div>
 </body>
+
 </html>

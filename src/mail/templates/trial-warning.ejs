@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .info-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -46,6 +53,7 @@
             margin: 25px 0;
             text-align: center;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -56,11 +64,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -70,38 +80,51 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Trial Ending Soon ⚠️</div>
         </div>
 
         <div class="content">
-            <p>Hi <strong><%= garage_name %></strong>,</p>
-            
-            <p>Your free trial for the <strong><%= plan_name %></strong> plan is ending soon!</p>
+            <p>Hi <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
+            <p>Your free trial for the <strong>
+                    <%= plan_name %>
+                </strong> plan is ending soon!</p>
 
             <div class="info-box">
                 <div style="font-size: 18px; font-weight: 700; color: #00D00A;">Time Remaining</div>
-                <div style="font-size: 24px; font-weight: 700; margin: 10px 0;"><%= days_remaining %> Days</div>
-                <div style="color: #666; font-size: 14px;">Trial ends on: <strong><%= trial_end_date %></strong></div>
+                <div style="font-size: 24px; font-weight: 700; margin: 10px 0;">
+                    <%= days_remaining %> Days
+                </div>
+                <div style="color: #666; font-size: 14px;">Trial ends on: <strong>
+                        <%= trial_end_date %>
+                    </strong></div>
             </div>
 
             <p><strong>What happens next?</strong><br>
-            After your trial ends, you'll be automatically charged <strong><%= price_formatted %></strong> per month for your chosen plan. No action is needed if you wish to continue.</p>
+                After your trial ends, you'll be automatically charged <strong>
+                    <%= price_formatted %>
+                </strong> per month for your chosen plan. No action is needed if you wish to continue.</p>
 
             <% if (billing_portal_url) { %>
-            <div style="text-align: center;">
-                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
-            </div>
-            <% } %>
+                <div style="text-align: center;">
+                    <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+                </div>
+                <% } %>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p style="font-size: 14px; color: #666;">
-                <strong>💡 Pro Tip:</strong> Ensure your payment method is correct to avoid any interruptions.
-            </p>
+                    <p style="font-size: 14px; color: #666;">
+                        <strong>💡 Pro Tip:</strong> Ensure your payment method is correct to avoid any interruptions.
+                    </p>
         </div>
 
         <div class="footer">
@@ -110,4 +133,5 @@
         </div>
     </div>
 </body>
+
 </html>

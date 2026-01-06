@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .success-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -46,6 +53,7 @@
             margin: 25px 0;
             text-align: center;
         }
+
         .info-box {
             background: #f8f9fa;
             border-radius: 8px;
@@ -53,6 +61,7 @@
             margin: 20px 0;
             font-size: 14px;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -63,11 +72,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -77,43 +88,52 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Account Restored</div>
         </div>
 
         <div class="content">
-            <p>Dear <strong><%= user.name %></strong>,</p>
-            
+            <p>Dear <strong>
+                    <%= user.name %>
+                </strong>,</p>
+
             <div class="success-box">
                 <div style="font-size: 18px; font-weight: 700; color: #00D00A;">Account Active</div>
             </div>
 
-            <p>Great news! Your account has been restored and is now active again. You can now log in and access all simplymot.co.uk services.</p>
+            <p>Great news! Your account has been restored and is now active again. You can now log in and access all
+                simplymot.co.uk services.</p>
 
             <div class="info-box">
                 <p style="margin: 0;"><strong>Welcome Back!</strong></p>
-                <p style="margin-top: 10px;">Your account is fully restored and ready to use. You can now access all the features you had before.</p>
+                <p style="margin-top: 10px;">Your account is fully restored and ready to use. You can now access all the
+                    features you had before.</p>
             </div>
 
             <% if (hadSubscription) { %>
-            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeaa7; margin: 20px 0; font-size: 14px; color: #856404;">
-                <p style="margin: 0;"><strong>📋 Note on Subscription:</strong></p>
-                <p style="margin-top: 5px;">Your previous subscription was cancelled. To access premium features, please resubscribe from your dashboard.</p>
-            </div>
-            <% } %>
+                <div
+                    style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeaa7; margin: 20px 0; font-size: 14px; color: #856404;">
+                    <p style="margin: 0;"><strong>📋 Note on Subscription:</strong></p>
+                    <p style="margin-top: 5px;">Your previous subscription was cancelled. To access premium features,
+                        please resubscribe from your dashboard.</p>
+                </div>
+                <% } %>
 
-            <div style="text-align: center;">
-                <a href="<%= process.env.CLIENT_URL %>/login" class="button">Log In to Your Account</a>
-            </div>
+                    <div style="text-align: center;">
+                        <a href="<%= process.env.CLIENT_URL %>/login" class="button">Log In to Your Account</a>
+                    </div>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p style="font-size: 14px; color: #666;">
-                Thank you for your patience. We're glad to have you back!
-            </p>
+                    <p style="font-size: 14px; color: #666;">
+                        Thank you for your patience. We're glad to have you back!
+                    </p>
         </div>
 
         <div class="footer">
@@ -122,4 +142,5 @@
         </div>
     </div>
 </body>
+
 </html>

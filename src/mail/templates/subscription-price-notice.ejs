@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .info-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -45,6 +52,7 @@
             padding: 18px;
             margin: 25px 0;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -55,11 +63,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -69,25 +79,39 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Subscription Update Notice</div>
         </div>
 
         <div class="content">
-            <p>Hi <strong><%= garage_name %></strong>,</p>
-            
-            <p>We are updating your subscription price for the <strong><%= plan_name %></strong> plan.</p>
+            <p>Hi <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
+            <p>We are updating your subscription price for the <strong>
+                    <%= plan_name %>
+                </strong> plan.</p>
 
             <div class="info-box">
-                <div style="margin-bottom: 5px;">Current price: <strong><%= old_price %></strong></div>
-                <div style="margin-bottom: 5px;">New price: <strong style="color: #00D00A;"><%= new_price %></strong></div>
-                <div>Effective on: <strong><%= effective_date %></strong></div>
+                <div style="margin-bottom: 5px;">Current price: <strong>
+                        <%= old_price %>
+                    </strong></div>
+                <div style="margin-bottom: 5px;">New price: <strong style="color: #00D00A;">
+                        <%= new_price %>
+                    </strong></div>
+                <div>Effective on: <strong>
+                        <%= effective_date %>
+                    </strong></div>
             </div>
 
-            <p>If you wish to review or manage your subscription before the effective date, visit your billing portal:</p>
+            <p>If you wish to review or manage your subscription before the effective date, visit your billing portal:
+            </p>
 
             <div style="text-align: center;">
                 <a href="<%= billing_portal_url %>" class="button">Open Billing Portal</a>
@@ -104,6 +128,5 @@
         </div>
     </div>
 </body>
+
 </html>
-
-

@@ -10,7 +10,12 @@ import { NotificationModule } from '../notification/notification.module';
 import { MailModule } from 'src/mail/mail.module';
 
 @Module({
-  imports: [PrismaModule, GarageDashboardModule, NotificationModule, MailModule],
+  imports: [
+    PrismaModule,
+    GarageDashboardModule,
+    NotificationModule,
+    MailModule,
+  ],
   providers: [
     VehicleService,
     VehicleGarageService,

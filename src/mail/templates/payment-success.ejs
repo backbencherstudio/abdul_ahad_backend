@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #00D00A;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .success-box {
             background-color: #f5f9f5;
             border: 1px dashed #00D00A;
@@ -46,6 +53,7 @@
             margin: 25px 0;
             text-align: center;
         }
+
         .button {
             background-color: #00D00A;
             color: white !important;
@@ -56,11 +64,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -68,63 +78,86 @@
             color: #888;
             background: #f9f9f9;
         }
+
         .info-row {
             margin: 5px 0;
             display: flex;
             justify-content: space-between;
         }
+
         .label {
             font-weight: 600;
             color: #00D00A;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Payment Successful</div>
         </div>
 
         <div class="content">
-            <p>Hello <strong><%= garage_name %></strong>,</p>
-            
+            <p>Hello <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
             <p>Great news! Your payment has been processed successfully. Thank you for your continued subscription.</p>
 
             <div class="success-box">
                 <div style="font-size: 24px; font-weight: 700; color: #00D00A; margin-bottom: 10px;">
-                    <%= amount_paid %> <%= currency %>
+                    <%= amount_paid %>
+                        <%= currency %>
                 </div>
                 <div class="info-row">
                     <span>Plan:</span>
-                    <strong><%= plan_name %></strong>
+                    <strong>
+                        <%= plan_name %>
+                    </strong>
                 </div>
                 <div class="info-row">
                     <span>Date:</span>
-                    <strong><%= payment_date %></strong>
+                    <strong>
+                        <%= payment_date %>
+                    </strong>
                 </div>
             </div>
 
             <p><strong>Receipt Details:</strong></p>
             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 14px;">
-                <div class="info-row"><span>Billing Period:</span> <span><%= billing_period %></span></div>
-                <div class="info-row"><span>Payment Method:</span> <span><%= payment_method %></span></div>
-                <div class="info-row"><span>Transaction ID:</span> <span><%= transaction_id %></span></div>
+                <div class="info-row"><span>Billing Period:</span> <span>
+                        <%= billing_period %>
+                    </span></div>
+                <div class="info-row"><span>Payment Method:</span> <span>
+                        <%= payment_method %>
+                    </span></div>
+                <div class="info-row"><span>Transaction ID:</span> <span>
+                        <%= transaction_id %>
+                    </span></div>
             </div>
 
             <% if (next_billing_date) { %>
-            <p style="font-size: 14px; margin-top: 15px;">
-                📅 Next billing: <strong><%= next_billing_amount %> <%= currency %></strong> on <strong><%= next_billing_date %></strong>.
-            </p>
-            <% } %>
+                <p style="font-size: 14px; margin-top: 15px;">
+                    📅 Next billing: <strong>
+                        <%= next_billing_amount %>
+                            <%= currency %>
+                    </strong> on <strong>
+                        <%= next_billing_date %>
+                    </strong>.
+                </p>
+                <% } %>
 
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
-            </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <a href="<%= billing_portal_url %>" class="button">Manage Subscription</a>
+                    </div>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p>Thank you for being a valued customer!</p>
+                    <p>Thank you for being a valued customer!</p>
         </div>
 
         <div class="footer">
@@ -133,4 +166,5 @@
         </div>
     </div>
 </body>
+
 </html>

@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-        
+
         body {
             font-family: 'Poppins', Arial, sans-serif;
             line-height: 1.6;
@@ -13,6 +14,7 @@
             padding: 0;
             background-color: #f9f9f9;
         }
+
         .container {
             background: white;
             border-radius: 12px;
@@ -20,24 +22,29 @@
             overflow: hidden;
             margin: 20px auto;
         }
+
         .header {
             background-color: #dc3545;
             padding: 25px;
             text-align: center;
             color: white;
         }
+
         .logo {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
         }
+
         .tagline {
             font-size: 14px;
             opacity: 0.9;
         }
+
         .content {
             padding: 25px;
         }
+
         .alert-box {
             background-color: #fff5f5;
             border: 1px dashed #dc3545;
@@ -47,6 +54,7 @@
             text-align: center;
             color: #dc3545;
         }
+
         .button {
             background-color: #dc3545;
             color: white !important;
@@ -57,11 +65,13 @@
             font-weight: 500;
             margin: 15px 0;
         }
+
         .divider {
             height: 1px;
             background: linear-gradient(90deg, transparent, #e0e0e0, transparent);
             margin: 20px 0;
         }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -71,38 +81,49 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">simplymot.co.uk</div>
+            <div class="logo">
+                simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk
+            </div>
             <div class="tagline">Your Trial Has Ended</div>
         </div>
 
         <div class="content">
-            <p>Hi <strong><%= garage_name %></strong>,</p>
-            
-            <p>Your free trial for the <strong><%= plan_name %></strong> plan has ended.</p>
+            <p>Hi <strong>
+                    <%= garage_name %>
+                </strong>,</p>
+
+            <p>Your free trial for the <strong>
+                    <%= plan_name %>
+                </strong> plan has ended.</p>
 
             <div class="alert-box">
                 <div style="font-size: 18px; font-weight: 700;">Trial Summary</div>
-                <div style="margin-top: 5px;">Plan: <strong><%= plan_name %></strong></div>
+                <div style="margin-top: 5px;">Plan: <strong>
+                        <%= plan_name %>
+                    </strong></div>
                 <div>Status: <strong>Trial Expired</strong></div>
             </div>
 
             <p><strong>Impact on your service:</strong><br>
-            Your garage is no longer visible to drivers searching for MOT services. You won't receive new bookings until you resubscribe.</p>
+                Your garage is no longer visible to drivers searching for MOT services. You won't receive new bookings
+                until you resubscribe.</p>
 
             <% if (billing_portal_url) { %>
-            <div style="text-align: center;">
-                <a href="<%= billing_portal_url %>" class="button">Resubscribe Now</a>
-            </div>
-            <% } %>
+                <div style="text-align: center;">
+                    <a href="<%= billing_portal_url %>" class="button">Resubscribe Now</a>
+                </div>
+                <% } %>
 
-            <div class="divider"></div>
+                    <div class="divider"></div>
 
-            <p style="font-size: 14px; color: #666;">
-                <strong>📊 Your Data is Safe:</strong> All your garage information and booking history remain intact. You can resubscribe anytime to restore full access.
-            </p>
+                    <p style="font-size: 14px; color: #666;">
+                        <strong>📊 Your Data is Safe:</strong> All your garage information and booking history remain
+                        intact. You can resubscribe anytime to restore full access.
+                    </p>
         </div>
 
         <div class="footer">
@@ -111,4 +132,5 @@
         </div>
     </div>
 </body>
+
 </html>
