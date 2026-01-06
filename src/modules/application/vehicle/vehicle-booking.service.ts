@@ -103,6 +103,56 @@ export class VehicleBookingService {
     }
   }
 
+  // --------------------------------------- New Added By Najim------------------------------------
+
+  async getGarages(query: SearchGarageDto, user_id?: string) {
+    const vehicleInfo = await this.validateVehicleWithDVLA(
+      query.registration_number,
+    );
+    if (!vehicleInfo) {
+      throw new BadRequestException('Vehicle not found');
+    }
+    let vehicle;
+    if (user_id) {
+      vehicle = await this.prisma.vehicle.findFirst({
+        where: {
+          user_id: user_id,
+          registration_number: query.registration_number.toUpperCase(),
+        },
+        select: {
+          id: true,
+        },
+      });
+      if (!vehicle && user_id) {
+        const vehicleResponse = await this.vehicleService.addVehicle(user_id, {
+          registration_number: query.registration_number,
+        });
+        vehicleInfo.vehicle_id = vehicleResponse.data.id;
+      }
+    }
+    const garages =
+      await this.vehicleGarageService.findActiveGaragesWithPagination(
+        query.postcode,
+        query.limit,
+        query.page,
+      );
+    return {
+      success: true,
+      data: {
+        vehicle: vehicleInfo,
+        garages,
+      },
+      meta_data: {
+        page: query.page,
+        limit: query.limit,
+        total_count: garages.length,
+        search_postcode: query.postcode,
+      },
+    };
+  }
+
+  // --------------------------------------- New Added By Najim------------------------------------
+
   /**
    * Get available slots for a garage on a specific date
    * Returns template slots (no ID) + database slots (with ID)

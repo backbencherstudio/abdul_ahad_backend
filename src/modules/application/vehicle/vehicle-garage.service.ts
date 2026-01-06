@@ -5,13 +5,19 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UserRole, ServiceType } from '@prisma/client';
+import { UserRole, ServiceType, Prisma } from '@prisma/client';
 import { GarageDto } from './dto/garage-search-response.dto';
 import {
   AdditionalServiceDto,
   BookableServiceDto,
-  GarageServicesResponseDto,
 } from './dto/garage-services.dto';
+
+type LatLng = {
+  lat: number;
+  lng: number;
+  outcode?: string;
+  postcodeDisplay?: string;
+};
 
 @Injectable()
 export class VehicleGarageService {
@@ -23,7 +29,11 @@ export class VehicleGarageService {
    * Find active garages by postcode
    * Only returns garages that are active and have subscription
    */
-  async findActiveGarages(postcode: string): Promise<GarageDto[]> {
+  async findActiveGarages(
+    postcode: string,
+    limit?: number,
+    page?: number,
+  ): Promise<GarageDto[]> {
     try {
       this.logger.log(
         `Searching for active garages near postcode: ${postcode}`,
@@ -78,6 +88,218 @@ export class VehicleGarageService {
     }
   }
 
+  // -------------------------------------
+  private normalizeUkPostcode(input: string): string {
+    return (input || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  async findActiveGaragesWithPagination(
+    postcode?: string,
+    limit = 20,
+    page = 1,
+  ): Promise<GarageDto[]> {
+    try {
+      this.logger.log(
+        `Searching active garages. Postcode: ${postcode || 'N/A'}`,
+      );
+
+      const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+      const safePage = Math.max(Number(page) || 1, 1);
+      const offset = (safePage - 1) * safeLimit;
+
+      const normalizedPostcode = (postcode || '').trim().toUpperCase();
+
+      // =========================================================
+      // CASE 1: Postcode provided -> same postcode first + distance
+      // =========================================================
+      if (normalizedPostcode) {
+        const postcodeNoSpace = this.normalizeUkPostcode(normalizedPostcode);
+
+        // postcode -> lat/lng (cached)
+        const center = await this.getLatLng(normalizedPostcode);
+
+        const rows = await this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            garage_name: string | null;
+            address: string | null;
+            zip_code: string | null;
+            vts_number: string | null;
+            primary_contact: string | null;
+            phone_number: string | null;
+            distance_miles: number | null;
+          }>
+        >(Prisma.sql`
+        SELECT
+          u.id,
+          u.garage_name,
+          u.address,
+          u.zip_code,
+          u.vts_number,
+          u.primary_contact,
+          u.phone_number,
+
+          (
+            3959 * acos(
+              cos(radians(${center.lat})) * cos(radians(u.latitude)) *
+              cos(radians(u.longitude) - radians(${center.lng})) +
+              sin(radians(${center.lat})) * sin(radians(u.latitude))
+            )
+          ) AS distance_miles
+
+        FROM "users" u
+        WHERE
+          u.type = 'GARAGE'::"UserRole"
+          AND u.status = 1
+          AND u.latitude IS NOT NULL
+          AND u.longitude IS NOT NULL
+
+        ORDER BY
+          CASE
+            WHEN regexp_replace(upper(coalesce(u.zip_code, '')), '\\s+', '', 'g') = ${postcodeNoSpace}
+            THEN 0 ELSE 1
+          END ASC,
+          distance_miles ASC,
+          u.garage_name ASC NULLS LAST,
+          u.id ASC
+
+        LIMIT ${safeLimit}
+        OFFSET ${offset};
+      `);
+
+        return rows.map((g) => ({
+          id: g.id,
+          garage_name: g.garage_name || 'Unnamed Garage',
+          address: g.address || 'Address not provided',
+          postcode: g.zip_code || '',
+          vts_number: g.vts_number || 'VTS not provided',
+          primary_contact: g.primary_contact || 'Contact not provided',
+          phone_number: g.phone_number || 'Phone not provided',
+          distance_miles:
+            typeof g.distance_miles === 'number'
+              ? Number(g.distance_miles.toFixed(2))
+              : undefined,
+        }));
+      }
+
+      // =========================================
+      // CASE 2: No postcode -> normal deterministic sort (stable)
+      // =========================================
+      const garages = await this.prisma.user.findMany({
+        where: {
+          type: UserRole.GARAGE,
+          status: 1,
+        },
+        select: {
+          id: true,
+          garage_name: true,
+          address: true,
+          zip_code: true,
+          vts_number: true,
+          primary_contact: true,
+          phone_number: true,
+          created_at: true,
+        },
+        orderBy: [
+          { created_at: 'desc' }, // newest first (sensible default)
+          { garage_name: 'asc' },
+          { id: 'asc' }, // stable pagination
+        ],
+        take: safeLimit,
+        skip: offset,
+      });
+
+      return garages.map((garage) => ({
+        id: garage.id,
+        garage_name: garage.garage_name || 'Unnamed Garage',
+        address: garage.address || 'Address not provided',
+        postcode: garage.zip_code || '',
+        vts_number: garage.vts_number || 'VTS not provided',
+        primary_contact: garage.primary_contact || 'Contact not provided',
+        phone_number: garage.phone_number || 'Phone not provided',
+        distance_miles: undefined,
+      }));
+    } catch (error: any) {
+      this.logger.error(
+        `Error finding active garages: ${error?.message || error}`,
+      );
+      throw new BadRequestException('Failed to search for garages');
+    }
+  }
+
+  async getLatLng(postcode: string): Promise<LatLng> {
+    const raw = (postcode || '').trim();
+    if (!raw) throw new BadRequestException('Invalid postcode');
+
+    const normalized = this.normalizeUkPostcode(raw);
+
+    // 1) DB cache hit
+    const cached = await this.prisma.postcodeGeoCache.findUnique({
+      where: { postcodeNormalized: normalized },
+      select: {
+        latitude: true,
+        longitude: true,
+        outcode: true,
+        postcodeDisplay: true,
+      },
+    });
+
+    if (cached) {
+      return {
+        lat: cached.latitude,
+        lng: cached.longitude,
+        outcode: cached.outcode ?? undefined,
+        postcodeDisplay: cached.postcodeDisplay ?? undefined,
+      };
+    }
+
+    // 2) Cache miss -> external lookup
+    const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(raw)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Postcode API failed: ${response.status} ${response.statusText}`,
+      );
+      throw new BadRequestException('Invalid postcode');
+    }
+
+    const data = await response.json();
+    const result = data?.result;
+
+    const lat = result?.latitude;
+    const lng = result?.longitude;
+
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      throw new BadRequestException('Invalid postcode');
+    }
+
+    const outcode: string | undefined = result?.outcode ?? undefined;
+    const postcodeDisplay: string | undefined = result?.postcode ?? undefined;
+
+    // 3) Upsert cache
+    await this.prisma.postcodeGeoCache.upsert({
+      where: { postcodeNormalized: normalized },
+      create: {
+        postcodeNormalized: normalized,
+        postcodeDisplay,
+        latitude: lat,
+        longitude: lng,
+        outcode,
+        source: 'postcodes.io',
+      },
+      update: {
+        postcodeDisplay,
+        latitude: lat,
+        longitude: lng,
+        outcode,
+        source: 'postcodes.io',
+      },
+    });
+
+    return { lat, lng, outcode, postcodeDisplay };
+  }
+  // ---------------------------------------------------------------------
   /**
    * Get garage services separated into bookable and additional
    * Also includes garage schedule (operating hours and weekly pattern)

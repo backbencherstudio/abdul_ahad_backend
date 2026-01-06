@@ -29,9 +29,11 @@ import {
 } from '@nestjs/swagger';
 import { GetMyBookingsDto, MyBookingsResponseDto } from './dto/my-bookings.dto';
 import { GetMotReportsQueryDto } from './dto/mot-reports-query.dto';
+import { Request } from 'express';
+import { JwtOptionalGuard } from 'src/modules/auth/guards';
 
 @Controller('vehicles')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @ApiTags('Vehicles')
 @ApiBearerAuth()
 export class VehicleController {
@@ -40,18 +42,20 @@ export class VehicleController {
     private readonly vehicleGarageService: VehicleGarageService,
     private readonly vehicleBookingService: VehicleBookingService,
   ) {}
-
   @Post()
+  @UseGuards(JwtAuthGuard)
   async addVehicle(@Req() req, @Body() dto: CreateVehicleDto) {
     return this.vehicleService.addVehicle(req.user.userId, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
   async listVehicles(@Req() req) {
     return this.vehicleService.getVehiclesByUser(req.user.userId); // FIXED
   }
 
   @Get('mot-report/:reportId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Get complete MOT report details for download/report generation',
     description:
@@ -108,8 +112,10 @@ export class VehicleController {
   async getMotReport(@Param('reportId') reportId: string) {
     return this.vehicleService.getMotReportWithDefects(reportId);
   }
+
   @Get(':vehicleId/mot-reports')
   @Roles(Role.DRIVER)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Get MOT reports for vehicle with field selection',
     description:
@@ -154,6 +160,7 @@ export class VehicleController {
   }
 
   @Patch(':vehicleId/mot-reports/refresh')
+  @UseGuards(JwtAuthGuard)
   @Roles(Role.DRIVER)
   @ApiOperation({
     summary: 'Refresh MOT history from DVLA',
@@ -189,6 +196,7 @@ export class VehicleController {
   }
 
   @Get('my-bookings')
+  @UseGuards(JwtAuthGuard)
   @Roles(Role.DRIVER) // ✅ ADD THIS: Explicitly require DRIVER role
   @ApiOperation({
     summary:
@@ -200,41 +208,28 @@ export class VehicleController {
     return this.vehicleBookingService.getMyBookings(req.user.userId, query);
   }
 
-  @Get(':id')
-  async getVehicle(@Req() req, @Param('id') id: string) {
-    return this.vehicleService.getVehicleById(req.user.id, id); // FIXED
-  }
+  // --------------------------------------------- New Added BY Najim ---------------------------------------------
+  // IMPORTANT: These specific routes MUST come before dynamic :id routes to avoid route conflicts
 
-  @Delete(':id')
-  async deleteVehicle(@Req() req, @Param('id') id: string) {
-    return this.vehicleService.deleteVehicle(req.user.userId, id);
-  }
-
-  @Patch(':id')
-  async updateVehicle(
-    @Req() req,
-    @Param('id') id: string,
-    @Body() dto: UpdateVehicleDto,
-  ) {
-    return this.vehicleService.updateVehicle(req.user.userId, id, dto);
-  }
-
-  @Post('search-garages')
+  @Get('search-garages')
+  @UseGuards(JwtOptionalGuard)
   @ApiOperation({
-    summary: 'Search for garages by vehicle registration and postcode',
+    summary:
+      'Search for garages by vehicle registration and postcode (optional auth)',
     description:
-      'Validates the vehicle with DVLA and returns a list of active garages in the area.',
+      'Returns a list of active garages. If authenticated, creates vehicle record if needed.',
   })
   @ApiResponse({ status: 200, description: 'List of garages and vehicle info' })
-  async searchGarages(@Req() req, @Body() dto: SearchGarageDto) {
-    //console.log(dto);
-    return this.vehicleBookingService.searchGaragesByPostcode(
-      req.user.userId,
-      dto,
+  getGarages(@Query() query: SearchGarageDto, @Req() req: Request) {
+    console.log(query);
+    return this.vehicleBookingService.getGarages(
+      query,
+      req?.user?.userId ?? null,
     );
   }
 
   @Get('garages/:garageId/services')
+  @UseGuards(JwtOptionalGuard)
   @ApiOperation({
     summary: 'Get bookable and additional services for a garage',
     description:
@@ -246,6 +241,7 @@ export class VehicleController {
   }
 
   @Get('garages/:garageId/slots')
+  @UseGuards(JwtOptionalGuard)
   @ApiOperation({
     summary: 'Get available slots for a garage on a specific date',
     description:
@@ -259,7 +255,48 @@ export class VehicleController {
     return this.vehicleBookingService.getAvailableSlots(garageId, date);
   }
 
+  // --------------------------------------------- End New Routes ---------------------------------------------
+
+  @Post('search-garages')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Search for garages by vehicle registration and postcode (authenticated)',
+    description:
+      'Validates the vehicle with DVLA and returns a list of active garages in the area.',
+  })
+  @ApiResponse({ status: 200, description: 'List of garages and vehicle info' })
+  async searchGarages(@Req() req, @Body() dto: SearchGarageDto) {
+    return this.vehicleBookingService.searchGaragesByPostcode(
+      req.user.userId,
+      dto,
+    );
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  async getVehicle(@Req() req, @Param('id') id: string) {
+    return this.vehicleService.getVehicleById(req.user.id, id); // FIXED
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  async deleteVehicle(@Req() req, @Param('id') id: string) {
+    return this.vehicleService.deleteVehicle(req.user.userId, id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  async updateVehicle(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleDto,
+  ) {
+    return this.vehicleService.updateVehicle(req.user.userId, id, dto);
+  }
+
   @Post('book-slot')
+  @UseGuards(JwtAuthGuard)
   @Roles(Role.DRIVER)
   @ApiOperation({
     summary: 'Book a slot for MOT or Retest (no payment)',

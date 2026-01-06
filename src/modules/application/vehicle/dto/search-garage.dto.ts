@@ -1,5 +1,12 @@
-import { IsString, IsNotEmpty, Matches } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  Matches,
+  IsOptional,
+  IsNumber,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class SearchGarageDto {
   @ApiProperty({
@@ -26,4 +33,24 @@ export class SearchGarageDto {
     message: 'Please enter a valid UK postcode',
   })
   postcode: string;
+
+  @ApiProperty({
+    description: 'Limit of garages to return',
+    example: 10,
+    default: 10,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value ? Number(value) : 10))
+  @IsNumber()
+  limit?: number;
+
+  @ApiProperty({
+    description: 'Page number for pagination',
+    example: 1,
+    default: 1,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value ? Number(value) : 1))
+  @IsNumber()
+  page?: number;
 }

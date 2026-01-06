@@ -10,6 +10,12 @@ import { SojebStorage } from '../../../../common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { memoryStorage } from 'multer';
 
+type LatLng = {
+  lat: number;
+  lng: number;
+  outcode?: string;
+  postcodeDisplay?: string;
+};
 @Injectable()
 export class GarageProfileService {
   private readonly logger = new Logger(GarageProfileService.name);
@@ -92,7 +98,13 @@ export class GarageProfileService {
       if (existingUser.type !== 'GARAGE') {
         throw new BadRequestException('User is not a garage');
       }
-
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      if (dto.zip_code) {
+        const { lat, lng } = await this.getLatLng(dto.zip_code);
+        latitude = lat;
+        longitude = lng;
+      }
       // Prepare update data (skip email)
       const data: any = {};
       if (dto.garage_name) data.garage_name = dto.garage_name;
@@ -101,6 +113,8 @@ export class GarageProfileService {
       if (dto.vts_number) data.vts_number = dto.vts_number;
       if (dto.primary_contact) data.primary_contact = dto.primary_contact;
       if (dto.phone_number) data.phone_number = dto.phone_number;
+      if (latitude) data.latitude = latitude;
+      if (longitude) data.longitude = longitude;
 
       // Handle avatar upload
       if (avatar) {
@@ -160,6 +174,81 @@ export class GarageProfileService {
       this.logger.error(`Failed to update profile for user ${userId}:`, error);
       throw error;
     }
+  }
+  private normalizeUkPostcode(input: string): string {
+    return (input || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+  async getLatLng(postcode: string): Promise<LatLng> {
+    const raw = (postcode || '').trim();
+    if (!raw) throw new BadRequestException('Invalid postcode');
+
+    const normalized = this.normalizeUkPostcode(raw);
+
+    // 1) DB cache hit
+    const cached = await this.prisma.postcodeGeoCache.findUnique({
+      where: { postcodeNormalized: normalized },
+      select: {
+        latitude: true,
+        longitude: true,
+        outcode: true,
+        postcodeDisplay: true,
+      },
+    });
+
+    if (cached) {
+      return {
+        lat: cached.latitude,
+        lng: cached.longitude,
+        outcode: cached.outcode ?? undefined,
+        postcodeDisplay: cached.postcodeDisplay ?? undefined,
+      };
+    }
+
+    // 2) Cache miss -> external lookup
+    const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(raw)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Postcode API failed: ${response.status} ${response.statusText}`,
+      );
+      throw new BadRequestException('Invalid postcode');
+    }
+
+    const data = await response.json();
+    const result = data?.result;
+
+    const lat = result?.latitude;
+    const lng = result?.longitude;
+
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      throw new BadRequestException('Invalid postcode');
+    }
+
+    const outcode: string | undefined = result?.outcode ?? undefined;
+    const postcodeDisplay: string | undefined = result?.postcode ?? undefined;
+
+    // 3) Upsert cache
+    await this.prisma.postcodeGeoCache.upsert({
+      where: { postcodeNormalized: normalized },
+      create: {
+        postcodeNormalized: normalized,
+        postcodeDisplay,
+        latitude: lat,
+        longitude: lng,
+        outcode,
+        source: 'postcodes.io',
+      },
+      update: {
+        postcodeDisplay,
+        latitude: lat,
+        longitude: lng,
+        outcode,
+        source: 'postcodes.io',
+      },
+    });
+
+    return { lat, lng, outcode, postcodeDisplay };
   }
 
   /**

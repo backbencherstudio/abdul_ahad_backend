@@ -56,6 +56,8 @@ model User {
   city          String?
   address       String?
   zip_code      String?
+  latitude      Float?
+  longitude     Float?
   gender        String?
   date_of_birth DateTime? @db.Date
 
@@ -871,3 +873,32 @@ model JobAttempt {
   @@index([success])
   @@map("job_attempts")
 }
+
+// -------------------- added by najim ----------------------
+model PostcodeGeoCache {
+  id String @id @default(cuid())
+
+  /// Normalized postcode without spaces, uppercase. e.g. "HA30JA"
+  postcodeNormalized String @unique @map("postcode_normalized")
+
+  /// Display postcode with space. e.g. "HA3 0JA"
+  postcodeDisplay String? @map("postcode_display")
+
+  latitude  Float
+  longitude Float
+
+  /// Outcode (area). e.g. "HA3"
+  outcode String? @map("outcode")
+
+  /// Optional: where you got it from (postcodes.io / internal)
+  source String? @map("source")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([outcode], map: "idx_postcode_geo_cache_outcode")
+  @@index([updatedAt], map: "idx_postcode_geo_cache_updated_at")
+  @@map("postcode_geo_cache")
+}
+
+// -------------------- added by najim ----------------------
