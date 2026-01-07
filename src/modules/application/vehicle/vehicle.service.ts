@@ -787,11 +787,6 @@ export class VehicleService {
     query?: GetMotReportsQueryDto,
   ) {
     try {
-      this.logger.log(
-        `Fetching MOT history for vehicle ${vehicleId} with query:`,
-        query,
-      );
-
       // Validate user access if userId provided
       if (userId) {
         await this.validateUserAndRole(userId, 'DRIVER');

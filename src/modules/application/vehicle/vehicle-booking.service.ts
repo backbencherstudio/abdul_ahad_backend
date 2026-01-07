@@ -143,8 +143,8 @@ export class VehicleBookingService {
         garages: garagesWithCount.garages,
       },
       meta_data: {
-        page: query.page,
-        limit: query.limit,
+        page: query.page || 1,
+        limit: query.limit || 10,
         total_count: garagesWithCount.total_count,
         search_postcode: query.postcode,
       },

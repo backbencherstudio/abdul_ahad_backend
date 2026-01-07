@@ -11,6 +11,8 @@ import {
   AdditionalServiceDto,
   BookableServiceDto,
 } from './dto/garage-services.dto';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import appConfig from 'src/config/app.config';
 
 type LatLng = {
   lat: number;
@@ -129,6 +131,7 @@ export class VehicleGarageService {
               primary_contact: string | null;
               phone_number: string | null;
               distance_miles: number | null;
+              avatar: string | null;
             }>
           >(Prisma.sql`
         SELECT
@@ -139,6 +142,7 @@ export class VehicleGarageService {
           u.vts_number,
           u.primary_contact,
           u.phone_number,
+          u.avatar,
 
           CASE
             WHEN u.latitude IS NOT NULL AND u.longitude IS NOT NULL THEN
@@ -173,7 +177,7 @@ export class VehicleGarageService {
         LIMIT ${safeLimit}
         OFFSET ${offset};
       `),
-          this.prisma.$queryRaw<number>(Prisma.sql`
+          this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
         SELECT COUNT(*) FROM "users" u
         WHERE
           u.type = 'GARAGE'::"UserRole"
@@ -181,11 +185,17 @@ export class VehicleGarageService {
       `),
         ]);
 
+        // Convert BigInt to Number for JSON serialization
+        const totalCount = count[0]?.count ? Number(count[0].count) : 0;
+
         return {
           garages: rows.map((row) => ({
             id: row.id,
             garage_name: row.garage_name || 'Unnamed Garage',
             address: row.address || 'Address not provided',
+            avatar: row.avatar
+              ? SojebStorage.url(appConfig().storageUrl.avatar + row.avatar)
+              : null,
             postcode: row.zip_code || '',
             vts_number: row.vts_number || 'VTS not provided',
             primary_contact: row.primary_contact || 'Contact not provided',
@@ -195,7 +205,7 @@ export class VehicleGarageService {
                 ? Number(row.distance_miles.toFixed(2))
                 : undefined,
           })),
-          total_count: count || 0,
+          total_count: totalCount,
         };
       }
 
@@ -217,6 +227,7 @@ export class VehicleGarageService {
             primary_contact: true,
             phone_number: true,
             created_at: true,
+            avatar: true,
           },
           orderBy: [
             { created_at: 'desc' }, // newest first (sensible default)
@@ -243,6 +254,9 @@ export class VehicleGarageService {
           vts_number: garage.vts_number || 'VTS not provided',
           primary_contact: garage.primary_contact || 'Contact not provided',
           phone_number: garage.phone_number || 'Phone not provided',
+          avatar: garage.avatar
+            ? SojebStorage.url(appConfig().storageUrl.avatar + garage.avatar)
+            : null,
           distance_miles: undefined,
         })),
         total_count: count,

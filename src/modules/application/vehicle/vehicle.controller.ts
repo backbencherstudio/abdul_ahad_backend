@@ -33,7 +33,6 @@ import { Request } from 'express';
 import { JwtOptionalGuard } from 'src/modules/auth/guards';
 
 @Controller('vehicles')
-@UseGuards(RolesGuard)
 @ApiTags('Vehicles')
 @ApiBearerAuth()
 export class VehicleController {
@@ -43,19 +42,19 @@ export class VehicleController {
     private readonly vehicleBookingService: VehicleBookingService,
   ) {}
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async addVehicle(@Req() req, @Body() dto: CreateVehicleDto) {
     return this.vehicleService.addVehicle(req.user.userId, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   async listVehicles(@Req() req) {
     return this.vehicleService.getVehiclesByUser(req.user.userId); // FIXED
   }
 
   @Get('mot-report/:reportId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
     summary: 'Get complete MOT report details for download/report generation',
     description:
@@ -115,7 +114,7 @@ export class VehicleController {
 
   @Get(':vehicleId/mot-reports')
   @Roles(Role.DRIVER)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
     summary: 'Get MOT reports for vehicle with field selection',
     description:
@@ -160,7 +159,7 @@ export class VehicleController {
   }
 
   @Patch(':vehicleId/mot-reports/refresh')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.DRIVER)
   @ApiOperation({
     summary: 'Refresh MOT history from DVLA',
@@ -196,16 +195,16 @@ export class VehicleController {
   }
 
   @Get('my-bookings')
-  @UseGuards(JwtAuthGuard)
-  @Roles(Role.DRIVER) // ✅ ADD THIS: Explicitly require DRIVER role
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.DRIVER)
   @ApiOperation({
     summary:
       'Get all bookings for the logged-in driver (with filters, search, and pagination)',
     description: 'Returns bookings filtered by status, search, and paginated.',
   })
   @ApiResponse({ status: 200, type: MyBookingsResponseDto })
-  async getMyBookings(@Req() req, @Query() query: GetMyBookingsDto) {
-    return this.vehicleBookingService.getMyBookings(req.user.userId, query);
+  async getMyBookings(@Req() req: Request, @Query() query: GetMyBookingsDto) {
+    return this.vehicleBookingService.getMyBookings(req.user?.userId, query);
   }
 
   // --------------------------------------------- New Added BY Najim ---------------------------------------------
@@ -221,7 +220,6 @@ export class VehicleController {
   })
   @ApiResponse({ status: 200, description: 'List of garages and vehicle info' })
   getGarages(@Query() query: SearchGarageDto, @Req() req: Request) {
-    console.log(query);
     return this.vehicleBookingService.getGarages(
       query,
       req?.user?.userId ?? null,
@@ -258,7 +256,7 @@ export class VehicleController {
   // --------------------------------------------- End New Routes ---------------------------------------------
 
   @Post('search-garages')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
     summary:
       'Search for garages by vehicle registration and postcode (authenticated)',
@@ -274,19 +272,19 @@ export class VehicleController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async getVehicle(@Req() req, @Param('id') id: string) {
     return this.vehicleService.getVehicleById(req.user.id, id); // FIXED
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async deleteVehicle(@Req() req, @Param('id') id: string) {
     return this.vehicleService.deleteVehicle(req.user.userId, id);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async updateVehicle(
     @Req() req,
     @Param('id') id: string,
@@ -296,7 +294,7 @@ export class VehicleController {
   }
 
   @Post('book-slot')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.DRIVER)
   @ApiOperation({
     summary: 'Book a slot for MOT or Retest (no payment)',
