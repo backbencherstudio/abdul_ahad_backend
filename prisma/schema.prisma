@@ -133,7 +133,7 @@ model Ucode {
   status     Int?     @default(1) @db.SmallInt
 
   user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user    User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   token      String?
   email      String?
@@ -237,13 +237,13 @@ model Notification {
   status Int? @default(1) @db.SmallInt
 
   sender_id String?
-  sender    User?   @relation("sender", fields: [sender_id], references: [id])
+  sender    User?   @relation("sender", fields: [sender_id], references: [id], onDelete: SetNull)
 
   receiver_id String?
-  receiver    User?   @relation("receiver", fields: [receiver_id], references: [id])
+  receiver    User?   @relation("receiver", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   notification_event_id String?
-  notification_event    NotificationEvent? @relation(fields: [notification_event_id], references: [id])
+  notification_event    NotificationEvent? @relation(fields: [notification_event_id], references: [id], onDelete: Cascade)
 
   entity_id       String?
   is_action_taken Boolean @default(false)
@@ -258,7 +258,7 @@ model UserPaymentMethod {
   deleted_at DateTime?
 
   user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user    User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   payment_method_id String?
   checkout_id       String?
@@ -275,7 +275,7 @@ model PaymentTransaction {
   store_id String?
 
   user_id String?
-  user    User?   @relation("UserPaymentTransactions", fields: [user_id], references: [id])
+  user    User?   @relation("UserPaymentTransactions", fields: [user_id], references: [id], onDelete: Cascade)
 
   order_id String?
 
@@ -289,9 +289,9 @@ model PaymentTransaction {
   paid_amount      Decimal?
   paid_currency    String?
 
-  order     Order?        @relation(fields: [order_id], references: [id])
+  order     Order?        @relation(fields: [order_id], references: [id], onDelete: Cascade)
   garage_id String?
-  garage    User?         @relation("GaragePaymentTransactions", fields: [garage_id], references: [id])
+  garage    User?         @relation("GaragePaymentTransactions", fields: [garage_id], references: [id], onDelete: Cascade)
   type      PaymentType
   status    PaymentStatus
 
@@ -317,16 +317,16 @@ model Message {
   status MessageStatus? @default(PENDING)
 
   sender_id String?
-  sender    User?   @relation("sender", fields: [sender_id], references: [id])
+  sender    User?   @relation("sender", fields: [sender_id], references: [id], onDelete: SetNull)
 
   receiver_id String?
-  receiver    User?   @relation("receiver", fields: [receiver_id], references: [id])
+  receiver    User?   @relation("receiver", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   conversation_id String?
   conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   attachment_id String?
-  attachment    Attachment? @relation(fields: [attachment_id], references: [id])
+  attachment    Attachment? @relation(fields: [attachment_id], references: [id], onDelete: SetNull)
 
   message String?
 
@@ -359,10 +359,10 @@ model Conversation {
   deleted_at DateTime?
 
   creator_id String?
-  creator    User?   @relation("creator", fields: [creator_id], references: [id])
+  creator    User?   @relation("creator", fields: [creator_id], references: [id], onDelete: SetNull)
 
   participant_id String?
-  participant    User?   @relation("participant", fields: [participant_id], references: [id])
+  participant    User?   @relation("participant", fields: [participant_id], references: [id], onDelete: SetNull)
 
   messages Message[]
 
@@ -458,10 +458,10 @@ model UserSetting {
   deleted_at DateTime?
 
   user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user    User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   setting_id String?
-  setting    Setting? @relation(fields: [setting_id], references: [id])
+  setting    Setting? @relation(fields: [setting_id], references: [id], onDelete: Cascade)
 
   value String?
 
@@ -530,7 +530,7 @@ model Vehicle {
   created_at          DateTime    @default(now())
   updated_at          DateTime    @default(now())
   user_id             String
-  user                User        @relation(fields: [user_id], references: [id])
+  user                User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
   registration_number String      @unique
   make                String?
   model               String?
@@ -551,12 +551,12 @@ model Order {
   id                   String               @id @default(cuid())
   created_at           DateTime             @default(now())
   updated_at           DateTime             @default(now())
-  driver_id            String
-  driver               User                 @relation("DriverOrders", fields: [driver_id], references: [id])
+  driver_id            String?
+  driver               User?                @relation("DriverOrders", fields: [driver_id], references: [id], onDelete: SetNull)
   vehicle_id           String?
   vehicle              Vehicle?             @relation(fields: [vehicle_id], references: [id], onDelete: SetNull)
-  garage_id            String
-  garage               User                 @relation("GarageOrders", fields: [garage_id], references: [id])
+  garage_id            String?
+  garage               User?                @relation("GarageOrders", fields: [garage_id], references: [id], onDelete: SetNull)
   order_date           DateTime
   status               OrderStatus          @default(PENDING)
   total_amount         Decimal?
@@ -574,12 +574,12 @@ model Service {
   created_at DateTime    @default(now())
   updated_at DateTime    @default(now())
   garage_id  String
-  garage     User        @relation("GarageServices", fields: [garage_id], references: [id])
+  garage     User        @relation("GarageServices", fields: [garage_id], references: [id], onDelete: Cascade)
   name       String
   type       ServiceType
   price      Decimal?
   items      OrderItem[]
-  User       User?       @relation(fields: [userId], references: [id])
+  User       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String?
 }
 
@@ -588,9 +588,9 @@ model OrderItem {
   created_at DateTime @default(now())
   updated_at DateTime @default(now())
   order_id   String
-  order      Order    @relation(fields: [order_id], references: [id])
-  service_id String
-  service    Service  @relation(fields: [service_id], references: [id])
+  order      Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  service_id String?
+  service    Service? @relation(fields: [service_id], references: [id], onDelete: SetNull)
   quantity   Int      @default(1)
   price      Decimal
 }
@@ -637,11 +637,11 @@ model Invoice {
   updated_at DateTime @default(now())
 
   invoice_number String @unique // e.g., INV-001
-  garage_id      String
-  garage         User   @relation("GarageInvoices", fields: [garage_id], references: [id])
+  garage_id      String?
+  garage         User?  @relation("GarageInvoices", fields: [garage_id], references: [id], onDelete: SetNull)
 
-  driver_id String
-  driver    User   @relation("DriverInvoices", fields: [driver_id], references: [id])
+  driver_id String?
+  driver    User?  @relation("DriverInvoices", fields: [driver_id], references: [id], onDelete: SetNull)
 
   order_id String?
   order    Order?  @relation(fields: [order_id], references: [id])
@@ -692,9 +692,9 @@ model Schedule {
 }
 
 model TimeSlot {
-  id        String @id @default(cuid())
-  garage_id String
-  garage    User   @relation("GarageTimeSlots", fields: [garage_id], references: [id])
+  id        String  @id @default(cuid())
+  garage_id String?
+  garage    User?   @relation("GarageTimeSlots", fields: [garage_id], references: [id], onDelete: SetNull)
 
   // NEW: Use DateTime instead of separate date/time fields
   start_datetime DateTime

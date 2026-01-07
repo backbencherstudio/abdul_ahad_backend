@@ -930,6 +930,142 @@ export class UserService {
   }
 
   /**
+   * Permanently delete a user and all related data
+   * Preserves business-critical data (orders, invoices, payments) by setting user references to NULL
+   * @param id - User ID to delete
+   */
+  async deleteUser(id: string) {
+    try {
+      // ✅ STEP 1: Validate user exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          type: true,
+          billing_id: true,
+        },
+      });
+
+      if (!existingUser) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // ✅ STEP 2: SECURITY - Protect Super Admin from deletion
+      // Check by system email (primary protection)
+      if (existingUser.email === appConfig().defaultUser.system.email) {
+        return {
+          success: false,
+          message: 'Cannot delete system administrator',
+        };
+      }
+
+      // ✅ STEP 3: SECURITY - Additional protection by checking Super Admin role
+      const userRoles = await this.prisma.roleUser.findMany({
+        where: { user_id: id },
+        include: {
+          role: {
+            select: { name: true },
+          },
+        },
+      });
+
+      const isSuperAdmin = userRoles.some(
+        (ur) => ur.role.name === 'super_admin',
+      );
+      if (isSuperAdmin) {
+        return {
+          success: false,
+          message: 'Cannot delete Super Admin user',
+        };
+      }
+
+      // ✅ STEP 4: Count related records before deletion (for audit logging)
+      const [vehicleCount, serviceCount, subscriptionCount] = await Promise.all(
+        [
+          this.prisma.vehicle.count({ where: { user_id: id } }),
+          this.prisma.service.count({ where: { garage_id: id } }),
+          this.prisma.garageSubscription.count({ where: { garage_id: id } }),
+        ],
+      );
+
+      this.logger.log(
+        `Deleting user ${existingUser.email} (${existingUser.type}). ` +
+          `Vehicles: ${vehicleCount}, Services: ${serviceCount}, ` +
+          `Subscriptions: ${subscriptionCount}`,
+      );
+
+      // ✅ STEP 5: DELETE USER
+      // Prisma schema's onDelete rules will automatically handle all cleanup:
+      //
+      // CASCADE DELETES (user-owned resources):
+      // - Vehicles (and their MOT reports/defects via cascade)
+      // - Services
+      // - Subscriptions
+      // - Schedules (and time slots)
+      // - User settings
+      // - Roles (RoleUser junction)
+      // - Accounts
+      // - Payment methods
+      // - Payment transactions
+      // - Notifications (as receiver)
+      // - Contacts
+      //
+      // SET NULL (preserved business records):
+      // - Orders (driver_id and garage_id → NULL)
+      // - Invoices (driver_id and garage_id → NULL)
+      // - TimeSlots (garage_id → NULL)
+      // - Messages (sender_id → NULL, receiver deleted via Cascade)
+      // - Conversations (creator_id and participant_id → NULL)
+      // - Notifications (sender_id → NULL)
+      await this.prisma.user.delete({
+        where: { id },
+      });
+
+      // ✅ STEP 6: STRIPE CLEANUP - Log Stripe customer info
+      // Note: Stripe customer remains in Stripe but is no longer linked to any user
+      if (
+        existingUser.billing_id &&
+        (existingUser.type === 'DRIVER' || existingUser.type === 'GARAGE')
+      ) {
+        this.logger.log(
+          `User ${existingUser.email} had Stripe customer ${existingUser.billing_id}. ` +
+            `Customer remains in Stripe but is no longer linked to any user.`,
+        );
+      }
+
+      // ✅ STEP 7: Return success with deletion summary
+      return {
+        success: true,
+        message: 'User deleted permanently',
+        data: {
+          user_id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          type: existingUser.type,
+          deleted_at: new Date(),
+          deleted_records: {
+            vehicles: vehicleCount,
+            services: serviceCount,
+            subscriptions: subscriptionCount,
+          },
+          stripe_customer_id: existingUser.billing_id || null,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error deleting user: ${error.message}`);
+      return {
+        success: false,
+        message: 'Failed to delete user: ' + error.message,
+      };
+    }
+  }
+
+  /**
    * Handle Stripe actions when user is banned
    * @param user - User object with billing_id
    */

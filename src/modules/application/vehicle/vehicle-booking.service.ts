@@ -130,7 +130,7 @@ export class VehicleBookingService {
         vehicleInfo.vehicle_id = vehicleResponse.data.id;
       }
     }
-    const garages =
+    const garagesWithCount =
       await this.vehicleGarageService.findActiveGaragesWithPagination(
         query.postcode,
         query.limit,
@@ -140,12 +140,12 @@ export class VehicleBookingService {
       success: true,
       data: {
         vehicle: vehicleInfo,
-        garages,
+        garages: garagesWithCount.garages,
       },
       meta_data: {
         page: query.page,
         limit: query.limit,
-        total_count: garages.length,
+        total_count: garagesWithCount.total_count,
         search_postcode: query.postcode,
       },
     };

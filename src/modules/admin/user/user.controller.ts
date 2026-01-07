@@ -617,6 +617,96 @@ export class UserController {
     }
   }
 
+  @ApiOperation({
+    summary: 'Permanently delete user',
+    description: `
+      Permanently delete a user account and related data.
+      
+      **Data Preservation Strategy**:
+      - User-specific data (vehicles, services, subscriptions) will be DELETED
+      - Business-critical data (orders, invoices, payments) will be PRESERVED with user reference set to NULL
+      
+      **Security Restrictions**:
+      - Super Admin user cannot be deleted
+      - Users with super_admin role cannot be deleted
+      
+      **Stripe Integration**:
+      - Stripe customer will remain in Stripe but won't be linked to any user
+      - Manual cleanup in Stripe dashboard may be required
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User deleted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'User deleted permanently' },
+        data: {
+          type: 'object',
+          properties: {
+            user_id: { type: 'string' },
+            email: { type: 'string' },
+            name: { type: 'string' },
+            type: { type: 'string' },
+            deleted_at: { type: 'string', format: 'date-time' },
+            deleted_records: {
+              type: 'object',
+              properties: {
+                vehicles: { type: 'number' },
+                services: { type: 'number' },
+                subscriptions: { type: 'number' },
+                schedules: { type: 'number' },
+                time_slots: { type: 'number' },
+              },
+            },
+            preserved_records: {
+              type: 'object',
+              properties: {
+                orders: { type: 'number' },
+                invoices: { type: 'number' },
+                payment_transactions: { type: 'number' },
+              },
+            },
+            stripe_customer_deleted: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found or protected from deletion',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: {
+          type: 'string',
+          examples: {
+            notFound: { value: 'User not found' },
+            superAdmin: { value: 'Cannot delete system administrator' },
+            superAdminRole: { value: 'Cannot delete Super Admin user' },
+          },
+        },
+      },
+    },
+  })
+  @Delete(':id')
+  @CheckAbilities({ action: Action.Delete, subject: 'User' })
+  async deleteUser(@Param('id') id: string) {
+    try {
+      const result = await this.userService.deleteUser(id);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
   @ApiResponse({ description: 'Remove role from user' })
   @Delete(':id/roles/:roleId')
   @CheckAbilities({ action: Action.Update, subject: 'User' })

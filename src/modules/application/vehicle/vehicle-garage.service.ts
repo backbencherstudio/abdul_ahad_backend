@@ -97,7 +97,7 @@ export class VehicleGarageService {
     postcode?: string,
     limit = 20,
     page = 1,
-  ): Promise<GarageDto[]> {
+  ) {
     try {
       this.logger.log(
         `Searching active garages. Postcode: ${postcode || 'N/A'}`,
@@ -118,18 +118,19 @@ export class VehicleGarageService {
         // postcode -> lat/lng (cached)
         const center = await this.getLatLng(normalizedPostcode);
 
-        const rows = await this.prisma.$queryRaw<
-          Array<{
-            id: string;
-            garage_name: string | null;
-            address: string | null;
-            zip_code: string | null;
-            vts_number: string | null;
-            primary_contact: string | null;
-            phone_number: string | null;
-            distance_miles: number | null;
-          }>
-        >(Prisma.sql`
+        const [rows, count] = await Promise.all([
+          this.prisma.$queryRaw<
+            Array<{
+              id: string;
+              garage_name: string | null;
+              address: string | null;
+              zip_code: string | null;
+              vts_number: string | null;
+              primary_contact: string | null;
+              phone_number: string | null;
+              distance_miles: number | null;
+            }>
+          >(Prisma.sql`
         SELECT
           u.id,
           u.garage_name,
@@ -139,86 +140,113 @@ export class VehicleGarageService {
           u.primary_contact,
           u.phone_number,
 
-          (
-            3959 * acos(
-              cos(radians(${center.lat})) * cos(radians(u.latitude)) *
-              cos(radians(u.longitude) - radians(${center.lng})) +
-              sin(radians(${center.lat})) * sin(radians(u.latitude))
-            )
-          ) AS distance_miles
+          CASE
+            WHEN u.latitude IS NOT NULL AND u.longitude IS NOT NULL THEN
+              (
+                3959 * acos(
+                  cos(radians(${center.lat})) * cos(radians(u.latitude)) *
+                  cos(radians(u.longitude) - radians(${center.lng})) +
+                  sin(radians(${center.lat})) * sin(radians(u.latitude))
+                )
+              )
+            ELSE NULL
+          END AS distance_miles
 
         FROM "users" u
         WHERE
           u.type = 'GARAGE'::"UserRole"
           AND u.status = 1
-          AND u.latitude IS NOT NULL
-          AND u.longitude IS NOT NULL
 
         ORDER BY
           CASE
             WHEN regexp_replace(upper(coalesce(u.zip_code, '')), '\\s+', '', 'g') = ${postcodeNoSpace}
             THEN 0 ELSE 1
           END ASC,
-          distance_miles ASC,
+          CASE
+            WHEN u.latitude IS NOT NULL AND u.longitude IS NOT NULL THEN 0
+            ELSE 1
+          END ASC,
+          distance_miles ASC NULLS LAST,
           u.garage_name ASC NULLS LAST,
           u.id ASC
 
         LIMIT ${safeLimit}
         OFFSET ${offset};
-      `);
+      `),
+          this.prisma.$queryRaw<number>(Prisma.sql`
+        SELECT COUNT(*) FROM "users" u
+        WHERE
+          u.type = 'GARAGE'::"UserRole"
+          AND u.status = 1;
+      `),
+        ]);
 
-        return rows.map((g) => ({
-          id: g.id,
-          garage_name: g.garage_name || 'Unnamed Garage',
-          address: g.address || 'Address not provided',
-          postcode: g.zip_code || '',
-          vts_number: g.vts_number || 'VTS not provided',
-          primary_contact: g.primary_contact || 'Contact not provided',
-          phone_number: g.phone_number || 'Phone not provided',
-          distance_miles:
-            typeof g.distance_miles === 'number'
-              ? Number(g.distance_miles.toFixed(2))
-              : undefined,
-        }));
+        return {
+          garages: rows.map((row) => ({
+            id: row.id,
+            garage_name: row.garage_name || 'Unnamed Garage',
+            address: row.address || 'Address not provided',
+            postcode: row.zip_code || '',
+            vts_number: row.vts_number || 'VTS not provided',
+            primary_contact: row.primary_contact || 'Contact not provided',
+            phone_number: row.phone_number || 'Phone not provided',
+            distance_miles:
+              typeof row.distance_miles === 'number'
+                ? Number(row.distance_miles.toFixed(2))
+                : undefined,
+          })),
+          total_count: count || 0,
+        };
       }
 
       // =========================================
       // CASE 2: No postcode -> normal deterministic sort (stable)
       // =========================================
-      const garages = await this.prisma.user.findMany({
-        where: {
-          type: UserRole.GARAGE,
-          status: 1,
-        },
-        select: {
-          id: true,
-          garage_name: true,
-          address: true,
-          zip_code: true,
-          vts_number: true,
-          primary_contact: true,
-          phone_number: true,
-          created_at: true,
-        },
-        orderBy: [
-          { created_at: 'desc' }, // newest first (sensible default)
-          { garage_name: 'asc' },
-          { id: 'asc' }, // stable pagination
-        ],
-        take: safeLimit,
-        skip: offset,
-      });
+      const [find_garages, count] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            type: UserRole.GARAGE,
+            status: 1,
+          },
+          select: {
+            id: true,
+            garage_name: true,
+            address: true,
+            zip_code: true,
+            vts_number: true,
+            primary_contact: true,
+            phone_number: true,
+            created_at: true,
+          },
+          orderBy: [
+            { created_at: 'desc' }, // newest first (sensible default)
+            { garage_name: 'asc' },
+            { id: 'asc' }, // stable pagination
+          ],
+          take: safeLimit,
+          skip: offset,
+        }),
+        this.prisma.user.count({
+          where: {
+            type: UserRole.GARAGE,
+            status: 1,
+          },
+        }),
+      ]);
 
-      return garages.map((garage) => ({
-        id: garage.id,
-        garage_name: garage.garage_name || 'Unnamed Garage',
-        address: garage.address || 'Address not provided',
-        postcode: garage.zip_code || '',
-        vts_number: garage.vts_number || 'VTS not provided',
-        primary_contact: garage.primary_contact || 'Contact not provided',
-        phone_number: garage.phone_number || 'Phone not provided',
-        distance_miles: undefined,
-      }));
+      return {
+        garages: find_garages.map((garage) => ({
+          id: garage.id,
+          garage_name: garage.garage_name || 'Unnamed Garage',
+          address: garage.address || 'Address not provided',
+          postcode: garage.zip_code || '',
+          vts_number: garage.vts_number || 'VTS not provided',
+          primary_contact: garage.primary_contact || 'Contact not provided',
+          phone_number: garage.phone_number || 'Phone not provided',
+          distance_miles: undefined,
+        })),
+        total_count: count,
+      };
     } catch (error: any) {
       this.logger.error(
         `Error finding active garages: ${error?.message || error}`,
