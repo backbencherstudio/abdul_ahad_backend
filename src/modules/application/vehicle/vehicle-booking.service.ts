@@ -112,9 +112,8 @@ export class VehicleBookingService {
     if (!vehicleInfo) {
       throw new BadRequestException('Vehicle not found');
     }
-    let vehicle;
     if (user_id) {
-      vehicle = await this.prisma.vehicle.findFirst({
+      const vehicle = await this.prisma.vehicle.findFirst({
         where: {
           user_id: user_id,
           registration_number: query.registration_number.toUpperCase(),
@@ -123,12 +122,14 @@ export class VehicleBookingService {
           id: true,
         },
       });
+      let vehicleId: string;
       if (!vehicle && user_id) {
         const vehicleResponse = await this.vehicleService.addVehicle(user_id, {
           registration_number: query.registration_number,
         });
-        vehicleInfo.vehicle_id = vehicleResponse.data.id;
+        vehicleId = vehicleResponse.data.id;
       }
+      vehicleInfo.vehicle_id = vehicle?.id || vehicleId;
     }
     const garagesWithCount =
       await this.vehicleGarageService.findActiveGaragesWithPagination(
