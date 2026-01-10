@@ -250,7 +250,7 @@ export class BookingService {
 
     const updatedBooking = await this.prisma.order.update({
       where: { id },
-      data: { status: 'CANCELLED' },
+      data: { status: 'CANCELLED', slot: null },
       include: {
         driver: {
           select: {
@@ -266,6 +266,13 @@ export class BookingService {
             email: true,
           },
         },
+      },
+    });
+    await this.prisma.timeSlot.update({
+      where: { id: booking.slot_id },
+      data: {
+        order: null,
+        is_available: true,
       },
     });
 

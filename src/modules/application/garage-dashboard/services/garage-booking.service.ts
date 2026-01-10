@@ -264,7 +264,8 @@ export class GarageBookingService {
         where: { id: bookingId },
         data: {
           status,
-          ...(status === OrderStatus.REJECTED && { slot: null }),
+          ...((status === OrderStatus.REJECTED ||
+            status === OrderStatus.CANCELLED) && { slot: null }),
         },
         include: {
           driver: {
@@ -284,7 +285,10 @@ export class GarageBookingService {
       });
 
       // Only when rejected → free slot
-      if (status === OrderStatus.REJECTED && booking.slot_id) {
+      if (
+        (status === OrderStatus.REJECTED || status === OrderStatus.CANCELLED) &&
+        booking.slot_id
+      ) {
         await tx.timeSlot.update({
           where: { id: booking.slot_id },
           data: {
