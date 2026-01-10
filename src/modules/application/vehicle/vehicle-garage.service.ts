@@ -48,8 +48,11 @@ export class VehicleGarageService {
         where: {
           type: UserRole.GARAGE,
           status: 1, // Active status
-          // Note: Add subscription check when implemented
-          // subscription_active: true,
+          has_subscription: true,
+          OR: [
+            { subscription_expires_at: null },
+            { subscription_expires_at: { gt: new Date() } },
+          ],
           zip_code: {
             startsWith: postcodePrefix,
           },
@@ -160,6 +163,8 @@ export class VehicleGarageService {
         WHERE
           u.type = 'GARAGE'::"UserRole"
           AND u.status = 1
+          AND u.has_subscription = true
+          AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > CURRENT_TIMESTAMP)
 
         ORDER BY
           CASE
@@ -181,7 +186,9 @@ export class VehicleGarageService {
         SELECT COUNT(*) FROM "users" u
         WHERE
           u.type = 'GARAGE'::"UserRole"
-          AND u.status = 1;
+          AND u.status = 1
+          AND u.has_subscription = true
+          AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > CURRENT_TIMESTAMP);
       `),
         ]);
 
@@ -217,6 +224,11 @@ export class VehicleGarageService {
           where: {
             type: UserRole.GARAGE,
             status: 1,
+            has_subscription: true,
+            OR: [
+              { subscription_expires_at: null },
+              { subscription_expires_at: { gt: new Date() } },
+            ],
           },
           select: {
             id: true,
@@ -241,6 +253,11 @@ export class VehicleGarageService {
           where: {
             type: UserRole.GARAGE,
             status: 1,
+            has_subscription: true,
+            OR: [
+              { subscription_expires_at: null },
+              { subscription_expires_at: { gt: new Date() } },
+            ],
           },
         }),
       ]);
@@ -356,6 +373,11 @@ export class VehicleGarageService {
           id: garageId,
           type: UserRole.GARAGE,
           status: 1,
+          has_subscription: true,
+          OR: [
+            { subscription_expires_at: null },
+            { subscription_expires_at: { gt: new Date() } },
+          ],
         },
       });
 
@@ -517,6 +539,11 @@ export class VehicleGarageService {
           id: garageId,
           type: UserRole.GARAGE,
           status: 1,
+          has_subscription: true,
+          OR: [
+            { subscription_expires_at: null },
+            { subscription_expires_at: { gt: new Date() } },
+          ],
         },
         select: {
           id: true,
