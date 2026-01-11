@@ -65,6 +65,15 @@ export class VehicleGarageService {
           vts_number: true,
           primary_contact: true,
           phone_number: true,
+          services: {
+            where: {
+              type: ServiceType.MOT,
+            },
+            select: {
+              price: true,
+            },
+            take: 1,
+          },
         },
         orderBy: {
           garage_name: 'asc',
@@ -84,6 +93,9 @@ export class VehicleGarageService {
         phone_number: garage.phone_number || 'Phone not provided',
         // TODO: Calculate distance when postcode service is implemented
         distance_miles: undefined,
+        mot_price: garage.services?.[0]?.price
+          ? Number(garage.services[0].price)
+          : undefined,
       }));
 
       return garageDtos;
@@ -135,6 +147,7 @@ export class VehicleGarageService {
               phone_number: string | null;
               distance_miles: number | null;
               avatar: string | null;
+              mot_price: number | null;
             }>
           >(Prisma.sql`
         SELECT
@@ -157,7 +170,14 @@ export class VehicleGarageService {
                 )
               )
             ELSE NULL
-          END AS distance_miles
+          END AS distance_miles,
+
+          (
+            SELECT s.price 
+            FROM "Service" s 
+            WHERE s.garage_id = u.id AND s.type = 'MOT' 
+            LIMIT 1
+          ) AS mot_price
 
         FROM "users" u
         WHERE
@@ -211,6 +231,7 @@ export class VehicleGarageService {
               typeof row.distance_miles === 'number'
                 ? Number(row.distance_miles.toFixed(2))
                 : undefined,
+            mot_price: row.mot_price ? Number(row.mot_price) : undefined,
           })),
           total_count: totalCount,
         };
@@ -240,6 +261,15 @@ export class VehicleGarageService {
             phone_number: true,
             created_at: true,
             avatar: true,
+            services: {
+              where: {
+                type: ServiceType.MOT,
+              },
+              select: {
+                price: true,
+              },
+              take: 1,
+            },
           },
           orderBy: [
             { created_at: 'desc' }, // newest first (sensible default)
@@ -275,6 +305,9 @@ export class VehicleGarageService {
             ? SojebStorage.url(appConfig().storageUrl.avatar + garage.avatar)
             : null,
           distance_miles: undefined,
+          mot_price: garage.services?.[0]?.price
+            ? Number(garage.services[0].price)
+            : undefined,
         })),
         total_count: count,
       };
@@ -557,6 +590,15 @@ export class VehicleGarageService {
           vts_number: true,
           primary_contact: true,
           phone_number: true,
+          services: {
+            where: {
+              type: ServiceType.MOT,
+            },
+            select: {
+              price: true,
+            },
+            take: 1,
+          },
         },
       });
 
@@ -573,6 +615,9 @@ export class VehicleGarageService {
         primary_contact: garage.primary_contact || 'Contact not provided',
         phone_number: garage.phone_number || 'Phone not provided',
         distance_miles: undefined,
+        mot_price: (garage as any).services?.[0]?.price
+          ? Number((garage as any).services[0].price)
+          : undefined,
       };
     } catch (error) {
       this.logger.error(`Error fetching garage details: ${error.message}`);

@@ -46,6 +46,15 @@ export class GarageProfileService {
           last_name: true,
           created_at: true,
           updated_at: true,
+          services: {
+            where: {
+              type: 'MOT',
+            },
+            select: {
+              price: true,
+            },
+            take: 1,
+          },
         },
       });
 
@@ -58,14 +67,16 @@ export class GarageProfileService {
       }
 
       // Calculate total amount from completed orders
-      const totalAmount = await this.calculateTotalAmount(userId);
+      // const totalAmount = await this.calculateTotalAmount(userId);
 
       return {
         success: true,
         message: 'Garage profile retrieved successfully',
         data: {
           ...user,
-          total_amount: totalAmount,
+          mot_price: user.services?.[0]?.price
+            ? Number(user.services[0].price)
+            : 0,
           avatar_url: avatarUrl,
         },
       };

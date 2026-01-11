@@ -48,6 +48,12 @@ export class GarageDto {
     example: 2.5,
   })
   distance_miles?: number;
+
+  @ApiProperty({
+    description: 'MOT Test Price',
+    example: 45.0,
+  })
+  mot_price?: number;
 }
 
 export class VehicleInfoDto {
