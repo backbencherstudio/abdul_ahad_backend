@@ -536,11 +536,11 @@ export class GarageInvoiceService {
   }
 
   .thankyou {
-    margin: 0 0 8px 0;
+    margin: 0 0 40px 0;
     text-align: center;
     font-weight: 700;
     color: var(--brand);
-    font-size: 13px;
+    font-size: 18px;
   }
 
   .footer-note {
@@ -595,7 +595,6 @@ export class GarageInvoiceService {
           <tr>
             <th class="center">QTY</th>
             <th>Description</th>
-            <th class="center">Unit Price</th>
             <th class="right">Amount</th>
           </tr>
         </thead>
@@ -603,27 +602,12 @@ export class GarageInvoiceService {
           <tr>
             <td class="center">1</td>
             <td>${data?.subscription?.billingCycle ?? ''} Subscription</td>
-            <td class="center">${formatCurrency(subtotal)}</td>
             <td class="right">${formatCurrency(subtotal)}</td>
           </tr>
         </tbody>
       </table>
 
       <div class="totals">
-        <div>
-          <span>Subtotal</span>
-          <span>${formatCurrency(subtotal)}</span>
-        </div>
-
-        ${
-          vatRate > 0
-            ? `<div>
-                <span>VAT (${Math.round(vatRate * 100)}%)</span>
-                <span>${formatCurrency(vat)}</span>
-              </div>`
-            : ''
-        }
-
         <div class="grand">
           <span>Total</span>
           <span>${formatCurrency(total)}</span>
@@ -632,10 +616,10 @@ export class GarageInvoiceService {
     </div>
 
     <div class="invoice-footer">
+    <p class="thankyou">Thank you for choosing simplymot.co.uk.​</p>
       <div class="footer-line"></div>
-      <p class="thankyou">Thank you for your business.​</p>
       <p class="footer-note">
-        simplymot.co.uk is an independent online MOT booking platform. This invoice relates to subscription services for garage listings and booking management only. Garage subscriptions are subject to the simplymot.co.uk Terms and Conditions for Garages, available at www.simplymot.co.uk and related platform policies. Legal Entity: A. Ahad (Sole Trader) trading as simplymot.co.uk | 124 City Road, London, EC1V 2NX | info@simplymot.co.uk
+        ssimplymot.co.uk is an independent online MOT booking platform. This invoice relates to subscription services for garage listings and booking management only. Garage subscriptions are subject to the simplymot.co.uk Terms and Conditions for Garages, available at www.simplymot.co.uk and related platform policies. VAT status: Not VAT registered. Legal Entity: A. Ahad (Sole Trader) trading as simplymot.co.uk | 124 City Road, London, EC1V 2NX | info@simplymot.co.uk
       </p>
     </div>
 

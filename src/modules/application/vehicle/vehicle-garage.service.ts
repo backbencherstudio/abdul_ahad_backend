@@ -472,6 +472,10 @@ export class VehicleGarageService {
           vts_number: garage.vts_number,
           primary_contact: garage.primary_contact,
           phone_number: garage.phone_number,
+          avatar: garage.avatar
+            ? SojebStorage.url(appConfig().storageUrl.avatar + garage.avatar)
+            : null,
+          email: garage.email,
         },
         services: bookableServices,
         additionals: additionalServices,
