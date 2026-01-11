@@ -8,6 +8,12 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
+export enum GarageSortBy {
+  DISTANCE = 'DISTANCE',
+  PRICE_LOW_TO_HIGH = 'PRICE_LOW_TO_HIGH',
+  PRICE_HIGH_TO_LOW = 'PRICE_HIGH_TO_LOW',
+}
+
 export class SearchGarageDto {
   @ApiProperty({
     description: 'Vehicle registration number',
@@ -53,4 +59,14 @@ export class SearchGarageDto {
   @Transform(({ value }) => (value ? Number(value) : 1))
   @IsNumber()
   page?: number;
+
+  @ApiProperty({
+    description: 'Sort by field',
+    enum: GarageSortBy,
+    example: GarageSortBy.DISTANCE,
+    default: GarageSortBy.DISTANCE,
+    required: false,
+  })
+  @IsOptional()
+  sort_by?: GarageSortBy = GarageSortBy.DISTANCE;
 }

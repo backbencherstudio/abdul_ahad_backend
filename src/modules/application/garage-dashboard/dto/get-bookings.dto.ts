@@ -11,6 +11,13 @@ export enum BookingStatusFilter {
   CANCELLED = 'CANCELLED',
 }
 
+export enum DateFilter {
+  ALL = 'ALL',
+  TODAY = 'TODAY',
+  TOMORROW = 'TOMORROW',
+  THIS_WEEK = 'THIS_WEEK',
+  NEXT_WEEK = 'NEXT_WEEK',
+}
 export class GetBookingsDto {
   @ApiPropertyOptional({
     description:
@@ -52,4 +59,14 @@ export class GetBookingsDto {
   @IsInt()
   @Min(1)
   limit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: 'Filter by date range',
+    enum: DateFilter,
+    example: DateFilter.ALL,
+    default: DateFilter.ALL,
+  })
+  @IsOptional()
+  @IsEnum(DateFilter)
+  date_filter?: DateFilter = DateFilter.ALL;
 }

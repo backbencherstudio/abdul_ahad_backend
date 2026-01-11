@@ -136,6 +136,7 @@ export class VehicleBookingService {
         query.postcode,
         query.limit,
         query.page,
+        query.sort_by,
       );
     return {
       success: true,

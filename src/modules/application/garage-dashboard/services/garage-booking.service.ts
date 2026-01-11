@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
-import { GetBookingsDto, BookingStatusFilter } from '../dto/get-bookings.dto';
+import {
+  GetBookingsDto,
+  BookingStatusFilter,
+  DateFilter,
+} from '../dto/get-bookings.dto';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { NotificationService } from '../../notification/notification.service';
 import { NotificationType } from 'src/common/repository/notification/notification.repository';
@@ -20,7 +24,13 @@ export class GarageBookingService {
   ) {}
 
   async getBookings(userId: string, query: GetBookingsDto) {
-    const { search, status, page = 1, limit = 10 } = query;
+    const {
+      search,
+      status,
+      page = 1,
+      limit = 10,
+      date_filter = DateFilter.ALL,
+    } = query;
 
     // Build where clause
     const where: Prisma.OrderWhereInput = {
@@ -94,6 +104,60 @@ export class GarageBookingService {
       ];
     }
 
+    // Apply date filter
+    if (date_filter && date_filter !== DateFilter.ALL) {
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const getMonday = (d: Date) => {
+        const dCopy = new Date(d);
+        const day = dCopy.getDay();
+        const diff = dCopy.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+        dCopy.setDate(diff);
+        dCopy.setHours(0, 0, 0, 0);
+        return dCopy;
+      };
+
+      const mondayThisWeek = getMonday(new Date());
+      const sundayThisWeek = new Date(mondayThisWeek);
+      sundayThisWeek.setDate(sundayThisWeek.getDate() + 6);
+      sundayThisWeek.setHours(23, 59, 59, 999);
+
+      const mondayNextWeek = new Date(mondayThisWeek);
+      mondayNextWeek.setDate(mondayNextWeek.getDate() + 7);
+      const sundayNextWeek = new Date(mondayNextWeek);
+      sundayNextWeek.setDate(sundayNextWeek.getDate() + 6);
+      sundayNextWeek.setHours(23, 59, 59, 999);
+
+      if (date_filter === DateFilter.TODAY) {
+        where.order_date = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      } else if (date_filter === DateFilter.TOMORROW) {
+        const tomorrowStart = new Date(startOfDay);
+        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+        const tomorrowEnd = new Date(endOfDay);
+        tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+
+        where.order_date = {
+          gte: tomorrowStart,
+          lte: tomorrowEnd,
+        };
+      } else if (date_filter === DateFilter.THIS_WEEK) {
+        where.order_date = {
+          gte: mondayThisWeek,
+          lte: sundayThisWeek,
+        };
+      } else if (date_filter === DateFilter.NEXT_WEEK) {
+        where.order_date = {
+          gte: mondayNextWeek,
+          lte: sundayNextWeek,
+        };
+      }
+    }
+
     // Calculate pagination
     const skip = (page - 1) * limit;
 
@@ -127,9 +191,7 @@ export class GarageBookingService {
           },
         },
       },
-      orderBy: {
-        created_at: 'desc',
-      },
+      orderBy: {},
       skip,
       take: limit,
     });

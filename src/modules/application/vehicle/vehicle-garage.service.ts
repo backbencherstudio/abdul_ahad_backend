@@ -11,6 +11,7 @@ import {
   AdditionalServiceDto,
   BookableServiceDto,
 } from './dto/garage-services.dto';
+import { GarageSortBy } from './dto/search-garage.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 
@@ -114,6 +115,7 @@ export class VehicleGarageService {
     postcode?: string,
     limit = 20,
     page = 1,
+    sortBy: GarageSortBy = GarageSortBy.DISTANCE,
   ) {
     try {
       this.logger.log(
@@ -187,6 +189,13 @@ export class VehicleGarageService {
           AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > CURRENT_TIMESTAMP)
 
         ORDER BY
+          ${
+            sortBy === GarageSortBy.PRICE_LOW_TO_HIGH
+              ? Prisma.sql`mot_price ASC NULLS LAST, distance_miles ASC NULLS LAST,`
+              : sortBy === GarageSortBy.PRICE_HIGH_TO_LOW
+                ? Prisma.sql`mot_price DESC NULLS LAST, distance_miles ASC NULLS LAST,`
+                : Prisma.empty
+          }
           CASE
             WHEN regexp_replace(upper(coalesce(u.zip_code, '')), '\\s+', '', 'g') = ${postcodeNoSpace}
             THEN 0 ELSE 1
