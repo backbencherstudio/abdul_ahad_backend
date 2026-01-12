@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      line-height: 1.6;
+      color: #333333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0;
+      background-color: #f9f9f9;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      margin: 20px auto;
+    }
+
+    .header {
+      background-color: #00D00A;
+      padding: 25px;
+      text-align: center;
+      color: white;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .tagline {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 25px;
+    }
+
+    .success-box {
+      background-color: #f5f9f5;
+      border: 1px dashed #00D00A;
+      border-radius: 8px;
+      padding: 18px;
+      margin: 20px 0;
+      text-align: center;
+      color: #333;
+    }
+
+    .details {
+      background: #fbfbfb;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .details h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #111827;
+    }
+
+    .details-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+
+    .label {
+      color: #6b7280;
+    }
+
+    .value {
+      color: #111827;
+      font-weight: 600;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #888;
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk</div>
+      <div class="tagline">New MOT Booking Received</div>
+    </div>
+
+    <div class="content">
+      <p>Hello <strong>
+          <%= garage_name %>
+        </strong>,</p>
+
+      <div class="success-box">
+        <div style="font-size:16px; font-weight:600; color:#00D00A;">You have received a new booking</div>
+      </div>
+
+      <div class="details">
+        <h4>Booking details</h4>
+        <div class="details-row"><span class="label">Driver</span><span class="value">
+            <%= driver_name %>
+          </span></div>
+        <div class="details-row"><span class="label">Service</span><span class="value">
+            <%= service_type %>
+          </span></div>
+        <div class="details-row"><span class="label">Vehicle</span><span class="value">
+            <%= vehicle_registration %>
+          </span></div>
+        <div class="details-row"><span class="label">Date</span><span class="value">
+            <%= booking_date %>
+          </span></div>
+        <div class="details-row"><span class="label">Time</span><span class="value">
+            <%= booking_time %>
+          </span></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>© <%= new Date().getFullYear() %> simplymot.co.uk. All rights reserved.</p>
+      <p>Need help? <a href="mailto:info@simplymot.co.uk" style="color: #00D00A;">info@simplymot.co.uk</a></p>
+    </div>
+  </div>
+</body>
+
+</html>

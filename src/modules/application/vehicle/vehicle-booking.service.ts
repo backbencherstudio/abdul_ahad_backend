@@ -24,6 +24,7 @@ import {
 } from './dto/my-bookings.dto';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from 'src/common/repository/notification/notification.repository';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class VehicleBookingService {
@@ -35,6 +36,7 @@ export class VehicleBookingService {
     private readonly vehicleGarageService: VehicleGarageService,
     private readonly garageScheduleService: GarageScheduleService,
     private readonly notificationService: NotificationService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -315,7 +317,10 @@ export class VehicleBookingService {
           },
         ],
       });
-      //console.log(booking);
+
+      // Send emails (fire-and-forget; don't block booking response)
+      this.sendBookingEmails(userId, bookingData, booking);
+
       return booking
         ? booking
         : {
@@ -984,5 +989,68 @@ export class VehicleBookingService {
         search: search || undefined,
       },
     };
+  }
+
+  // Helper to compose and send booking emails to driver and garage
+  private async sendBookingEmails(
+    userId: string,
+    bookingData: BookSlotDto,
+    bookingResult: any,
+  ) {
+    try {
+      // Fetch driver and garage contact details
+      const [driver, garage, slot] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: userId } }),
+        this.prisma.user.findUnique({ where: { id: bookingData.garage_id } }),
+        this.prisma.timeSlot.findUnique({
+          where: { id: bookingResult.data.slot_id },
+        }),
+      ]);
+
+      if (!driver || !garage || !slot) return;
+
+      const start = new Date(slot.start_datetime);
+      const end = new Date(slot.end_datetime);
+      const booking_date = start.toLocaleDateString('en-GB');
+      const booking_time = `${start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+
+      // Fetch vehicle and service label if needed
+      const [vehicle] = await Promise.all([
+        this.prisma.vehicle.findUnique({
+          where: { id: bookingData.vehicle_id },
+        }),
+      ]);
+
+      const service_type = bookingData.service_type;
+      const vehicle_registration = vehicle?.registration_number || '';
+
+      // Driver email
+      if (driver?.email) {
+        this.mailService.sendBookingConfirmationToDriver({
+          to: driver.email,
+          driver_name: driver.name || 'Driver',
+          garage_name: garage.garage_name || 'Garage',
+          service_type,
+          vehicle_registration,
+          booking_date,
+          booking_time,
+        });
+      }
+
+      // Garage email
+      if (garage?.email) {
+        this.mailService.sendBookingNotificationToGarage({
+          to: garage.email,
+          driver_name: driver?.name || 'Driver',
+          garage_name: garage.garage_name || 'Garage',
+          service_type,
+          vehicle_registration,
+          booking_date,
+          booking_time,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to queue booking emails: ${err?.message}`);
+    }
   }
 }

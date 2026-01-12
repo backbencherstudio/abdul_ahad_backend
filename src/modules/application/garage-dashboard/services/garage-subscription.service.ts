@@ -636,9 +636,9 @@ export class GarageSubscriptionService {
    */
   async cancelSubscription(garageId: string, dto: CancelSubscriptionDto) {
     try {
-      this.logger.log(
-        `Cancelling subscription for garage ${garageId}, type: ${dto.cancel_type}`,
-      );
+      // this.logger.log(
+      //   `Cancelling subscription for garage ${garageId}, type: ${dto.cancel_type}`,
+      // );
 
       // Get garage's active subscription
       const subscription = await this.prisma.garageSubscription.findFirst({
@@ -658,51 +658,51 @@ export class GarageSubscriptionService {
         );
       }
 
-      if (dto.cancel_type === 'immediate') {
-        // ✅ FIXED: Cancel immediately in Stripe only - let webhook handle the rest
-        await StripePayment.cancelSubscription(
-          subscription.stripe_subscription_id,
-        );
+      // if (dto.cancel_type === 'immediate') {
+      //   // ✅ FIXED: Cancel immediately in Stripe only - let webhook handle the rest
+      //   await StripePayment.cancelSubscription(
+      //     subscription.stripe_subscription_id,
+      //   );
 
-        this.logger.log(
-          `Subscription cancellation initiated in Stripe for garage ${garageId}. Webhook will process the changes.`,
-        );
+      //   this.logger.log(
+      //     `Subscription cancellation initiated in Stripe for garage ${garageId}. Webhook will process the changes.`,
+      //   );
 
-        return {
-          success: true,
-          message:
-            'Subscription cancelled immediately. Webhook will process the changes.',
-          effective_date: new Date(),
-          cancelled_immediately: true,
-        };
-      } else {
-        // ✅ FIXED: Proper end-of-period cancellation
-        await StripePayment.cancelSubscriptionAtPeriodEnd(
-          subscription.stripe_subscription_id,
-        );
+      //   return {
+      //     success: true,
+      //     message:
+      //       'Subscription cancelled immediately. Webhook will process the changes.',
+      //     effective_date: new Date(),
+      //     cancelled_immediately: true,
+      //   };
+      // } else {
+      // ✅ FIXED: Proper end-of-period cancellation
+      await StripePayment.cancelSubscriptionAtPeriodEnd(
+        subscription.stripe_subscription_id,
+      );
 
-        // Update local database to show pending cancellation (not cancelled yet)
-        await this.prisma.garageSubscription.update({
-          where: { id: subscription.id },
-          data: {
-            cancel_at_period_end: true,
-            // Keep status as ACTIVE until period ends
-            updated_at: new Date(),
-          },
-        });
+      // Update local database to show pending cancellation (not cancelled yet)
+      await this.prisma.garageSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          cancel_at_period_end: true,
+          // Keep status as ACTIVE until period ends
+          updated_at: new Date(),
+        },
+      });
 
-        this.logger.log(
-          `Subscription scheduled for end-of-period cancellation for garage ${garageId}`,
-        );
+      this.logger.log(
+        `Subscription scheduled for end-of-period cancellation for garage ${garageId}`,
+      );
 
-        return {
-          success: true,
-          message:
-            'Subscription will be cancelled at the end of current billing period',
-          effective_date: subscription.current_period_end || new Date(),
-          cancelled_immediately: false,
-        };
-      }
+      return {
+        success: true,
+        message:
+          'Subscription will be cancelled at the end of current billing period',
+        effective_date: subscription.current_period_end || new Date(),
+        cancelled_immediately: false,
+      };
+      // }
     } catch (error) {
       this.logger.error(
         `Failed to cancel subscription for garage ${garageId}:`,

@@ -748,4 +748,74 @@ export class MailService {
       // console.error('Error queuing notification email:', error);
     }
   }
+
+  // Booking: send confirmation email to driver
+  async sendBookingConfirmationToDriver(params: {
+    to: string;
+    driver_name: string;
+    garage_name: string;
+    service_type: string;
+    vehicle_registration: string;
+    booking_date: string; // formatted date
+    booking_time: string; // formatted time range e.g. 10:00 - 10:30
+  }) {
+    try {
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
+      const subject = 'MOT Booking Confirmed';
+
+      await this.queue.add('sendNotificationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'booking-confirmation-driver',
+        context: {
+          app_name: process.env.APP_NAME || appConfig().app.name,
+          support_email: appConfig().mail.from,
+          driver_name: params.driver_name,
+          garage_name: params.garage_name,
+          service_type: params.service_type,
+          vehicle_registration: params.vehicle_registration,
+          booking_date: params.booking_date,
+          booking_time: params.booking_time,
+        },
+      });
+    } catch (error) {
+      // console.error('Error queuing driver booking confirmation email:', error);
+    }
+  }
+
+  // Booking: send notification email to garage
+  async sendBookingNotificationToGarage(params: {
+    to: string;
+    driver_name: string;
+    garage_name: string;
+    service_type: string;
+    vehicle_registration: string;
+    booking_date: string; // formatted date
+    booking_time: string; // formatted time range e.g. 10:00 - 10:30
+  }) {
+    try {
+      const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
+      const subject = 'New MOT Booking Received';
+
+      await this.queue.add('sendNotificationEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'booking-notification-garage',
+        context: {
+          app_name: process.env.APP_NAME || appConfig().app.name,
+          support_email: appConfig().mail.from,
+          driver_name: params.driver_name,
+          garage_name: params.garage_name,
+          service_type: params.service_type,
+          vehicle_registration: params.vehicle_registration,
+          booking_date: params.booking_date,
+          booking_time: params.booking_time,
+        },
+      });
+    } catch (error) {
+      // console.error('Error queuing garage booking notification email:', error);
+    }
+  }
 }

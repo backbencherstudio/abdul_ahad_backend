@@ -38,6 +38,7 @@ import { GarageInvoiceService } from './services/garage-invoice.service';
 import { memoryStorage } from 'multer';
 import { ManualSlotDto } from './dto/manual-slot.dto';
 import {
+  RescheduleBookingDto,
   RestrictionDto,
   ScheduleDto,
   SetWeeklyPatternDto,
@@ -182,6 +183,10 @@ export class GarageDashboardController {
   @Get('schedule/holidays')
   async getHolidays(@Req() req) {
     return this.garageScheduleService.getHolidays(req.user.userId);
+  }
+  @Patch('reschedule')
+  async rescheduleBooking(@Req() req, @Body() body: RescheduleBookingDto) {
+    return this.garageBookingService.rescheduleBooking(req.user.userId, body);
   }
   // **************************************** New Updated APIs By Najim End  ****************************************
 

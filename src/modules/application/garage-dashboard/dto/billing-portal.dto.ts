@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class BillingPortalResponseDto {
   @ApiProperty({ description: 'Stripe billing portal URL' })
@@ -11,14 +12,18 @@ export class CancelSubscriptionDto {
     required: false,
     example: 'Switching to different plan',
   })
+  @IsOptional()
+  @IsString()
   reason?: string;
 
-  @ApiProperty({
-    description: 'Cancel immediately or at period end',
-    enum: ['immediate', 'at_period_end'],
-    default: 'at_period_end',
-  })
-  cancel_type: 'immediate' | 'at_period_end' = 'at_period_end';
+  // @ApiProperty({
+  //   description: 'Cancel immediately or at period end',
+  //   enum: ['immediate', 'at_period_end'],
+  //   default: 'at_period_end',
+  // })
+  // @IsEnum(['immediate', 'at_period_end'])
+  // @IsOptional()
+  // cancel_type?: 'immediate' | 'at_period_end' = 'at_period_end';
 }
 
 export class CancelSubscriptionResponseDto {

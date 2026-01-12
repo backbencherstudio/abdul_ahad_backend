@@ -8,6 +8,7 @@ import {
   Max,
   IsEnum,
   IsEmpty,
+  IsNotEmpty,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -199,4 +200,30 @@ export interface RestrictionDto {
   start_time?: string;
   end_time?: string;
   description?: string;
+}
+
+export class RescheduleBookingDto {
+  @IsNotEmpty()
+  @IsString()
+  booking_id: string;
+
+  @IsOptional()
+  @IsString()
+  slot_id?: string;
+
+  @IsOptional()
+  @IsString()
+  date?: string;
+
+  @IsOptional()
+  @IsString()
+  start_time?: string;
+
+  @IsOptional()
+  @IsString()
+  end_time?: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
