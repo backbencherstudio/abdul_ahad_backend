@@ -247,47 +247,63 @@ export class VehicleGarageService {
       }
 
       // =========================================
-      // CASE 2: No postcode -> normal deterministic sort (stable)
+      // CASE 2: No postcode -> raw query to support sorting by calculated/related fields
       // =========================================
-      const [find_garages, count] = await Promise.all([
-        this.prisma.user.findMany({
-          where: {
-            type: UserRole.GARAGE,
-            status: 1,
-            has_subscription: true,
-            OR: [
-              { subscription_expires_at: null },
-              { subscription_expires_at: { gt: new Date() } },
-            ],
-          },
-          select: {
-            id: true,
-            garage_name: true,
-            address: true,
-            zip_code: true,
-            vts_number: true,
-            primary_contact: true,
-            phone_number: true,
-            created_at: true,
-            avatar: true,
-            services: {
-              where: {
-                type: ServiceType.MOT,
-              },
-              select: {
-                price: true,
-              },
-              take: 1,
-            },
-          },
-          orderBy: [
-            { created_at: 'desc' }, // newest first (sensible default)
-            { garage_name: 'asc' },
-            { id: 'asc' }, // stable pagination
-          ],
-          take: safeLimit,
-          skip: offset,
-        }),
+      const [rows, count] = await Promise.all([
+        this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            garage_name: string | null;
+            address: string | null;
+            zip_code: string | null;
+            vts_number: string | null;
+            primary_contact: string | null;
+            phone_number: string | null;
+            avatar: string | null;
+            mot_price: number | null;
+            created_at: Date;
+          }>
+        >(Prisma.sql`
+        SELECT
+          u.id,
+          u.garage_name,
+          u.address,
+          u.zip_code,
+          u.vts_number,
+          u.primary_contact,
+          u.phone_number,
+          u.avatar,
+          u.created_at,
+
+          (
+            SELECT s.price 
+            FROM "Service" s 
+            WHERE s.garage_id = u.id AND s.type = 'MOT' 
+            LIMIT 1
+          ) AS mot_price
+
+        FROM "users" u
+        WHERE
+          u.type = 'GARAGE'::"UserRole"
+          AND u.status = 1
+          AND u.has_subscription = true
+          AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > CURRENT_TIMESTAMP)
+
+        ORDER BY
+          ${
+            sortBy === GarageSortBy.PRICE_LOW_TO_HIGH
+              ? Prisma.sql`mot_price ASC NULLS LAST,`
+              : sortBy === GarageSortBy.PRICE_HIGH_TO_LOW
+                ? Prisma.sql`mot_price DESC NULLS LAST,`
+                : Prisma.empty
+          }
+          u.created_at DESC,
+          u.garage_name ASC,
+          u.id ASC
+
+        LIMIT ${safeLimit}
+        OFFSET ${offset};
+      `),
         this.prisma.user.count({
           where: {
             type: UserRole.GARAGE,
@@ -302,7 +318,7 @@ export class VehicleGarageService {
       ]);
 
       return {
-        garages: find_garages.map((garage) => ({
+        garages: rows.map((garage) => ({
           id: garage.id,
           garage_name: garage.garage_name || 'Unnamed Garage',
           address: garage.address || 'Address not provided',
@@ -314,9 +330,7 @@ export class VehicleGarageService {
             ? SojebStorage.url(appConfig().storageUrl.avatar + garage.avatar)
             : null,
           distance_miles: undefined,
-          mot_price: garage.services?.[0]?.price
-            ? Number(garage.services[0].price)
-            : undefined,
+          mot_price: garage.mot_price ? Number(garage.mot_price) : undefined,
         })),
         total_count: count,
       };
