@@ -193,7 +193,9 @@ export class GarageBookingService {
           },
         },
       },
-      orderBy: {},
+      orderBy: {
+        ...(date_filter !== DateFilter.ALL ? { order_date: 'asc' } : {}),
+      },
       skip,
       take: limit,
     });
