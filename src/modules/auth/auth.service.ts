@@ -14,6 +14,7 @@ import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
 import { Role } from 'src/common/guard/role/role.enum';
 import { SubscriptionVisibilityService } from '../../common/lib/subscription/subscription-visibility.service';
+import { ServiceType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -468,6 +469,27 @@ export class AuthService {
         primary_contact: primary_contact,
         phone_number: phone_number,
       });
+
+      if (type === Role.GARAGE) {
+        try {
+          await this.prisma.service.createMany({
+            data: [
+              {
+                garage_id: user.data.id,
+                name: 'MOT Test',
+                type: ServiceType.MOT,
+              },
+              {
+                garage_id: user.data.id,
+                name: 'MOT Retest',
+                type: ServiceType.RETEST,
+              },
+            ],
+          });
+        } catch (error) {
+          // console.log(error);
+        }
+      }
 
       if (user == null && user.success == false) {
         return {
