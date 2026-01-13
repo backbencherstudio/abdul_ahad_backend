@@ -1847,6 +1847,11 @@ export class GarageScheduleService {
 
     const targetDate = new Date(date + 'T00:00:00');
 
+    // ✅ NEW: Check if date is in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPastDate = targetDate < today;
+
     // ✅ NEW: Resolve effective hours for this date (per-day support)
     const effective = this.getEffectiveHoursForDate(
       schedule as any,
@@ -1867,6 +1872,7 @@ export class GarageScheduleService {
       },
       orderBy: { start_datetime: 'asc' },
     });
+    console.log(existingSlots);
 
     // ✅ FIXED: If holiday with no existing slots, return empty
     if (isHoliday && existingSlots.length === 0) {
@@ -2050,12 +2056,14 @@ export class GarageScheduleService {
             description: breakInfo.description || 'Break Time',
           });
         } else {
+          // ✅ NEW: Mark template slots as unavailable for past dates
+          const isAvailable = !isPastDate;
           enhancedSlots.push({
             ...templateSlot,
             type: 'BOOKABLE',
-            is_available: true,
-            is_blocked: false,
-            status: ['AVAILABLE'], // ✅ Status array
+            is_available: isAvailable,
+            is_blocked: isPastDate, // Block past template slots
+            status: isPastDate ? ['UNAVAILABLE'] : ['AVAILABLE'], // ✅ Status array
           });
         }
         processedTimeRanges.add(timeRangeKey);
