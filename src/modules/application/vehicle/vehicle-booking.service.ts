@@ -1030,6 +1030,9 @@ export class VehicleBookingService {
           to: driver.email,
           driver_name: driver.name || 'Driver',
           garage_name: garage.garage_name || 'Garage',
+          garage_address: garage.address || 'N/A',
+          garage_postcode: garage.zip_code || 'N/A',
+          garage_contact_number: garage.phone_number || 'N/A',
           service_type,
           vehicle_registration,
           booking_date,
@@ -1042,11 +1045,14 @@ export class VehicleBookingService {
         this.mailService.sendBookingNotificationToGarage({
           to: garage.email,
           driver_name: driver?.name || 'Driver',
+          driver_contact_number: driver?.phone_number || 'N/A',
           garage_name: garage.garage_name || 'Garage',
           service_type,
           vehicle_registration,
           booking_date,
           booking_time,
+          additional_services:
+            (bookingData as any).additional_services || 'None',
         });
       }
     } catch (err) {

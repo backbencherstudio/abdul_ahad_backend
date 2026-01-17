@@ -176,7 +176,12 @@ export class GarageBookingService {
         status: true,
         total_amount: true,
         garage_id: true,
-        vehicle_id: true,
+        vehicle: {
+          select: {
+            id: true,
+            registration_number: true,
+          },
+        },
         driver: {
           select: {
             id: true,

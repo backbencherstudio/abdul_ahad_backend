@@ -97,7 +97,8 @@
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk</div>
+      <div class="logo">simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co<span
+          style="font-size:0; line-height:0;">&#8203;</span>.uk</div>
       <div class="tagline">New MOT Booking Received</div>
     </div>
 
@@ -115,6 +116,9 @@
         <div class="details-row"><span class="label">Driver</span><span class="value">
             <%= driver_name %>
           </span></div>
+        <div class="details-row"><span class="label">Driver Contact Number</span><span class="value">
+            <%= driver_contact_number %>
+          </span></div>
         <div class="details-row"><span class="label">Service</span><span class="value">
             <%= service_type %>
           </span></div>
@@ -126,6 +130,9 @@
           </span></div>
         <div class="details-row"><span class="label">Time</span><span class="value">
             <%= booking_time %>
+          </span></div>
+        <div class="details-row"><span class="label">Additional Services</span><span class="value">
+            <%= additional_services %>
           </span></div>
       </div>
     </div>

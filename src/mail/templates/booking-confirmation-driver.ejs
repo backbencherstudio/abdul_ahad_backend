@@ -97,7 +97,8 @@
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co.uk</div>
+      <div class="logo">simplymot<span style="font-size:0; line-height:0;">&#8203;</span>.co<span
+          style="font-size:0; line-height:0;">&#8203;</span>.uk</div>
       <div class="tagline">MOT Booking Confirmed</div>
     </div>
 
@@ -119,6 +120,15 @@
         <h4>Booking details</h4>
         <div class="details-row"><span class="label">Garage</span><span class="value">
             <%= garage_name %>
+          </span></div>
+        <div class="details-row"><span class="label">Garage Address</span><span class="value">
+            <%= garage_address %>
+          </span></div>
+        <div class="details-row"><span class="label">Garage Postcode</span><span class="value">
+            <%= garage_postcode %>
+          </span></div>
+        <div class="details-row"><span class="label">Garage Contact Number</span><span class="value">
+            <%= garage_contact_number %>
           </span></div>
         <div class="details-row"><span class="label">Service</span><span class="value">
             <%= service_type %>

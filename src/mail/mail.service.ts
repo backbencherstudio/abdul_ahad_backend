@@ -754,6 +754,9 @@ export class MailService {
     to: string;
     driver_name: string;
     garage_name: string;
+    garage_address: string;
+    garage_postcode: string;
+    garage_contact_number: string;
     service_type: string;
     vehicle_registration: string;
     booking_date: string; // formatted date
@@ -773,6 +776,9 @@ export class MailService {
           support_email: appConfig().mail.from,
           driver_name: params.driver_name,
           garage_name: params.garage_name,
+          garage_address: params.garage_address,
+          garage_postcode: params.garage_postcode,
+          garage_contact_number: params.garage_contact_number,
           service_type: params.service_type,
           vehicle_registration: params.vehicle_registration,
           booking_date: params.booking_date,
@@ -788,11 +794,13 @@ export class MailService {
   async sendBookingNotificationToGarage(params: {
     to: string;
     driver_name: string;
+    driver_contact_number: string;
     garage_name: string;
     service_type: string;
     vehicle_registration: string;
     booking_date: string; // formatted date
     booking_time: string; // formatted time range e.g. 10:00 - 10:30
+    additional_services: string;
   }) {
     try {
       const from = `${process.env.MAIL_FROM_NAME} <${appConfig().mail.from}>`;
@@ -807,11 +815,13 @@ export class MailService {
           app_name: process.env.APP_NAME || appConfig().app.name,
           support_email: appConfig().mail.from,
           driver_name: params.driver_name,
+          driver_contact_number: params.driver_contact_number,
           garage_name: params.garage_name,
           service_type: params.service_type,
           vehicle_registration: params.vehicle_registration,
           booking_date: params.booking_date,
           booking_time: params.booking_time,
+          additional_services: params.additional_services,
         },
       });
     } catch (error) {
