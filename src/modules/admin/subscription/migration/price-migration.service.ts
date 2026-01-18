@@ -179,7 +179,7 @@ export class PriceMigrationService {
               old_price: formatGBP(sub.original_price_pence ?? sub.price_pence),
               new_price: formatGBP(plan.price_pence),
               effective_date: scheduledAt.toDateString(),
-              billing_portal_url: `${process.env.APP_URL || 'https://app.local'}/billing`,
+              billing_portal_url: `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
             });
           }
 

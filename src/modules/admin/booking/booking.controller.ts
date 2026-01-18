@@ -32,8 +32,9 @@ export class BookingController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('status') status?: string,
-    @Query('startdate') startDate?: Date,
-    @Query('enddate') endDate?: Date,
+    @Query('startdate') startDate?: string,
+    @Query('enddate') endDate?: string,
+    @Query('search') search?: string,
   ) {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -48,6 +49,7 @@ export class BookingController {
       status,
       startDate,
       endDate,
+      search,
     );
   }
 

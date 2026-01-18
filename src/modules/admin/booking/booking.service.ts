@@ -13,33 +13,86 @@ export class BookingService {
     page: number,
     limit: number,
     status?: string,
-    startDate?: Date,
-    endDate?: Date,
+    startDate?: string,
+    endDate?: string,
+    search?: string,
   ) {
     // Validate dates if provided
     const skip = (page - 1) * limit;
 
     const whereClause: any = {};
+    const andConditions: any[] = [];
+
     if (status) {
-      whereClause.status = status;
+      andConditions.push({ status });
     }
 
     if (startDate || endDate) {
-      whereClause.created_at = {};
+      const dateFilter: any = {};
       if (startDate) {
-        const start = new Date(startDate);
+        // Ensure format YYYY-MM-DD covers the full day from 00:00:00.000
+        const start = new Date(`${startDate}T00:00:00.000Z`);
+
         if (isNaN(start.getTime())) {
           throw new BadRequestException('Invalid start date');
         }
-        whereClause.created_at.gte = start;
+        dateFilter.gte = start;
       }
       if (endDate) {
-        const end = new Date(endDate);
+        // Ensure format YYYY-MM-DD covers the full day until 23:59:59.999
+        const end = new Date(`${endDate}T23:59:59.999Z`);
+
         if (isNaN(end.getTime())) {
           throw new BadRequestException('Invalid end date');
         }
-        whereClause.created_at.lte = end;
+        dateFilter.lte = end;
       }
+      andConditions.push({
+        slot: {
+          start_datetime: dateFilter,
+        },
+      });
+    }
+
+    if (search) {
+      andConditions.push({
+        OR: [
+          { id: { contains: search, mode: 'insensitive' } },
+          {
+            driver: {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { first_name: { contains: search, mode: 'insensitive' } },
+                { last_name: { contains: search, mode: 'insensitive' } },
+                { username: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phone_number: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            garage: {
+              OR: [
+                { garage_name: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+                { first_name: { contains: search, mode: 'insensitive' } },
+                { last_name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phone_number: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            vehicle: {
+              registration_number: { contains: search, mode: 'insensitive' },
+            },
+          },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     const [bookings, total] = await Promise.all([

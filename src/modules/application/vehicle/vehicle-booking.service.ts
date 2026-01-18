@@ -150,7 +150,7 @@ export class VehicleBookingService {
         page: query.page || 1,
         limit: query.limit || 10,
         total_count: garagesWithCount.total_count,
-        search_postcode: query.postcode,
+        search_postcode: query.postcode?.toUpperCase(),
       },
     };
   }

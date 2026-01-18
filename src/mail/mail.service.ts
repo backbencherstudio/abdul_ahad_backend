@@ -104,7 +104,9 @@ export class MailService {
           old_price: params.old_price,
           new_price: params.new_price,
           effective_date: params.effective_date,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
@@ -139,7 +141,9 @@ export class MailService {
           new_price: params.new_price,
           effective_date: params.effective_date,
           next_billing_date: params.next_billing_date,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
       });
@@ -304,7 +308,9 @@ export class MailService {
           price_formatted: params.price_formatted,
           trial_end_date: params.trial_end_date,
           days_remaining: params.days_remaining,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
@@ -344,7 +350,9 @@ export class MailService {
           plan_name: params.plan_name,
           price_formatted: params.price_formatted,
           next_billing_date: params.next_billing_date,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
@@ -384,7 +392,9 @@ export class MailService {
           garage_name: params.garage_name,
           plan_name: params.plan_name,
           price_formatted: params.price_formatted,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
@@ -495,7 +505,9 @@ export class MailService {
           price_formatted: params.price_formatted,
           currency: params.currency.toUpperCase(),
           next_billing_date: params.next_billing_date,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },
@@ -548,7 +560,9 @@ export class MailService {
           transaction_id: params.transaction_id,
           next_billing_date: params.next_billing_date,
           next_billing_amount: params.next_billing_amount,
-          billing_portal_url: params.billing_portal_url,
+          billing_portal_url:
+            params.billing_portal_url ||
+            `${process.env.CLIENT_APP_URL || 'https://app.simplymot.co.uk'}/garage/subscription`,
           support_email: appConfig().mail.from,
           app_name: process.env.APP_NAME || appConfig().app.name,
         },

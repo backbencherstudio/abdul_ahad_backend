@@ -22,9 +22,9 @@ export class SearchGarageDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Registration number is required' })
-  @Matches(/^[A-Z0-9]{2,7}$/, {
+  @Matches(/^[A-Z0-9]{2,7}$/i, {
     message:
-      'Registration number must be 2-7 characters, uppercase letters and numbers only',
+      'Registration number must be 2-7 characters, letters and numbers only',
   })
   registration_number: string;
 
